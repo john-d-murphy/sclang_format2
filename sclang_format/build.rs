@@ -17,6 +17,10 @@ fn main() {
     let mut build = cc::Build::new();
     build.include(grammar.join("src"));
     build.file(&parser);
+    build.flag_if_supported("-Wno-unused-parameter");
+    build.flag_if_supported("-Wno-unused-function");
+    build.flag_if_supported("-Wno-unused-variable");
+    build.extra_warnings(false);
 
     if scanner_cc.exists() {
         build.file(scanner_cc);
@@ -27,9 +31,5 @@ fn main() {
 
     build.compile("tree-sitter-supercollider");
 
-    println!(
-        "cargo:rerun-if-changed={}",
-        grammar.join("src").display()
-    );
+    println!("cargo:rerun-if-changed={}", grammar.join("src").display());
 }
-

@@ -1,98 +1,90 @@
 use crate::engine::{Ctx, TextEdit};
-use crate::rules::Rule;
-use anyhow::*;
-use tree_sitter::{Query, QueryCursor, StreamingIterator};
+use anyhow::Result;
+use tree_sitter::StreamingIterator; // <- required in 0.25 to iterate captures
+use tree_sitter::{Query, QueryCursor};
 
 pub struct AddSpacesAroundAssignment;
 
-impl Rule for AddSpacesAroundAssignment {
+impl AddSpacesAroundAssignment {
+    #[inline]
+    fn is_assignment_eq(bytes: &[u8], eq: usize) -> bool {
+        let len = bytes.len();
+        let prev = if eq > 0 { bytes[eq - 1] } else { b' ' };
+        let next = if eq + 1 < len { bytes[eq + 1] } else { b' ' };
+        // Skip comparison/inequality operators: ==, <=, >=, !=
+        if prev == b'=' || next == b'=' || prev == b'<' || prev == b'>' || prev == b'!' {
+            return false;
+        }
+        true
+    }
+
+    #[inline]
+    fn fix_one(bytes: &[u8], eq: usize, edits: &mut Vec<TextEdit>) {
+        // ensure exactly one space BEFORE '=' (not across newline)
+        let mut l = eq;
+        while l > 0 && bytes[l - 1].is_ascii_whitespace() && bytes[l - 1] != b'\n' {
+            l -= 1;
+        }
+        if l == eq {
+            // no space: insert one
+            edits.push(TextEdit {
+                start_byte: l,
+                end_byte: l,
+                replacement: " ".to_string(),
+            });
+        } else {
+            // normalize run of spaces to one
+            edits.push(TextEdit {
+                start_byte: l,
+                end_byte: eq,
+                replacement: " ".to_string(),
+            });
+        }
+
+        // ensure exactly one space AFTER '=' unless the next is newline
+        let mut r = eq + 1;
+        while r < bytes.len() && bytes[r].is_ascii_whitespace() && bytes[r] != b'\n' {
+            r += 1;
+        }
+        if r == eq + 1 {
+            // no space after '='
+            edits.push(TextEdit {
+                start_byte: eq + 1,
+                end_byte: eq + 1,
+                replacement: " ".to_string(),
+            });
+        } else {
+            // normalize existing whitespace to one space
+            edits.push(TextEdit {
+                start_byte: eq + 1,
+                end_byte: r,
+                replacement: " ".to_string(),
+            });
+        }
+    }
+}
+
+impl crate::rules::Rule for AddSpacesAroundAssignment {
     fn name(&self) -> &'static str {
-        "AddSpacesAroundAssignment"
+        "spaces_around_assignment"
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        let src_bytes = cx.bytes(); // Vec<u8>
+        let src_slice: &[u8] = src_bytes.as_slice(); // &[u8] for TextProvider + helpers
         let root = cx.tree.root_node();
-        let src = cx.bytes();
-        let len = src.len();
-        let mut edits: Vec<TextEdit> = Vec::new();
 
-        // capture the lone '=' token; we'll filter out ==, <=, >=, != in Rust
-        let q = Query::new(&cx.tree.language(), r#"( "=" ) @eq"#)?;
+        let q = Query::new(&cx.tree.language(), r#"("=") @eq"#)?; // needs &Language
         let mut cur = QueryCursor::new();
-        let mut it = cur.matches(&q, root, src.as_slice());
+        let mut caps = cur.captures(&q, root, src_slice); // TextProvider = &[u8]
 
-        while let Some(m) = it.next() {
-            let n = m.captures[0].node;
-            let start = n.start_byte();
-            let end = n.end_byte();
-
-            // Protect compound operators: ==, <=, >=, !=
-            let prev = if start > 0 { src[start - 1] } else { b'\n' };
-            let next = if end < len { src[end] } else { b'\n' };
-            let is_compound =
-                prev == b'=' || prev == b'!' || prev == b'<' || prev == b'>' || next == b'=';
-            if is_compound {
-                continue;
-            }
-
-            // left side: exactly one space unless touching newline or opener
-            // (don’t cross newlines; don’t add space before start-of-line)
-            let mut l = start;
-            while l > 0 && (src[l - 1] == b' ' || src[l - 1] == b'\t') {
-                l -= 1;
-            }
-            let left_newline = l > 0 && src[l - 1] == b'\n';
-            let left_opener = l > 0 && matches!(src[l - 1], b'(' | b'[' | b'{' | b'|');
-            if !left_newline && !left_opener {
-                let want = " ";
-                let have = &src[l..start];
-                if have != want.as_bytes() {
-                    edits.push(TextEdit {
-                        start_byte: l,
-                        end_byte: start,
-                        replacement: " ".into(),
-                    });
-                }
-            } else {
-                // remove any existing left spaces
-                if l < start {
-                    edits.push(TextEdit {
-                        start_byte: l,
-                        end_byte: start,
-                        replacement: String::new(),
-                    });
-                }
-            }
-
-            // right side: exactly one space unless followed by newline or closer/delims
-            let mut r = end;
-            while r < len && (src[r] == b' ' || src[r] == b'\t') {
-                r += 1;
-            }
-            let right_newline = r < len && src[r] == b'\n';
-            let right_delim = r < len && matches!(src[r], b')' | b']' | b'}' | b'|' | b',' | b';');
-            if !right_newline && !right_delim {
-                if r == end {
-                    edits.push(TextEdit {
-                        start_byte: end,
-                        end_byte: end,
-                        replacement: " ".into(),
-                    });
-                } else if r > end + 1 {
-                    edits.push(TextEdit {
-                        start_byte: end,
-                        end_byte: r,
-                        replacement: " ".into(),
-                    });
-                }
-            } else {
-                if r > end {
-                    edits.push(TextEdit {
-                        start_byte: end,
-                        end_byte: r,
-                        replacement: String::new(),
-                    });
-                }
+        let mut edits = Vec::<TextEdit>::new();
+        while let Some((m, idx)) = caps.next() {
+            let cap = m.captures[*idx]; // <- deref idx
+            let eq = cap.node.start_byte();
+            if Self::is_assignment_eq(src_slice, eq) {
+                // <- pass &[u8]
+                Self::fix_one(src_slice, eq, &mut edits); // <- pass &[u8]
             }
         }
 

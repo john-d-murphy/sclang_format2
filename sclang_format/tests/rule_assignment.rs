@@ -1,3 +1,4 @@
+use pretty_assertions::assert_eq;
 use sclang_format::format_source;
 
 #[test]
@@ -22,4 +23,11 @@ fn assignment_in_pipes() {
     let expected = "~f={|freq = 440, amp = 0.1|SinOsc.ar(freq, amp)*amp};";
     let out = format_source(input, "inline").unwrap();
     assert_eq!(out, expected);
+}
+
+#[test]
+fn assignment_avoids_comparisons() {
+    let input = "if(a==b){1}else{0}; c <= d; e >= f; g != h;";
+    let out = format_source(input, "inline").unwrap();
+    assert_eq!(out, input);
 }

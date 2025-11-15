@@ -1,0 +1,3 @@
+[submodule "vendor/tree-sitter-supercollider"]
+	path = vendor/tree-sitter-supercollider
+	url = https://github.com/madskjeldgaard/tree-sitter-supercollider

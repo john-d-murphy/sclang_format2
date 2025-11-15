@@ -1,0 +1,14 @@
+[package]
+name = "sclang_format"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tree-sitter = "0.25"
+owo-colors = "4"
+ropey = "1.6.1"
+
+[build-dependencies]
+cc = "1"

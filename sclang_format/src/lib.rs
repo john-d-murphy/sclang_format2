@@ -1,6 +1,6 @@
 pub mod engine;
-pub mod rules;
 pub mod grammar;
+pub mod rules;
 
 use anyhow::Result;
 
@@ -19,4 +19,3 @@ pub fn format_source(src: &str, phase: &str) -> Result<String> {
     }
     Ok(cx.to_string())
 }
-

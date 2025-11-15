@@ -1,4 +1,5 @@
 use sclang_format::format_source;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn commas_basic() {

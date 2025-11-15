@@ -1,5 +1,5 @@
-use pretty_assertions::assert_eq;
 use sclang_format::format_source;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn assignment_basic() {
@@ -20,7 +20,7 @@ fn assignment_does_not_touch_comparisons() {
 #[test]
 fn assignment_in_pipes() {
     let input = "~f={|freq=440 ,amp=0.1|SinOsc.ar(freq,amp)*amp};";
-    let expected = "~f={|freq = 440, amp = 0.1|SinOsc.ar(freq, amp)*amp};";
+    let expected = "~f = {|freq = 440, amp = 0.1|SinOsc.ar(freq, amp)*amp};";
     let out = format_source(input, "inline").unwrap();
     assert_eq!(out, expected);
 }

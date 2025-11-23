@@ -38,7 +38,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
         let mut edits = Vec::<TextEdit>::new();
 
         // function_block captures the whole `{ ... }`
-        let q = Query::new(&lang, r#"(function_block) @blk"#)?;
+        let q = Query::new(&lang, r"(function_block) @blk")?;
         let mut cur = QueryCursor::new();
         let mut caps = cur.captures(&q, root, src);
 

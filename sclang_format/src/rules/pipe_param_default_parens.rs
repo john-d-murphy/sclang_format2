@@ -117,8 +117,7 @@ fn is_simple_default_expr(s: &str) -> bool {
 fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
     let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
     let next = seg.get(idx + 1).copied().unwrap_or(b' ');
-    !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!')
-        && next != b'='
+    !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
 }
 
 /// AST-based “are we in a string/comment?”
@@ -255,9 +254,7 @@ impl Rule for PipeParamDefaultParens {
                         b'}' => brace -= 1,
                         b'[' => bracket += 1,
                         b']' => bracket -= 1,
-                        b',' | b'|' | b'\n'
-                            if paren == 0 && brace == 0 && bracket == 0 =>
-                        {
+                        b',' | b'|' | b'\n' if paren == 0 && brace == 0 && bracket == 0 => {
                             delim = j;
                             break;
                         }
@@ -314,4 +311,3 @@ impl Rule for PipeParamDefaultParens {
         Ok(n)
     }
 }
-

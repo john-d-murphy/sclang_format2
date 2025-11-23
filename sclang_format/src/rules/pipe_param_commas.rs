@@ -227,4 +227,3 @@ impl Rule for PipeParamAddMissingCommas {
         Ok(n)
     }
 }
-

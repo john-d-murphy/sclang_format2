@@ -91,7 +91,7 @@ impl BlockLayoutKAndR {
         let mut line_starts = Vec::<usize>::new();
         if len > 0 {
             line_starts.push(0usize);
-            for (i,&b) in bytes.iter().enumerate().take(len) {
+            for (i, &b) in bytes.iter().enumerate().take(len) {
                 if b == b'\n' && i + 1 < len {
                     line_starts.push(i + 1);
                 }

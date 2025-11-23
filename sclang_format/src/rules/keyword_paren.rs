@@ -11,12 +11,8 @@ fn is_newline(b: u8) -> bool {
 }
 
 fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_lowercase()
-        || b.is_ascii_uppercase()
-        || b.is_ascii_digit()
-        || b == b'_'
+    b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
 }
-
 
 /// Check if the quote at `i` is escaped by an odd number of backslashes.
 fn is_escaped(bytes: &[u8], i: usize) -> bool {

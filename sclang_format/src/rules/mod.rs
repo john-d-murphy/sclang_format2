@@ -24,12 +24,12 @@ mod parens_brackets;
 mod pipe_body;
 mod pipe_heads;
 mod pipe_param_commas;
+mod pipe_param_default_parens;
 mod pipe_param_layout;
 mod semicolon;
+mod trailing_closures;
 mod trailing_ws;
 mod var_arg;
-mod pipe_param_default_parens;
-mod trailing_closures;
 
 pub use arg_to_pipe::ArgToPipeParams;
 pub use assignment::AddSpacesAroundAssignment;
@@ -49,12 +49,12 @@ pub use parens_brackets::ParenBracketSpacing;
 pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
 pub use pipe_param_commas::PipeParamAddMissingCommas;
+pub use pipe_param_default_parens::PipeParamDefaultParens;
 pub use pipe_param_layout::PipeParamOnBraceLine;
 pub use semicolon::NoSpaceBeforeSemicolon;
+pub use trailing_closures::TrailingClosures;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
 pub use var_arg::VarAndArgSpacing;
-pub use pipe_param_default_parens::PipeParamDefaultParens;
-pub use trailing_closures::TrailingClosures;
 
 pub fn run_pre(_cx: &mut Ctx) -> Result<()> {
     Ok(())

@@ -30,10 +30,10 @@ c = [
 
 // arrays with trailing comments
 d = [
-    1, // one
+    1,  // one
     2,
-    3, // two and three
-    4 // four
+    3,  // two and three
+    4  // four
 ];
 
 // multi-line but already one element per line (non-literals)

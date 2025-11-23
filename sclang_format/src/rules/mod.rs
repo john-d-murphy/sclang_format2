@@ -17,7 +17,10 @@ mod colons;
 mod comma;
 mod dot;
 mod dot_chain_layout;
+mod events_multiline;
+mod extra_trailing_closures;
 mod indent_style;
+mod inline_comment_spacing;
 mod inline_ws;
 mod keyword_paren;
 mod multiline_arrays;
@@ -44,7 +47,10 @@ pub use colons::AddSpacesAroundColons;
 pub use comma::AddSpacesAfterCommas;
 pub use dot::NoSpacesAroundDot;
 pub use dot_chain_layout::DotChainLayout;
+pub use events_multiline::MultiLineEventsOnePerLine;
+pub use extra_trailing_closures::ExtraTrailingClosures;
 pub use indent_style::IndentStyleRule;
+pub use inline_comment_spacing::InlineCommentSpacing;
 pub use inline_ws::InlineWhitespaceFormat;
 pub use keyword_paren::KeywordParenSpacing;
 pub use multiline_arrays::MultiLineArrayElementsPerLine;
@@ -71,6 +77,7 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(ArgToPipeParams),
         Box::new(PipeParamOnBraceLine),
         Box::new(TrailingClosures),
+        Box::new(ExtraTrailingClosures),
         Box::new(DotChainLayout),
         // Pipe Level Semantics
         Box::new(PipeParamAddMissingCommas),
@@ -90,7 +97,9 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(NoSpacesAroundDot),
         Box::new(BraceAndPipesSingleLine),
+        Box::new(MultiLineEventsOnePerLine),
         Box::new(MultiLineArrayElementsPerLine),
+        Box::new(InlineCommentSpacing),
         Box::new(NoFinalSemicolon),
         Box::new(TrimTrailingWhitespaceAndEofNewline),
         // Global Inline Rule

@@ -18,7 +18,7 @@ expression: out
 
 // strings with quotes and backslashes
 "This string has \"quotes\" and backslashes \\ and ( parens ) and [ brackets ] and { braces }".postln;
-'this has a single quote\' and stuff'.postln; // SC-style single-quote strings are rare, but we test anyway
+'this has a single quote\' and stuff'.postln;  // SC-style single-quote strings are rare, but we test anyway
 
 // tricky escaped quotes
 "This is a \"nested \\\"quote\\\"\" test".postln;

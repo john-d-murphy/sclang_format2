@@ -18,7 +18,7 @@ SynthDef(\test, { |freq = 440|
     var w = 1.5;
 
     // strings/comments with dots should be untouched
-    "foo . bar".postln;   // foo . bar
+    "foo . bar".postln;  // foo . bar
     // comment: foo . bar
     /* block foo . bar */
 });

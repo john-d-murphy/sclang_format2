@@ -42,7 +42,9 @@ z = (x - 1) * (y + 2);
 
 // 4. Arrays, events, colons, commas
 (
-    freq: 440, amp: 0.1, pan: -0.5
+    freq: 440,
+    amp: 0.1,
+    pan: -0.5
 ).play;
 
 a = [1, 2, 3, 4];

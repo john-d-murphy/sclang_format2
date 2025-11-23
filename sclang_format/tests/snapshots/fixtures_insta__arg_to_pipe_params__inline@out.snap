@@ -1,0 +1,24 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// arg → pipe conversion
+
+x = { |foo = 3, bar = (4.dbamp)|
+    foo + bar;
+};
+
+y = { |a|
+    var z;
+    z = a * 2;
+    z;
+};
+
+// arg inside if-branches
+if (true) { |n|
+    n.postln;
+} {
+    "else".postln;
+};
+)

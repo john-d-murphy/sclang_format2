@@ -1,0 +1,25 @@
+(
+// pipe param missing commas – ORIGINAL
+
+// no comma between foo and bar
+x = {
+    |foo = 3 bar = (4.dbamp)|
+    foo + bar;
+};
+
+// no comma between freq and amp
+y = {
+    |freq = 440 amp = (4.dbamp)|
+    SinOsc.ar(freq) * amp;
+};
+
+// already has commas – should remain unchanged
+z = {
+    |a = 1, b = 2|
+    a + b;
+};
+
+// strings with pipes / equals should be untouched
+"This has |foo = 3 bar = 4| as text".postln;
+// comment: { |foo = 3 bar = 4| should not be parsed }
+)

@@ -6,6 +6,7 @@ pub trait Rule {
     fn run(&self, cx: &mut Ctx) -> Result<usize>;
 }
 
+mod arg_to_pipe;
 mod assignment;
 mod binary_ops;
 mod block_brace;
@@ -22,10 +23,15 @@ mod keyword_paren;
 mod parens_brackets;
 mod pipe_body;
 mod pipe_heads;
+mod pipe_param_commas;
+mod pipe_param_layout;
 mod semicolon;
 mod trailing_ws;
 mod var_arg;
+mod pipe_param_default_parens;
+mod trailing_closures;
 
+pub use arg_to_pipe::ArgToPipeParams;
 pub use assignment::AddSpacesAroundAssignment;
 pub use binary_ops::AddSpacesAroundBinaryOps;
 pub use block_brace::BlockBraceSpacing;
@@ -42,9 +48,13 @@ pub use keyword_paren::KeywordParenSpacing;
 pub use parens_brackets::ParenBracketSpacing;
 pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
+pub use pipe_param_commas::PipeParamAddMissingCommas;
+pub use pipe_param_layout::PipeParamOnBraceLine;
 pub use semicolon::NoSpaceBeforeSemicolon;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
 pub use var_arg::VarAndArgSpacing;
+pub use pipe_param_default_parens::PipeParamDefaultParens;
+pub use trailing_closures::TrailingClosures;
 
 pub fn run_pre(_cx: &mut Ctx) -> Result<()> {
     Ok(())
@@ -52,7 +62,16 @@ pub fn run_pre(_cx: &mut Ctx) -> Result<()> {
 
 pub fn run_inline(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
-        // Line-Scoped Rules
+        // Structure / Layout
+        Box::new(BlockLayoutKAndR),
+        Box::new(ArgToPipeParams),
+        Box::new(PipeParamOnBraceLine),
+        Box::new(TrailingClosures),
+        Box::new(DotChainLayout),
+        // Pipe Level Semantics
+        Box::new(PipeParamAddMissingCommas),
+        Box::new(PipeParamDefaultParens),
+        // Generic Spacing Rules
         Box::new(AddSpacesAfterCommas),
         Box::new(AddSpacesAroundAssignment),
         Box::new(AddSpacesAroundBinaryOps),
@@ -68,10 +87,9 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpacesAroundDot),
         Box::new(BraceAndPipesSingleLine),
         Box::new(TrimTrailingWhitespaceAndEofNewline),
+        // Global Inline Rule
         Box::new(InlineWhitespaceFormat),
         // Block-Scoped Rules
-        Box::new(DotChainLayout),
-        Box::new(BlockLayoutKAndR),
         Box::new(IndentStyleRule),
     ];
     for r in rules {

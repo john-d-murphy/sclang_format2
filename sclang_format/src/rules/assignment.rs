@@ -31,6 +31,19 @@ impl AddSpacesAroundAssignment {
 
     #[inline]
     fn fix_one(bytes: &[u8], eq: usize, edits: &mut Vec<TextEdit>) {
+        // Don't normalize spacing if we have K&R-style block attachment (= {)
+        // Skip if right side is just a brace (possibly with whitespace before newline)
+        {
+            let mut r = eq + 1;
+            while r < bytes.len() && (bytes[r] == b' ' || bytes[r] == b'\t') {
+                r += 1;
+            }
+            if r < bytes.len() && bytes[r] == b'{' {
+                // This looks like "= {" which is K&R block attachment, don't touch it
+                return;
+            }
+        }
+
         // normalize to exactly one ASCII space around '=' without crossing newlines
         // left side
         let mut l = eq;
@@ -111,7 +124,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             seen_eq.insert(eq);
         }
 
-        // 2) Fallback scan for any '=' the query didn’t yield (robust across grammar quirks).
+        // 2) Fallback scan for any '=' the query didn't yield (robust across grammar quirks).
         for (i, &b) in src_slice.iter().enumerate() {
             if b != b'=' || seen_eq.contains(&i) {
                 continue;

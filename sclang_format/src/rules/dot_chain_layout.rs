@@ -101,6 +101,23 @@ impl Rule for DotChainLayout {
                     continue;
                 }
 
+                // Check if dot is already at line start (after indent).
+                // If so, it's already in good style—skip it.
+                {
+                    let mut check_idx = dot_idx;
+                    while check_idx > 0 && is_space(bytes[check_idx - 1]) {
+                        check_idx -= 1;
+                    }
+                    if check_idx == 0
+                        || bytes[check_idx - 1] == b'\n'
+                        || bytes[check_idx - 1] == b'\r'
+                    {
+                        // dot is at start of line (after indent), already good
+                        i += 1;
+                        continue;
+                    }
+                }
+
                 // look ahead: dots we care about are ". [spaces]* <newline>"
                 let mut j = dot_idx + 1;
                 while j < len && is_space(bytes[j]) {

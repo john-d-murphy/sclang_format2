@@ -1,0 +1,102 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+---
+source: tests / fixtures_insta.rs
+expression: out
+ - --
+(
+// block / pipe / layout stress fixture
+
+// 1. Various SynthDefs with different header styles
+SynthDef(\stressA, { |freq = 440, amp = 0.1, pan = 0|
+    var sig;
+    sig = SinOsc.ar(freq, 0, amp);
+    Out.ar(0, sig ! 2);
+});
+
+SynthDef(\stressB, { |freq = 330, amp = 0.2|
+    var sig;
+    sig = Saw.ar(freq, amp);
+    Out.ar(0, sig ! 2);
+});
+
+// arg-style block should be left alone by pipe rules
+SynthDef(\stressC, { |freq = 220, amp = 0.05|
+    var sig;
+    sig = BrownNoise.ar(amp);
+    Out.ar(0, sig ! 2);
+});
+
+// 2. If / else and else-if combinations for K&R + "} else {"
+if (Synth(\dummy).notNil) {
+    "dummy exists".postln;
+} else {
+    "no dummy".postln;
+}
+
+if (1 < 2) {
+    "ok".postln;
+} else if (2 < 3) {
+    "also ok".postln;
+} else {
+    "should never see".postln;
+}
+
+// 3. Blocks with and without pipe args
+{ |a, b, c|
+    var s = a + b + c;
+    s.postln;
+}.value;
+
+{
+    var x = 1;
+    x.squared.postln;
+}.value;
+
+// 4. Pipe header that *in the source* might start on its own line;
+// here we show the desired final layout on the brace line.
+f = { |foo = 3, bar = 4|
+    foo + bar;
+};
+
+// Another one that could have come from:
+// {
+//     |  a, b, c  |
+//     a + b + c;
+// }
+g = { |a, b, c|
+    a + b + c;
+};
+
+// 5. Method chains and dot layout
+"hello".asSymbol()
+    .asString
+    .toUpper
+    .postln;
+
+Button()
+    .states_([
+        ["one", nil, nil],
+        ["two", nil, nil]
+])
+    .action_( {
+        "clicked".postln;
+    });
+
+// 6. Arrays / collections and inline blocks
+x = [
+    "foo",
+    "bar",
+    "baz"
+];
+
+y = [1, 2, 3].collect( { |n| n * 2 });
+z = [\a, \b].do { |sym| sym.asString.postln };
+
+// 7. Strings and comments with braces / pipes / dots that must NOT be touched
+"This {should not} |change|.foo.bar".postln;
+// comment: { |a, b| a + b }.collect({ |x| x });
+/* block comment: if (c) { "nope".postln } else { "also nope".postln } */
+)

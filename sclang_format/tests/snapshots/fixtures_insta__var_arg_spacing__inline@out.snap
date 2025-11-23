@@ -17,8 +17,7 @@ SynthDef(\test1, { arg freq = 440, amp = 0.1, pan = -0.5;
 });
 
 // block with both var and arg; weird spacing
-{
-    arg x, y, z;
+{ |x, y, z|
     var local1, local2;
     local1 = x + y;
     local2 = [1, 2, 3];

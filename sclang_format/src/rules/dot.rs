@@ -18,6 +18,20 @@ impl NoSpacesAroundDot {
         }
         false
     }
+
+    #[inline]
+    fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
+        // Check if there's only whitespace (not newlines) before the dot since the last newline
+        let mut i = dot_pos;
+        while i > 0 && src[i - 1] != b'\n' && src[i - 1] != b'\r' {
+            if !src[i - 1].is_ascii_whitespace() {
+                return false;
+            }
+            i -= 1;
+        }
+        // If we got here, only whitespace exists before dot since last newline → dot is at line start
+        true
+    }
 }
 
 impl crate::rules::Rule for NoSpacesAroundDot {
@@ -41,6 +55,11 @@ impl crate::rules::Rule for NoSpacesAroundDot {
             let cap = m.captures[*idx];
             let dot = cap.node.start_byte();
             if Self::in_comment_or_string(root, dot) {
+                continue;
+            }
+
+            // Skip dots that are at the start of a line (already in desired format by dot_chain_layout)
+            if Self::is_dot_at_line_start(src, dot) {
                 continue;
             }
 

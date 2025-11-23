@@ -12,7 +12,8 @@ expression: out
 /*
     if(x>0){
         "nope".postln;
-    } { |a, b| a + b }.value;
+    }
+    { |a, b| a + b }.value;
 */
 
 // strings with quotes and backslashes

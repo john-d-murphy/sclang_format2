@@ -1,0 +1,25 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// trailing closures – ORIGINAL
+
+// classic if(c, { ... }, { ... }) form
+if (c) { "true".postln } { "false".postln };
+
+// spaced variant with semicolons inside
+if (x > 0) { "pos".postln; } { "neg".postln; };
+
+// only-do with block arg in parens
+[1, 2, 3].do { |n| n.postln; };
+
+// already trailing closure – should remain unchanged
+[10, 20].do { |n|
+    n.squared.postln;
+};
+
+// string / comment patterns that should be untouched
+"This looks like if(c, { ... }, { ... }) but is just text".postln;
+// comment: if(c, { "bad" }, { "also bad" });
+)

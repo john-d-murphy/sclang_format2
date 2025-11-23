@@ -1,6 +1,5 @@
 ---
 source: tests/fixtures_insta.rs
-assertion_line: 26
 expression: out
 ---
 (
@@ -21,8 +20,8 @@ Button()
 
 // already in good style → unchanged
 Pdef(\test)
-.play
-.stop;
+    .play
+    .stop;
 
 // comments / strings with dots should be untouched
 "This is foo().bar().baz() in a string".postln;

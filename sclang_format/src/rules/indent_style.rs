@@ -16,11 +16,9 @@ impl Rule for IndentStyleRule {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let len = bytes.len();
-        let unit = cx.indent_unit();
 
         let mut edits = Vec::new();
         let mut i = 0usize;
-        let mut logical_line = 0usize;
 
         while i < len {
             let line_start = i;
@@ -50,8 +48,8 @@ impl Rule for IndentStyleRule {
                 // compute "indent level" from current leading WS in units of columns
                 // we don't try to deduce logical nesting; we just convert style.
                 let mut cols = 0usize;
-                for k in line_start..j {
-                    match bytes[k] {
+                for &b in &bytes[line_start..j] {
+                    match b {
                         b'\t' => {
                             cols += match cx.indent_style {
                                 // tabs-as-indent: treat one tab as one "unit"
@@ -99,8 +97,6 @@ impl Rule for IndentStyleRule {
             if i < len && bytes[i] == b'\n' {
                 i += 1;
             }
-
-            logical_line += 1;
         }
 
         let n = edits.len();

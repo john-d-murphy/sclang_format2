@@ -1,0 +1,97 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// SEMANTIC / STYLE STRESS TEST
+
+// 1. arg → pipe params, missing commas, non-literal defaults
+SynthDef(\stress1, { |freq = 440, amp = 0.1, pan = (4.dbamp)|
+    var sig;
+    sig = SinOsc.ar(freq, 0, amp);
+    Out.ar(0, sig ! 2);
+});
+
+// weirder arg layout; no commas, non-literals
+g = { |foo = 3, bar = (4.dbamp), sum = (1 + 2)|
+    var x, y;
+    x = foo + bar;
+    y = x + sum;
+    y;
+};
+
+// 2. already pipe-style, but missing commas & non-literal defaults
+f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
+    var sig;
+    sig = Saw.ar(freq, env.levels[0]);
+    Out.ar(0, sig ! 2);
+};
+
+// 3. K&R vs Allman, plus binary operator spacing
+// Allman-ish if/else that should become if (...) { } else { }
+if (freq > 0) {
+    "positive".postln;
+} else {
+    "non-positive".postln;
+}
+
+// messy spacing and semicolons
+x = 1 + 2 * 3;
+y = (x > 0) && (x < 10) || x == 7;
+z = (x - 1) * (y + 2);
+
+// 4. Arrays, events, colons, commas
+(
+    freq: 440, amp: 0.1, pan: -0.5
+).play;
+
+a = [1, 2, 3, 4];
+b = ["foo", "bar", "baz"];
+
+// 5. Method chains and dot layout
+"hello".asSymbol().asString
+.toUpper.postln;
+
+Button().states_([["blorp", nil, nil]]).action_( {
+    "hey hey hey".postln;
+});
+
+// 6. Trailing closures: if + do
+
+// classic if(c, { ... }, { ... }) form
+if (flag) { "true".postln } { "false".postln };
+
+// spaced variant with semicolons inside
+if (x > 0) { "pos".postln; } { "neg".postln; };
+
+// only-do with block arg in parens
+[1, 2, 3].do { |n| n.postln; };
+
+// already trailing closure – should remain unchanged
+[10, 20].do { |n|
+    n.squared.postln;
+};
+
+// 7. Blocks with and without pipe args, var spacing
+{ |a, b, c|
+    var local1, local2;
+    local1 = a + b + c;
+    local2 = [1, 2, 3];
+    [local1, local2]
+}.value;
+
+{
+    var q = 1;
+    q.squared.postln;
+}.value;
+
+// 8. Strings / comments that must not be changed
+"This has |foo = 3 bar = 4| and if(flag, { bad }, { alsoBad }) in text".postln;
+// comment: { |foo = 3 bar = 4| should not be parsed }
+// comment: if(flag, { "bad" }, { "also bad" });
+/* block comment: SynthDef(\x, { arg a = 1 b = 2; a + b }); */
+
+// 9. Mixed bracket / paren spacing
+c = [(1), (2), (3)];
+d = f.value(10, 20);
+)

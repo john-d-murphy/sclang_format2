@@ -1,6 +1,5 @@
 ---
 source: tests/fixtures_insta.rs
-assertion_line: 26
 expression: out
 ---
 (
@@ -24,7 +23,7 @@ x = [
       3
 ];
 
-y =  {
+y = {
     var z;
         z = x.sum;
     z;

@@ -152,50 +152,65 @@ impl Rule for InlineWhitespaceFormat {
             // --- actual inline whitespace rule: normalize around assignment '=' ---
 
             if b == b'=' && is_assignment_equal(&src, i) {
-                // left side: ensure exactly one space before '='
-                let mut p = i;
-                while p > 0 && is_space(src[p - 1]) {
-                    p -= 1;
-                }
-                let lhs_ws_start = p;
-
-                if lhs_ws_start < i {
-                    // replace existing left whitespace with a single space
-                    edits.push(TextEdit {
-                        start_byte: lhs_ws_start,
-                        end_byte: i,
-                        replacement: " ".into(),
-                    });
-                } else {
-                    // no whitespace before '=', insert a single space
-                    edits.push(TextEdit {
-                        start_byte: i,
-                        end_byte: i,
-                        replacement: " ".into(),
-                    });
+                // Don't normalize spacing if we have K&R-style block attachment (= {)
+                // Check if the next non-space char is a brace
+                let mut is_kandr_attachment = false;
+                {
+                    let mut check_r = i + 1;
+                    while check_r < len && is_space(src[check_r]) {
+                        check_r += 1;
+                    }
+                    if check_r < len && src[check_r] == b'{' {
+                        is_kandr_attachment = true;
+                    }
                 }
 
-                // right side: ensure exactly one space after '='
-                let mut q = i + 1;
-                while q < len && is_space(src[q]) {
-                    q += 1;
-                }
-                let rhs_ws_end = q;
+                if !is_kandr_attachment {
+                    // left side: ensure exactly one space before '='
+                    let mut p = i;
+                    while p > 0 && is_space(src[p - 1]) {
+                        p -= 1;
+                    }
+                    let lhs_ws_start = p;
 
-                if i + 1 < rhs_ws_end {
-                    // replace existing right whitespace with a single space
-                    edits.push(TextEdit {
-                        start_byte: i + 1,
-                        end_byte: rhs_ws_end,
-                        replacement: " ".into(),
-                    });
-                } else {
-                    // no whitespace after '=', insert a single space
-                    edits.push(TextEdit {
-                        start_byte: i + 1,
-                        end_byte: i + 1,
-                        replacement: " ".into(),
-                    });
+                    if lhs_ws_start < i {
+                        // replace existing left whitespace with a single space
+                        edits.push(TextEdit {
+                            start_byte: lhs_ws_start,
+                            end_byte: i,
+                            replacement: " ".into(),
+                        });
+                    } else {
+                        // no whitespace before '=', insert a single space
+                        edits.push(TextEdit {
+                            start_byte: i,
+                            end_byte: i,
+                            replacement: " ".into(),
+                        });
+                    }
+
+                    // right side: ensure exactly one space after '='
+                    let mut q = i + 1;
+                    while q < len && is_space(src[q]) {
+                        q += 1;
+                    }
+                    let rhs_ws_end = q;
+
+                    if i + 1 < rhs_ws_end {
+                        // replace existing right whitespace with a single space
+                        edits.push(TextEdit {
+                            start_byte: i + 1,
+                            end_byte: rhs_ws_end,
+                            replacement: " ".into(),
+                        });
+                    } else {
+                        // no whitespace after '=', insert a single space
+                        edits.push(TextEdit {
+                            start_byte: i + 1,
+                            end_byte: i + 1,
+                            replacement: " ".into(),
+                        });
+                    }
                 }
             }
 

@@ -1,0 +1,147 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// GLOBAL SEMANTIC / STYLE STRESS TEST – MESSY INPUT
+
+// 1. SynthDef with arg, missing comma, non-literal defaults, events, arrays
+SynthDef(\stress, { |freq = 440, amp = 0.1, pan = (4.dbamp)|
+    var sig, outBus;
+    outBus = 0;
+    sig = SinOsc.ar(freq, 0, amp);
+    Out.ar(outBus, sig ! 2)
+});
+
+// 2. arg → pipe params, missing commas, non-literal defaults
+g = { |foo = 3, bar = (4.dbamp), sum = (1 + 2)|
+    var local1, local2;
+    local1 = foo + bar;
+    local2 = [1,
+    2,
+        3,
+        4];
+    if (local1 > 0) { "pos".postln } { "neg".postln };
+    [local1, local2]
+};
+
+// 3. already pipe style, but missing commas and non-literal defaults
+f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
+    var x, y;
+    x = freq * 2 + 1;
+    y = x - 3;
+    if (freq > 0) {
+        "freq ok".postln
+    } else {
+        "freq bad".postln
+    };
+    [x, y]
+};
+
+// 4. Multi-line event literals vs non-events
+
+(
+    freq: 440,
+    amp: 0.1,
+    pan: -0.5,
+    name: "foo:bar"  // event with inline comment
+).play;
+
+(
+    name: "baz:quux",  // colon in string
+    // full-line comment
+    detune: 0.01,
+    attack: 0.01,
+    release: 1.0
+);
+
+// looks like parens but not event (no top-level key:)
+(
+    "not an event: just data",
+    [1, 2, 3]
+);
+
+// 5. Dot chains + multiline layout
+"hello".asSymbol().asString
+.toUpper.postln;
+
+Button().states_([["blorp", nil, nil]]).action_( {
+    "button".postln
+});
+
+// 6. Control-ish methods: do + extra trailing closures
+[1, 2, 3].collect { |n| n * 2 };
+[1, 2, 3, 4].select { |n| n.even };
+[10, 20, 30].inject(0, { |acc, n| acc + n });
+[1, 2, 3].reject { |n| n == 2 };
+[1, 2, 3].detect { |n| n > 1 };
+[1, 2, 3].do { |n| while { n < 3 } { n = n + 1; "loop".postln } };
+
+// should NOT change: extra arg
+[1, 2, 3].collect( { |n| n * 2 }, 42);
+
+// 7. while keyword vs while-like
+while { x < 10 } { x = x + 1 };
+
+whilex( { x < 10 }, { x = x + 1 });
+
+// 8. K&R vs Allman blocks, binary operators, final semicolon rule
+
+h = { |a, b|
+    var arr;
+    arr = [
+        a,
+        a + 1,
+        a + 2
+];
+    arr;  // SHOULD lose this semicolon (final expr)
+};
+
+k = {
+    var r;
+    if (a > 0) {
+        r = 1
+    } else {
+        r = 0
+    };
+    r
+};
+
+// 9. Arrays – multi-line / spacing
+multi = [
+    "foo",
+    "bar",
+    "baz",
+    "quux"
+];
+
+singleLine = [1, 2, 3, 4];
+
+// 10. Blocks, pipe heads, var spacing
+
+{ |a, b, c|
+    var local1, local2;
+    local1 = a + b + c;
+    local2 = [1, 2, 3];
+    [local1, local2]
+}.value;
+
+{
+    var q = 1;
+    q.squared.postln
+}.value;
+
+// 11. Inline comments vs full-line comments
+
+x = 1 + 2;  // inline
+y = 3 * 4;  //   too many spaces before
+z = x + y;  // tab before
+
+if (x > 0) { "pos".postln }  // trailing comment
+if (x < 0) { "neg".postln }  // no space before
+
+"This has // in string".postln;  // real comment
+// full-line comment should stay the same
+/* block comment with  // and : inside: SynthDef(\x, { arg a = 1 b = 2; a + b }); */
+
+)

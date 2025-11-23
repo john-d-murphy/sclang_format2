@@ -2,11 +2,11 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-fn is_newline(b: u8) -> bool {
+const fn is_newline(b: u8) -> bool {
     b == b'\n' || b == b'\r'
 }
 
@@ -20,7 +20,7 @@ struct CommentState {
 }
 
 impl CommentState {
-    fn new() -> Self {
+    const fn new() -> Self {
         CommentState {
             in_line: false,
             in_block: false,
@@ -34,7 +34,7 @@ impl CommentState {
         self.in_line || self.in_block || self.in_single || self.in_double
     }
 
-    fn step(&mut self, b: u8) {
+    const fn step(&mut self, b: u8) {
         // already inside something
         if self.in_line {
             if b == b'\n' {
@@ -110,9 +110,7 @@ fn match_paren(bytes: &[u8], open: usize) -> Option<usize> {
 
 /// Quick check: is there *any* newline between open and close?
 fn is_multiline(bytes: &[u8], open: usize, close: usize) -> bool {
-    bytes[open + 1..close]
-        .iter()
-        .any(|&b| is_newline(b))
+    bytes[open + 1..close].iter().any(|&b| is_newline(b))
 }
 
 /// Does this `( ... )` look like an event literal, i.e. has a top-level `:`?
@@ -147,27 +145,36 @@ fn has_top_level_event_colon(bytes: &[u8], open: usize, close: usize) -> bool {
 }
 
 /// Decide whether the comma at `comma_idx` is followed by another
-/// top-level `key: value` pair inside this event.
+/// top-level `key: value` pair **on the same logical line** inside this event.
 fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, open: usize, close: usize) -> bool {
     let mut cs = CommentState::new();
     let mut par: isize = 1;
     let mut br: isize = 0;
     let mut brk: isize = 0;
 
-    // Start just after the comma, skipping whitespace and newlines.
+    // Start just after the comma, skipping horizontal whitespace (but *not*
+    // newlines). We want "per line" semantics: if the next key's `:` is on
+    // a later line, this comma shouldn't be treated as its introducer.
     let mut j = comma_idx + 1;
-    while j < close && (is_space(bytes[j]) || is_newline(bytes[j])) {
-        cs.step(bytes[j]);
+    while j < close && is_space(bytes[j]) {
         j += 1;
     }
     if j >= close {
         return false;
     }
 
-    // Now scan until we either see a top-level ':' (good) or hit another
-    // top-level comma / closing paren without seeing ':' (not a key).
+    // Now scan until we either:
+    // - see a top-level ':' before any top-level newline/comma/closing paren → true
+    // - hit a top-level newline/comma/closing paren first → false
     for k in j..close {
         let c = bytes[k];
+
+        // A top-level newline means we've moved to the next logical line
+        // without seeing a colon for a new key.
+        if is_newline(c) && par == 1 && br == 0 && brk == 0 {
+            return false;
+        }
+
         cs.step(c);
         if cs.in_comment_or_string() {
             continue;
@@ -177,7 +184,9 @@ fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, open: usize, close: us
             b'(' => par += 1,
             b')' => {
                 par -= 1;
-                if par < 1 {
+                // If we close the outer paren without seeing a top-level ':',
+                // this comma wasn't starting another key.
+                if par == 0 {
                     return false;
                 }
             }
@@ -185,13 +194,19 @@ fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, open: usize, close: us
             b'}' => br -= 1,
             b'[' => brk += 1,
             b']' => brk -= 1,
+
+            // Found a top-level colon on the *same line* → this comma starts
+            // another `key: value` pair.
             b':' if par == 1 && br == 0 && brk == 0 => {
                 return true;
             }
+
+            // Hit another top-level comma or the closing paren before any ':'
+            // on this line → no new key here.
             b',' | b')' if par == 1 && br == 0 && brk == 0 => {
-                // hit separator/end before any colon
                 return false;
             }
+
             _ => {}
         }
     }
@@ -265,7 +280,8 @@ fn split_event_items(bytes: &[u8], open: usize, close: usize, edits: &mut Vec<Te
                 while indent_end < i && (bytes[indent_end] == b' ' || bytes[indent_end] == b'\t') {
                     indent_end += 1;
                 }
-                indent = String::from_utf8(bytes[line_start..indent_end].to_vec()).unwrap_or_default();
+                indent =
+                    String::from_utf8(bytes[line_start..indent_end].to_vec()).unwrap_or_default();
                 break 'outer;
             }
             _ => {}
@@ -353,4 +369,3 @@ impl Rule for MultiLineEventsOnePerLine {
         Ok(n)
     }
 }
-

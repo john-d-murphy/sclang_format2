@@ -1,0 +1,27 @@
+(
+// multi-line events – messy on purpose
+
+// simple event, all pairs on one line
+(
+    freq:440,amp:0.1, pan:-0.5
+).play;
+
+// event with comments and a string containing ':'
+(
+    name:"foo:bar", // inline comment here
+    // full line comment
+    detune:0.01,attack:0.01,   release: 1.0
+);
+
+// nested parens / function calls inside values
+(
+    freq:(220 + 20), amp:0.1, env:Env.perc(0.01,1.0)
+);
+
+// looks like parens but is NOT an event (no top-level key:)
+(
+    "this: is in a string",
+    [1,2,3]
+);
+)
+

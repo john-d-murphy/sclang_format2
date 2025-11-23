@@ -1,0 +1,44 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// extra trailing closures – methods + while
+
+// should become .collect { ... }
+[1, 2, 3].collect { |x| x * 2 };
+
+// should become .select { ... }
+[1, 2, 3, 4].select { |x| x.even };
+
+// should become .reject { ... }
+[1, 2, 3, 4].reject { |x| x.odd };
+
+// should become .detect { ... }
+[1, 2, 3, 4].detect { |x| x > 2 };
+
+// should become .inject { ... }
+[1, 2, 3].inject(0, { |acc, x| acc + x });
+
+// should NOT change: extra non-block arg
+[1, 2, 3].collect( { |x| x * 2 },  // comment
+    123);
+
+// should NOT change: not a block
+[1, 2, 3].collect(42);
+
+// while with block args → should become trailing closures
+while { x < 10 } { x = x + 1; "loop".postln };
+
+// while-like name but not keyword → should NOT change
+whilex( { x < 10 }, { x = x + 1 });
+
+// nested blocks inside block arg
+[1, 2, 3].collect { |x|
+    if (x > 1) {
+        x * 2
+    } {
+        x
+    }
+};
+)

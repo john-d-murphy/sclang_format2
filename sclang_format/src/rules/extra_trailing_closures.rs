@@ -4,7 +4,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-fn is_ident_char(b: u8) -> bool {
+const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
@@ -68,11 +68,10 @@ impl ScanState {
         }
         if b == b'"' {
             self.in_double_str = true;
-            return;
         }
     }
 
-    fn in_comment_or_string(&self) -> bool {
+    const fn in_comment_or_string(&self) -> bool {
         self.in_line_comment || self.in_block_comment || self.in_single_str || self.in_double_str
     }
 }
@@ -197,7 +196,7 @@ fn rewrite_method_trailing_block(bytes: &[u8], dot: usize, name: &str) -> Option
     }
 
     let block_src = std::str::from_utf8(&bytes[inner_start..inner_end]).ok()?;
-    let replacement = format!(" {}", block_src);
+    let replacement = format!(" {block_src}");
 
     Some(TextEdit {
         start_byte: open,
@@ -220,7 +219,7 @@ fn is_keyword_at(bytes: &[u8], idx: usize, kw: &[u8]) -> bool {
     if idx + kw_len < bytes.len() && is_ident_char(bytes[idx + kw_len]) {
         return false;
     }
-    return true;
+    true
 }
 
 /// while({ cond }, { body })  →  while { cond } { body }
@@ -292,7 +291,7 @@ fn rewrite_while_call(bytes: &[u8], idx: usize) -> Option<TextEdit> {
 
     let cond_src = std::str::from_utf8(&bytes[cond_start..=cond_end]).ok()?;
     let body_src = std::str::from_utf8(&bytes[body_start..=body_end]).ok()?;
-    let replacement = format!(" {} {}", cond_src, body_src);
+    let replacement = format!(" {cond_src} {body_src}");
 
     Some(TextEdit {
         start_byte: open,

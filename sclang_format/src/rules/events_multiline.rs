@@ -21,7 +21,7 @@ struct CommentState {
 
 impl CommentState {
     const fn new() -> Self {
-        CommentState {
+        Self {
             in_line: false,
             in_block: false,
             in_single: false,
@@ -30,7 +30,7 @@ impl CommentState {
         }
     }
 
-    fn in_comment_or_string(&self) -> bool {
+    const fn in_comment_or_string(&self) -> bool {
         self.in_line || self.in_block || self.in_single || self.in_double
     }
 
@@ -146,7 +146,7 @@ fn has_top_level_event_colon(bytes: &[u8], open: usize, close: usize) -> bool {
 
 /// Decide whether the comma at `comma_idx` is followed by another
 /// top-level `key: value` pair **on the same logical line** inside this event.
-fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, open: usize, close: usize) -> bool {
+fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, _open: usize, close: usize) -> bool {
     let mut cs = CommentState::new();
     let mut par: isize = 1;
     let mut br: isize = 0;
@@ -313,7 +313,7 @@ fn split_event_items(bytes: &[u8], open: usize, close: usize, edits: &mut Vec<Te
         let repl = if indent.is_empty() {
             ",\n".to_string()
         } else {
-            format!(",\n{}", indent)
+            format!(",\n{indent}")
         };
 
         edits.push(TextEdit {
@@ -350,14 +350,13 @@ impl Rule for MultiLineEventsOnePerLine {
                 continue;
             }
 
-            if b == b'(' {
-                if let Some(close) = match_paren(bytes, i) {
+            if b == b'('
+                && let Some(close) = match_paren(bytes, i) {
                     // Only bother with genuinely multi-line parens that look like events.
                     if is_multiline(bytes, i, close) && has_top_level_event_colon(bytes, i, close) {
                         split_event_items(bytes, i, close, &mut edits);
                     }
                 }
-            }
 
             i += 1;
         }

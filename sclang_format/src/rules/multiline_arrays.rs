@@ -3,7 +3,7 @@ use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
 
-fn is_space_or_tab(b: u8) -> bool {
+const fn is_space_or_tab(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
@@ -64,12 +64,9 @@ impl Rule for MultiLineArrayElementsPerLine {
                     j += 1;
                 }
 
-                let close = match close_opt {
-                    Some(c) => c,
-                    None => {
-                        i += 1;
-                        continue;
-                    }
+                let close = if let Some(c) = close_opt { c } else {
+                    i += 1;
+                    continue;
                 };
 
                 // Only operate on *multi-line* arrays.
@@ -149,7 +146,7 @@ impl Rule for MultiLineArrayElementsPerLine {
                             let replacement = if indent.is_empty() {
                                 "\n".to_string()
                             } else {
-                                format!("\n{}", indent)
+                                format!("\n{indent}")
                             };
 
                             edits.push(TextEdit {

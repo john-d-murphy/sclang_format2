@@ -20,6 +20,8 @@ mod dot_chain_layout;
 mod indent_style;
 mod inline_ws;
 mod keyword_paren;
+mod multiline_arrays;
+mod no_final_semicolon;
 mod parens_brackets;
 mod pipe_body;
 mod pipe_heads;
@@ -45,6 +47,8 @@ pub use dot_chain_layout::DotChainLayout;
 pub use indent_style::IndentStyleRule;
 pub use inline_ws::InlineWhitespaceFormat;
 pub use keyword_paren::KeywordParenSpacing;
+pub use multiline_arrays::MultiLineArrayElementsPerLine;
+pub use no_final_semicolon::NoFinalSemicolon;
 pub use parens_brackets::ParenBracketSpacing;
 pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
@@ -86,6 +90,8 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(NoSpacesAroundDot),
         Box::new(BraceAndPipesSingleLine),
+        Box::new(MultiLineArrayElementsPerLine),
+        Box::new(NoFinalSemicolon),
         Box::new(TrimTrailingWhitespaceAndEofNewline),
         // Global Inline Rule
         Box::new(InlineWhitespaceFormat),

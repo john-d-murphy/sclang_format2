@@ -13,7 +13,7 @@ SynthDef(\testA, { arg freq = 440, amp = 0.1, pan = -0.5;
     var sig1, sig2;
     sig1 = SinOsc.ar(freq.linexp(0, 1, 200, 2000)) * 0.1;
     sig2 = sig1 ! 2;
-    Out.ar(0, sig2);
+    Out.ar(0, sig2)
 });
 
 // NodeProxy / JITLib style
@@ -30,7 +30,7 @@ SynthDef(\testA, { arg freq = 440, amp = 0.1, pan = -0.5;
 
 // arrays / indexing / calls
 var arr = [1, 2, 3];
-[1, 2, 3].do { |x, i| (x + i).postln;};
+[1, 2, 3].do { |x, i| (x + i).postln};
 arr[0];
 arr[1];
 foo(1, 2);
@@ -44,12 +44,12 @@ d = a * -1 + (-b);
 
 // control keywords
 if (a > 0) {
-    "a>0".postln;
+    "a>0".postln
 };
 while (true) {
-    "loop".postln;
+    "loop".postln
 };
-for (0, 10, 1, { |i| i.postln; });
+for (0, 10, 1, { |i| i.postln });
 
 // trailing whitespace, dots, semicolons
 "hello".toUpper.reverse.postln;

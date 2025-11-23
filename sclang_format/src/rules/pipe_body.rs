@@ -4,12 +4,12 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
+const fn is_space(byte: u8) -> bool {
+    byte == b' ' || byte == b'\t'
 }
 
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
+const fn is_newline(byte: u8) -> bool {
+    byte == b'\n' || byte == b'\r'
 }
 
 /// Check if the quote at `i` is escaped by an odd number of backslashes.
@@ -48,11 +48,11 @@ impl Rule for PipeBodySpacing {
 
         let mut i = 0usize;
         while i < len {
-            let b = bytes[i];
+            let byte = bytes[i];
 
             // inside comments/strings
             if in_line_comment {
-                if b == b'\n' {
+                if byte == b'\n' {
                     in_line_comment = false;
                 }
                 i += 1;
@@ -60,7 +60,7 @@ impl Rule for PipeBodySpacing {
             }
 
             if in_block_comment {
-                if b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
+                if byte == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
                     in_block_comment = false;
                     i += 2;
                 } else {
@@ -70,7 +70,7 @@ impl Rule for PipeBodySpacing {
             }
 
             if in_single_str {
-                if b == b'\'' && !is_escaped(bytes, i) {
+                if byte == b'\'' && !is_escaped(bytes, i) {
                     in_single_str = false;
                 }
                 i += 1;
@@ -78,7 +78,7 @@ impl Rule for PipeBodySpacing {
             }
 
             if in_double_str {
-                if b == b'"' && !is_escaped(bytes, i) {
+                if byte == b'"' && !is_escaped(bytes, i) {
                     in_double_str = false;
                 }
                 i += 1;
@@ -86,7 +86,7 @@ impl Rule for PipeBodySpacing {
             }
 
             // entering comments/strings
-            if b == b'/' && i + 1 < len {
+            if byte == b'/' && i + 1 < len {
                 if bytes[i + 1] == b'/' {
                     in_line_comment = true;
                     i += 2;
@@ -98,20 +98,20 @@ impl Rule for PipeBodySpacing {
                 }
             }
 
-            if b == b'\'' {
+            if byte == b'\'' {
                 in_single_str = true;
                 i += 1;
                 continue;
             }
 
-            if b == b'"' {
+            if byte == b'"' {
                 in_double_str = true;
                 i += 1;
                 continue;
             }
 
             // actual rule: find `{ ... |args| body...` on a single line
-            if b == b'{' {
+            if byte == b'{' {
                 let brace_idx = i;
 
                 // first pipe on the same line, only whitespace between { and |

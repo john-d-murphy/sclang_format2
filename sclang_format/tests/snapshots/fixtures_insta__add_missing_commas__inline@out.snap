@@ -7,17 +7,17 @@ expression: out
 
 // no comma between foo and bar
 x = { |foo = 3, bar = (4.dbamp)|
-    foo + bar;
+    foo + bar
 };
 
 // no comma between freq and amp
 y = { |freq = 440, amp = (4.dbamp)|
-    SinOsc.ar(freq) * amp;
+    SinOsc.ar(freq) * amp
 };
 
 // already has commas – should remain unchanged
 z = { |a = 1, b = 2|
-    a + b;
+    a + b
 };
 
 // strings with pipes / equals should be untouched

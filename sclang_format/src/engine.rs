@@ -43,12 +43,12 @@ impl Ctx {
         })
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn indent_style(&self) -> IndentStyle {
         self.indent_style
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn indent_unit(&self) -> String {
         match self.indent_style {
             IndentStyle::Tabs => "\t".to_string(),
@@ -56,7 +56,7 @@ impl Ctx {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn bytes(&self) -> Vec<u8> {
         self.rope.to_string().into_bytes()
     }
@@ -81,12 +81,12 @@ impl Ctx {
         Ok(())
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn slice_bytes(&self, start: usize, end: usize) -> String {
         self.rope.byte_slice(start..end).to_string()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn subtree_has_error(n: tree_sitter::Node) -> bool {
         if n.is_error() {
             return true;

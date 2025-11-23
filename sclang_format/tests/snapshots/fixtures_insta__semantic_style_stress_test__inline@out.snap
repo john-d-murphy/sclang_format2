@@ -9,7 +9,7 @@ expression: out
 SynthDef(\stress1, { |freq = 440, amp = 0.1, pan = (4.dbamp)|
     var sig;
     sig = SinOsc.ar(freq, 0, amp);
-    Out.ar(0, sig ! 2);
+    Out.ar(0, sig ! 2)
 });
 
 // weirder arg layout; no commas, non-literals
@@ -17,22 +17,22 @@ g = { |foo = 3, bar = (4.dbamp), sum = (1 + 2)|
     var x, y;
     x = foo + bar;
     y = x + sum;
-    y;
+    y
 };
 
 // 2. already pipe-style, but missing commas & non-literal defaults
 f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
     var sig;
     sig = Saw.ar(freq, env.levels[0]);
-    Out.ar(0, sig ! 2);
+    Out.ar(0, sig ! 2)
 };
 
 // 3. K&R vs Allman, plus binary operator spacing
 // Allman-ish if/else that should become if (...) { } else { }
 if (freq > 0) {
-    "positive".postln;
+    "positive".postln
 } else {
-    "non-positive".postln;
+    "non-positive".postln
 }
 
 // messy spacing and semicolons
@@ -53,7 +53,7 @@ b = ["foo", "bar", "baz"];
 .toUpper.postln;
 
 Button().states_([["blorp", nil, nil]]).action_( {
-    "hey hey hey".postln;
+    "hey hey hey".postln
 });
 
 // 6. Trailing closures: if + do
@@ -62,14 +62,14 @@ Button().states_([["blorp", nil, nil]]).action_( {
 if (flag) { "true".postln } { "false".postln };
 
 // spaced variant with semicolons inside
-if (x > 0) { "pos".postln; } { "neg".postln; };
+if (x > 0) { "pos".postln } { "neg".postln };
 
 // only-do with block arg in parens
-[1, 2, 3].do { |n| n.postln; };
+[1, 2, 3].do { |n| n.postln };
 
 // already trailing closure – should remain unchanged
 [10, 20].do { |n|
-    n.squared.postln;
+    n.squared.postln
 };
 
 // 7. Blocks with and without pipe args, var spacing
@@ -82,7 +82,7 @@ if (x > 0) { "pos".postln; } { "neg".postln; };
 
 {
     var q = 1;
-    q.squared.postln;
+    q.squared.postln
 }.value;
 
 // 8. Strings / comments that must not be changed

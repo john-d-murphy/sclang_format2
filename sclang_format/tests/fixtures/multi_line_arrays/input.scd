@@ -1,0 +1,46 @@
+(
+// multi-line arrays – ORIGINAL
+
+// mixed elements on same line → should go one per line
+a = [
+    1, 2, 3,
+    4, 5
+];
+
+// already one-per-line → unchanged except for minor spacing
+b = [
+    "foo",
+    "bar",
+    "baz"
+];
+
+// nested arrays, inner commas must not be touched
+c = [
+    [1, 2], [3, 4],
+    5
+];
+
+// arrays with trailing comments
+d = [
+    1,  // one
+    2, 3,  // two and three
+    4 // four
+];
+
+// multi-line but already one element per line (non-literals)
+e = [
+    (1 + 2),
+    (3 * 4)
+];
+
+// single-line array → unchanged
+f = [10, 20, 30];
+
+// single-line nested array → unchanged
+g = [[1, 2], [3, 4]];
+
+// string/comment with brackets should be untouched
+"This has [1, 2, 3] in text".postln;
+// comment: [1, 2, 3]
+)
+

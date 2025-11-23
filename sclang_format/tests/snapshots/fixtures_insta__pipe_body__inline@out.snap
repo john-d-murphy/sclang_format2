@@ -18,7 +18,7 @@ expression: out
 // blocks without pipes should be untouched
 {
     var x = 1;
-    x.squared.postln;
+    x.squared.postln
 }.value;
 
 // strings/comments with pipes should be untouched

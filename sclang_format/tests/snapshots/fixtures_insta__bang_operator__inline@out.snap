@@ -18,10 +18,10 @@ flag = true;
 x = !flag;
 y = a && !b;
 if (!flag) {
-    "nope".postln;
+    "nope".postln
 };
 while (!flag) {
-    "loop".postln;
+    "loop".postln
 };
 
 // strings/comments with ! should be untouched

@@ -25,7 +25,7 @@ expression: out
 [
     (freq: 220, amp: 0.1),
     (freq: 440, amp: 0.2)
-].do { |ev| ev.play; };
+].do { |ev| ev.play };
 
 // strings/comments with ':' should be untouched
 "This:should:not:change".postln;

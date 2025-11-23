@@ -2,4 +2,4 @@
 source: tests/fixtures_insta.rs
 expression: out
 ---
-[1, 2, 3].do { |x, i| (x + i).postln;};
+[1, 2, 3].do { |x, i| (x + i).postln};

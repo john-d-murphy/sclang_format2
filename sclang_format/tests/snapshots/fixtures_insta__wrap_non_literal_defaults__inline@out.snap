@@ -7,21 +7,21 @@ expression: out
 
 // non-literal defaults without parentheses yet
 f = { |foo = 3, bar = (4.dbamp), sum = (1 + 2)|
-    foo + bar + sum;
+    foo + bar + sum
 };
 
 // symbol / string / bool / nil defaults: should remain unchanged
 g = { |mode = \major, name = "foo", flag = true, nothing = nil|
-    [mode, name, flag, nothing].postln;
+    [mode, name, flag, nothing].postln
 };
 
 // already parenthesized default: should remain unchanged
 h = { |env = (Env.perc(0.01, 1.0))|
-    env;
+    env
 };
 
 // mixture: literal + non-literal call without parens yet
 k = { |freq = 440, filt = (RLPF.ar(freq, 1000, 0.1))|
-    filt;
+    filt
 };
 )

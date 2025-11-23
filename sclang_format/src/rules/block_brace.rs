@@ -38,9 +38,8 @@ fn fix_before_brace(bytes: &[u8], brace: usize, edits: &mut Vec<TextEdit>) {
         ws_start -= 1;
     }
 
-    let prev_index = match ws_start.checked_sub(1) {
-        Some(idx) => idx,
-        None => return,
+    let Some(prev_index) = ws_start.checked_sub(1) else {
+        return;
     };
 
     let prev = bytes[prev_index];

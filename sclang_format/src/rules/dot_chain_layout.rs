@@ -2,16 +2,16 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
+const fn is_space(byte: u8) -> bool {
+    byte == b' ' || byte == b'\t'
 }
 
-const fn is_ident_start(b: u8) -> bool {
-    b.is_ascii_lowercase() || b.is_ascii_uppercase() || b == b'_' || b == b'\\'
+const fn is_ident_start(byte: u8) -> bool {
+    byte.is_ascii_lowercase() || byte.is_ascii_uppercase() || byte == b'_' || byte == b'\\'
 }
 
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
+const fn is_newline(byte: u8) -> bool {
+    byte == b'\n' || byte == b'\r'
 }
 
 pub struct DotChainLayout;
@@ -34,18 +34,18 @@ impl Rule for DotChainLayout {
 
         let mut i = 0usize;
         while i < len {
-            let b = bytes[i];
+            let byte = bytes[i];
 
             // handle being inside comment/string
             if in_line_comment {
-                if b == b'\n' {
+                if byte == b'\n' {
                     in_line_comment = false;
                 }
                 i += 1;
                 continue;
             }
             if in_block_comment {
-                if b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
+                if byte == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
                     in_block_comment = false;
                     i += 2;
                 } else {
@@ -54,14 +54,14 @@ impl Rule for DotChainLayout {
                 continue;
             }
             if in_single_str {
-                if b == b'\'' {
+                if byte == b'\'' {
                     in_single_str = false;
                 }
                 i += 1;
                 continue;
             }
             if in_double_str {
-                if b == b'"' {
+                if byte == b'"' {
                     in_double_str = false;
                 }
                 i += 1;
@@ -69,7 +69,7 @@ impl Rule for DotChainLayout {
             }
 
             // entering comment / string
-            if b == b'/' && i + 1 < len {
+            if byte == b'/' && i + 1 < len {
                 if bytes[i + 1] == b'/' {
                     in_line_comment = true;
                     i += 2;
@@ -80,19 +80,19 @@ impl Rule for DotChainLayout {
                     continue;
                 }
             }
-            if b == b'\'' {
+            if byte == b'\'' {
                 in_single_str = true;
                 i += 1;
                 continue;
             }
-            if b == b'"' {
+            if byte == b'"' {
                 in_double_str = true;
                 i += 1;
                 continue;
             }
 
             // main dot logic
-            if b == b'.' {
+            if byte == b'.' {
                 let dot_idx = i;
 
                 // don't touch decimal numbers like 1.5

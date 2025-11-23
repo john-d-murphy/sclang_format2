@@ -6,23 +6,23 @@ expression: out
 // block brace spacing – messy on purpose
 
 [1, 2, 3].do { |x|
-    x.postln;
+    x.postln
 };
 
 foo { |x, y|
-    (x + y).postln;
+    (x + y).postln
 };
 
 bar(1, 2) { |x, y|
-    x.postln;
+    x.postln
 };
 
 if (true) {
-    "ok".postln;
+    "ok".postln
 };
 
 while (false) {
-    "nope".postln;
+    "nope".postln
 };
 
 // already good spacing should stay the same

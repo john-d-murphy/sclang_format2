@@ -27,7 +27,7 @@ expression: out
 var a, b;
 a = 1 + 2;
 if (a > 0) {
-    "ok".postln;
+    "ok".postln
 };
 
 // make sure pipes inside strings don't trigger pipe rules

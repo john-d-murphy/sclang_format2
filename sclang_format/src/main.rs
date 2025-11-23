@@ -1,9 +1,9 @@
-#![warn(clippy::all)]
+#![deny(clippy::all)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 #![warn(clippy::nursery)]
 
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
 use clap::{Parser, ValueEnum};
 use std::fs;
 use std::io::{self, Read};

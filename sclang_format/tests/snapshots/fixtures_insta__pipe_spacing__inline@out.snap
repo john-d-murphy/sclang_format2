@@ -9,14 +9,14 @@ expression: out
 SynthDef(\testA, { |freq, amp, pan = 0.1|
     var sig;
     sig = SinOsc.ar(freq, 0, amp);
-    Out.ar(0, sig ! 2);
+    Out.ar(0, sig ! 2)
 });
 
 // no leading space after brace
 SynthDef(\testB, { |freq, amp|
     var sig;
     sig = PinkNoise.ar(amp);
-    Out.ar(0, sig ! 2);
+    Out.ar(0, sig ! 2)
 });
 
 // extra spaces around pipes
@@ -27,7 +27,7 @@ SynthDef(\testB, { |freq, amp|
 // blocks without pipe args should be untouched
 {
     var x = 1;
-    x.squared.postln;
+    x.squared.postln
 }.value;
 
 // strings/comments with pipes should be untouched

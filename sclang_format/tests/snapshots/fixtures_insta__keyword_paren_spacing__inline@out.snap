@@ -1,0 +1,37 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// keyword paren spacing – messy on purpose
+
+if (x > 0) {
+    "tight if".postln;
+};
+
+if (x > 1) {
+    "extra spaces".postln;
+};
+
+while (true) {
+    "loop".postln;
+};
+
+for (0, 10, 1, { |i|
+    i.postln;
+});
+
+switch (x,
+    0, { "zero".postln; },
+    1, { "one".postln; }
+);
+
+// ensure we don't touch function calls beyond the existing call/index rule
+foo(1, 2);
+bar(3, 4);
+baz(5, 6);
+
+// strings/comments with 'if(' shouldn't change
+"This has if(x > 0) and while(true) in a string".postln;
+// comment: if(x > 0) { ... }
+)

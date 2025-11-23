@@ -1,0 +1,30 @@
+(
+// indent style fixture
+
+SynthDef(\indentTest, { |freq = 440, amp = 0.1|
+	var sig;
+	if (freq > 0) {
+		 sig = SinOsc.ar(freq) * amp;
+		 sig = sig.tanh;
+	} {
+		 sig = DC.ar(0);
+	};
+	Out.ar(0, sig ! 2);
+});
+
+// mixed indent in an array and a block
+x = [
+	1,
+		2,
+  	3
+];
+
+y =
+{
+	var z;
+	    z = x.sum;
+	z;
+};
+
+)
+

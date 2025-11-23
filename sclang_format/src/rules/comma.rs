@@ -58,20 +58,18 @@ impl Rule for AddSpacesAfterCommas {
                         replacement: String::new(),
                     });
                 }
-            } else {
-                if k == end {
-                    edits.push(TextEdit {
-                        start_byte: end,
-                        end_byte: end,
-                        replacement: " ".into(),
-                    });
-                } else if k > end + 1 {
-                    edits.push(TextEdit {
-                        start_byte: end,
-                        end_byte: k,
-                        replacement: " ".into(),
-                    });
-                }
+            } else if k == end {
+                edits.push(TextEdit {
+                    start_byte: end,
+                    end_byte: end,
+                    replacement: " ".into(),
+                });
+            } else if k > end + 1 {
+                edits.push(TextEdit {
+                    start_byte: end,
+                    end_byte: k,
+                    replacement: " ".into(),
+                });
             }
         }
 

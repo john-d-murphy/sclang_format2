@@ -1,0 +1,20 @@
+(
+// variable declarations
+var x,y,z;
+
+// assignments with bad spacing
+x=1;
+y   =2;
+z=   3;
+x   =   y+z;
+
+// comparisons that should NOT be touched
+if (x==1 && y>=2 && z<=3 && z!=4) {
+    "ok".postln;
+};
+
+// strings/comments with '=' that should NOT be touched
+"foo=bar".postln;  // foo=bar should stay as-is
+// comment foo=bar
+/* block comment with foo=bar */
+)

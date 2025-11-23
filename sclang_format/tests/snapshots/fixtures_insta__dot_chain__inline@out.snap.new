@@ -1,0 +1,33 @@
+---
+source: tests/fixtures_insta.rs
+assertion_line: 26
+expression: out
+---
+(
+// dot-chain layout fixture
+
+// dots initially at end of line → should move to next line
+Button()
+    .states_([["blorp", nil, nil]])
+    .action_( {
+        "hey hey hey".postln;
+    });
+
+// another chain
+"foo".asSymbol()
+    .asString
+    .toUpper
+    .postln;
+
+// already in good style → unchanged
+Pdef(\test)
+.play
+.stop;
+
+// comments / strings with dots should be untouched
+"This is foo().bar().baz() in a string".postln;
+// Button().
+//     states_([["blorp", nil, nil]]).
+//     action_({ "nope".postln });
+
+)

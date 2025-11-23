@@ -1,0 +1,30 @@
+(
+// event / keyword colon spacing – messy on purpose
+
+// plain event
+(
+    freq:440,
+    amp :0.1,
+    pan  :  -0.5,
+    out: 0
+).play;
+
+// nested event, mixed spacing
+(
+    instrument : \default,
+    freq : 440,
+    amp:0.1,
+    env: (attack :0.01, release:  1.0)
+);
+
+// array of events
+[
+    (freq :220, amp: 0.1),
+    (freq: 440,amp :0.2)
+].do { |ev| ev.play; };
+
+// strings/comments with ':' should be untouched
+"This:should:not:change".postln;
+// comment: freq:440 amp:0.1
+/* block: freq : 440, amp : 0.1 */
+)

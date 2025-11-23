@@ -1,0 +1,37 @@
+(
+// K&R layout fixture
+
+// simple Allman-style assignment block
+x =
+{
+    y = y + 1;
+    3.rand;
+};
+
+// Allman-style if/else
+if (x > 0)
+{
+    "positive".postln;
+}
+else
+{
+    "non-positive".postln;
+}
+
+// this comment ends with an identifier; brace must NOT be moved onto it
+// block with both var and arg; weird spacing
+{
+    arg a, b;
+    var sum;
+    sum = a + b;
+    sum;
+}.value;
+
+// already K&R, should stay unchanged
+z = {
+    "already K&R".postln;
+    42;
+};
+
+)
+

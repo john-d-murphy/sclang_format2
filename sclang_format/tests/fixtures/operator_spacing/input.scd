@@ -1,0 +1,26 @@
+(
+// operator spacing – messy on purpose
+var a,b,c,x,y,z;
+
+a=1+2*3;
+b = 10-  5;
+c = (a+b)* (c-1);
+x = 1/2+ 3 /4;
+y= a==b;
+z = a!= b && c> 0 || x<=y;
+
+// comparisons & arithmetic combined
+a= (1+2 )*(3 -4);
+b = (a>0)&&(b < 10) || (c>= 5);
+
+// unary minus and plus should be preserved
+a = -1;
+b = +2;
+c = a*-1 + (-b);
+
+// strings and comments with operators should be untouched
+"This is 1+2*3 in a string".postln;
+// comment: a=1+2*3
+/* block comment: x = y+z && a==b */
+)
+

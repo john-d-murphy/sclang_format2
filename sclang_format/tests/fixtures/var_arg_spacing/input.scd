@@ -1,0 +1,29 @@
+(
+// var / arg spacing – messy on purpose
+
+var a,b , c   ,d ;
+var foo;
+
+// SynthDef with ugly arg/var spacing
+SynthDef(\test1, { arg   freq=440,amp =0.1 , pan = -0.5;
+    var   sig1 ,sig2;
+    sig1 = SinOsc.ar(freq, 0, amp);
+    sig2 = sig1!2;
+    Out.ar(0,sig2);
+});
+
+// block with both var and arg; weird spacing
+{
+    arg  x , y,z;
+    var  local1 ,local2;
+    local1=x+y;
+    local2 = [ 1,2 ,3];
+    [local1, local2]
+}.value;
+
+// strings/comments mentioning 'var ' and 'arg ' should be untouched
+"This has var a,b; and arg x,y; as text".postln;
+// comment: var a,b,c;
+// comment: arg x, y;
+)
+

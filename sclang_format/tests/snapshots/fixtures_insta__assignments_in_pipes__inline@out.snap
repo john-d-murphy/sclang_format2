@@ -1,0 +1,5 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+~f = { |freq = 440, amp = 0.1| SinOsc.ar(freq) * amp};

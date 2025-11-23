@@ -7,7 +7,7 @@ pub struct BraceAndPipesSingleLine;
 
 impl BraceAndPipesSingleLine {
     fn same_line(src: &[u8], a: usize, b: usize) -> bool {
-        !src[a..b].iter().any(|&c| c == b'\n')
+        !src[a..b].contains(&b'\n')
     }
 
     #[inline]

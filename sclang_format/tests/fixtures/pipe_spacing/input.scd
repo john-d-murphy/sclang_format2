@@ -1,0 +1,34 @@
+(
+// pipe spacing inside block heads – messy on purpose
+
+// SynthDef style
+SynthDef(\testA, { | freq , amp , pan = 0.1 |
+    var sig;
+    sig = SinOsc.ar(freq, 0, amp);
+    Out.ar(0, sig!2);
+});
+
+// no leading space after brace
+SynthDef(\testB, {|freq,amp|
+    var sig;
+    sig = PinkNoise.ar(amp);
+    Out.ar(0, sig!2);
+});
+
+// extra spaces around pipes
+{
+    |  a , b , c  |
+    a + b + c
+}.value;
+
+// blocks without pipe args should be untouched
+{
+    var x = 1;
+    x.squared.postln;
+}.value;
+
+// strings/comments with pipes should be untouched
+"This has |pipes| in a string".postln;
+// comment: { |a, b| a + b }
+)
+

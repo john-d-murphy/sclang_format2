@@ -2,15 +2,15 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-fn is_ident_start(b: u8) -> bool {
+const fn is_ident_start(b: u8) -> bool {
     b.is_ascii_lowercase() || b.is_ascii_uppercase() || b == b'_' || b == b'\\'
 }
 
-fn is_newline(b: u8) -> bool {
+const fn is_newline(b: u8) -> bool {
     b == b'\n' || b == b'\r'
 }
 

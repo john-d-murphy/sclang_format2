@@ -1,9 +1,9 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
-use anyhow::*;
+use anyhow::{Result, Ok};
 
 /// Simple whitespace predicates
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 

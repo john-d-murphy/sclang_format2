@@ -4,7 +4,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
@@ -130,7 +130,7 @@ impl Rule for ArgToPipeParams {
             }
 
             // For now we keep defaults as-is; other rules clean up spacing.
-            let pipe_str = format!("|{}|", arg_trim);
+            let pipe_str = format!("|{arg_trim}|");
 
             // build new header line: original header (without trailing ws) + space + pipe + newline
             let header_str = String::from_utf8(line1.to_vec()).unwrap_or_default();

@@ -1,6 +1,6 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
-use anyhow::*;
+use anyhow::{Result, Ok};
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 pub struct NoSpaceBeforeSemicolon;

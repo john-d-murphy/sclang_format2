@@ -2,11 +2,11 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-fn is_newline(b: u8) -> bool {
+const fn is_newline(b: u8) -> bool {
     b == b'\n' || b == b'\r'
 }
 

@@ -3,11 +3,11 @@ use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t' || b == b'\r' || b == b'\n'
 }
 
-fn is_ident_char(b: u8) -> bool {
+const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
 }
 
@@ -25,7 +25,7 @@ fn in_comment_or_string(root: &Node, byte: usize) -> bool {
 }
 
 /// Try to rewrite an `if(cond, { ... }, { ... })` or `if(cond, { ... })` call at `start_if`.
-/// Returns (start_byte, end_byte, replacement) if successful.
+/// Returns (`start_byte`, `end_byte`, replacement) if successful.
 fn rewrite_if_call(buf: &[u8], start_if: usize) -> Option<(usize, usize, String)> {
     let len = buf.len();
 
@@ -203,7 +203,7 @@ fn rewrite_if_call(buf: &[u8], start_if: usize) -> Option<(usize, usize, String)
 }
 
 /// Try to rewrite `.do({ ... })` at the given `dot` index (where buf[dot] == '.').
-/// Returns (start_byte, end_byte, replacement) for the `( ... )` part.
+/// Returns (`start_byte`, `end_byte`, replacement) for the `( ... )` part.
 fn rewrite_do_call(buf: &[u8], dot: usize) -> Option<(usize, usize, String)> {
     let len = buf.len();
     if dot + 3 >= len {
@@ -300,7 +300,7 @@ fn rewrite_do_call(buf: &[u8], dot: usize) -> Option<(usize, usize, String)> {
     }
 
     let block_str = String::from_utf8_lossy(&buf[block_start..=block_end]).to_string();
-    let replacement = format!(" {}", block_str);
+    let replacement = format!(" {block_str}");
 
     Some((open, close + 1, replacement))
 }
@@ -323,8 +323,8 @@ impl Rule for TrailingClosures {
 
         while i < len {
             // First, try `if(...)` form.
-            if i + 2 <= len && &buf[i..i + 2] == b"if" && !in_comment_or_string(&root, i) {
-                if let Some((start, end, repl)) = rewrite_if_call(buf, i) {
+            if i + 2 <= len && &buf[i..i + 2] == b"if" && !in_comment_or_string(&root, i)
+                && let Some((start, end, repl)) = rewrite_if_call(buf, i) {
                     edits.push(TextEdit {
                         start_byte: start,
                         end_byte: end,
@@ -334,11 +334,10 @@ impl Rule for TrailingClosures {
                     i = end;
                     continue;
                 }
-            }
 
             // Then, try `.do({ ... })` form.
-            if buf[i] == b'.' && !in_comment_or_string(&root, i) {
-                if let Some((start, end, repl)) = rewrite_do_call(buf, i) {
+            if buf[i] == b'.' && !in_comment_or_string(&root, i)
+                && let Some((start, end, repl)) = rewrite_do_call(buf, i) {
                     edits.push(TextEdit {
                         start_byte: start,
                         end_byte: end,
@@ -347,7 +346,6 @@ impl Rule for TrailingClosures {
                     i = end;
                     continue;
                 }
-            }
 
             i += 1;
         }

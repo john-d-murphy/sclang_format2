@@ -56,7 +56,7 @@ pub use trailing_closures::TrailingClosures;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
 pub use var_arg::VarAndArgSpacing;
 
-pub fn run_pre(_cx: &mut Ctx) -> Result<()> {
+pub const fn run_pre(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }
 
@@ -98,7 +98,7 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
     Ok(())
 }
 
-pub fn run_post(_cx: &mut Ctx) -> Result<()> {
+pub const fn run_post(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }
 

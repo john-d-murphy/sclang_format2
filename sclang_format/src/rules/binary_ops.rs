@@ -12,15 +12,15 @@ use tree_sitter::Node;
 const SINGLE_OPS: &[u8] = b"+-*/%<>!";
 const DOUBLE_OPS: &[&[u8]] = &[b"==", b"!=", b"<=", b">=", b"&&", b"||"];
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-fn is_newline(b: u8) -> bool {
+const fn is_newline(b: u8) -> bool {
     b == b'\n' || b == b'\r'
 }
 
-fn is_ascii_op_char(b: u8) -> bool {
+const fn is_ascii_op_char(b: u8) -> bool {
     matches!(
         b,
         b'+' | b'-' | b'*' | b'/' | b'%' | b'<' | b'>' | b'=' | b'&' | b'|' | b'!'

@@ -74,7 +74,7 @@ impl AddSpacesAroundColons {
                 });
             }
             // If next is newline or EOF, we want *no* spaces after colon.
-            (true, true) | (true, false) if r == len => {
+            (true, true | false) if r == len => {
                 edits.push(TextEdit {
                     start_byte: colon + 1,
                     end_byte: r,

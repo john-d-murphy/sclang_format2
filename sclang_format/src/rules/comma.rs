@@ -3,7 +3,7 @@ use crate::rules::Rule;
 use tree_sitter::StreamingIterator;
 use tree_sitter::{Query, QueryCursor};
 
-use anyhow::*;
+use anyhow::{Result, Ok};
 
 pub struct AddSpacesAfterCommas;
 

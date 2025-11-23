@@ -3,11 +3,11 @@ use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
 
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-fn is_ident_char(b: u8) -> bool {
+const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
 }
 
@@ -98,7 +98,7 @@ fn find_pipe_param_headers(buf: &[u8], root: &Node) -> Vec<(usize, usize)> {
     res
 }
 
-/// Given the bytes between `|` and `|` (seg_lo..seg_hi), insert commas between
+/// Given the bytes between `|` and `|` (`seg_lo..seg_hi`), insert commas between
 /// `foo = ... bar = ...` style params that *lack* a comma.
 fn fix_header_segment(buf: &[u8], seg_lo: usize, seg_hi: usize, edits: &mut Vec<TextEdit>) {
     let seg = &buf[seg_lo..seg_hi];

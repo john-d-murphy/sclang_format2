@@ -3,7 +3,7 @@ use crate::rules::Rule;
 use anyhow::Result;
 
 /// Whitespace
-fn is_space(b: u8) -> bool {
+const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
@@ -294,7 +294,7 @@ impl Rule for PipeParamDefaultParens {
                 let expr_trim_start = start + leading_ws;
                 let expr_trim_end = expr_trim_start + trimmed.len();
 
-                let replacement = format!("({})", trimmed);
+                let replacement = format!("({trimmed})");
 
                 edits.push(TextEdit {
                     start_byte: seg_lo + expr_trim_start,

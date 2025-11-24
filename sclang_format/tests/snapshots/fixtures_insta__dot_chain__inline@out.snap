@@ -7,21 +7,21 @@ expression: out
 
 // dots initially at end of line → should move to next line
 Button()
-.states_([["blorp", nil, nil]])
-.action_( {
-    "hey hey hey".postln
-});
+    .states_([["blorp", nil, nil]])
+    .action_( {
+        "hey hey hey".postln
+    });
 
 // another chain
 "foo".asSymbol()
-.asString
-.toUpper
-.postln;
+    .asString
+    .toUpper
+    .postln;
 
 // already in good style → unchanged
 Pdef(\test)
-.play
-.stop;
+    .play
+    .stop;
 
 // comments / strings with dots should be untouched
 "This is foo().bar().baz() in a string".postln;

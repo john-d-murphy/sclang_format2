@@ -6,20 +6,20 @@ expression: out
 (
 var a = 1;
 if (a > 0) {
-    "level 1".postln;
+"level 1".postln;
     {
-        "level 2".postln;
-        // comment should indent
-    }.value
+"level 2".postln;
+// comment should indent
+        }.value
 };
 )
 
 // 2. Mixed Collection Nesting (Array inside Event inside Array)
 [
 1,
-(
+    (
 key: "value",
-list: [
+        list: [
 10,
 20,
 30
@@ -31,12 +31,12 @@ list: [
 
 // 3. Method Definitions (if supported) & Trailing Closures
 MyClass {
-    * init {
-        var x = 10;
-        [1, 2, 3].do { |item|
-            item.postln
-        }
+ * init {
+    var x = 10;
+    [1, 2, 3].do { |item|
+item.postln
     }
+}
 }
 
 // 4. Edge Case: Empty Lines inside blocks

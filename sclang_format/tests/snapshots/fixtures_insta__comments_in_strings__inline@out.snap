@@ -10,10 +10,10 @@ expression: out
 
 // block comment with nested-looking stuff (but SC doesn't nest comments)
 /*
-if(x>0){
-"nope".postln;
-}
-{ |a, b| a + b }.value;
+    if(x>0){
+        "nope".postln;
+    }
+    { |a, b| a + b }.value;
 */
 
 // strings with quotes and backslashes

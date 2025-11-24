@@ -22,7 +22,7 @@ expression: out
 
 // should NOT change: extra non-block arg
 [1, 2, 3].collect( { |x| x * 2 },  // comment
-123);
+    123);
 
 // should NOT change: not a block
 [1, 2, 3].collect(42);

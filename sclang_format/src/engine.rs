@@ -3,6 +3,9 @@ use ropey::Rope;
 use std::fmt;
 use tree_sitter::{Language, Parser, Tree};
 
+pub mod ast;            // make `engine::ast` visible
+pub use ast::in_string_or_comment; // optional convenience re-export
+
 #[derive(Clone, Debug)]
 pub struct TextEdit {
     pub start_byte: usize,

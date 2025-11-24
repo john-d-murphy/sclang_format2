@@ -154,7 +154,7 @@ impl Rule for IndentByAstLevel {
 
             // Effective depth for *this* line.
             let mut effective_depth = depth;
-            let mut scan_start = first_non_ws + 1;
+            let scan_start = first_non_ws + 1;
 
             if !cs.in_comment_or_string() && first == b'}' {
                 // Line starts with a real closing brace: dedent this line.

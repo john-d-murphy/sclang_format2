@@ -110,7 +110,7 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(BraceAndPipesSingleLine),
         Box::new(InlineCommentSpacing),
         // 5. Indentation / global inline whitespace
-        Box::new(IndentByAstLevel),
+        Box::new(IndentStyleRule),
         Box::new(InlineWhitespaceFormat),
         // 6. Width-aware 80-col logic
         Box::new(ExpandLongIfTrailingClosures),

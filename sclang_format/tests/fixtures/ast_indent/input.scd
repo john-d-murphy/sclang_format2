@@ -1,0 +1,44 @@
+// 1. Standard Block Nesting
+(
+var a = 1;
+if (a > 0) {
+"level 1".postln;
+    {
+"level 2".postln;
+// comment should indent
+        }.value;
+};
+)
+
+// 2. Mixed Collection Nesting (Array inside Event inside Array)
+[
+1,
+    (
+key: "value",
+        list: [
+10,
+20,
+30
+],
+// closing bracket for inner list:
+    ),
+// closing parenthesis for event:
+]
+
+// 3. Method Definitions (if supported) & Trailing Closures
+MyClass {
+*init {
+    var x = 10;
+    [1, 2, 3].do { |item|
+item.postln;
+    };
+}
+}
+
+// 4. Edge Case: Empty Lines inside blocks
+{
+
+    // There was an empty line above this
+    "foo";
+
+}

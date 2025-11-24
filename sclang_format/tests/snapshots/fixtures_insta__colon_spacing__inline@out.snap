@@ -7,24 +7,24 @@ expression: out
 
 // plain event
 (
-    freq: 440,
-    amp: 0.1,
-    pan: -0.5,
-    out: 0
+freq: 440,
+amp: 0.1,
+pan: -0.5,
+out: 0
 ).play;
 
 // nested event, mixed spacing
 (
-    instrument: \default,
-    freq: 440,
-    amp: 0.1,
-    env: (attack: 0.01, release: 1.0)
+instrument: \default,
+freq: 440,
+amp: 0.1,
+env: (attack: 0.01, release: 1.0)
 );
 
 // array of events
 [
-    (freq: 220, amp: 0.1),
-    (freq: 440, amp: 0.2)
+(freq: 220, amp: 0.1),
+(freq: 440, amp: 0.2)
 ].do { |ev| ev.play };
 
 // strings/comments with ':' should be untouched

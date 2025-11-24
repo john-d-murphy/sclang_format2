@@ -203,7 +203,7 @@ fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, _open: usize, close: u
 
             // Hit another top-level comma or the closing paren before any ':'
             // on this line → no new key here.
-            b',' | b')' if par == 1 && br == 0 && brk == 0 => {
+            b',' if par == 1 && br == 0 && brk == 0 => {
                 return false;
             }
 

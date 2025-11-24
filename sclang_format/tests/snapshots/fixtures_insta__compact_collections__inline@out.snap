@@ -1,0 +1,59 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// compact collections – arrays and events
+
+// short arrays that should collapse to one line
+a = [
+1,
+2,
+3
+];
+
+b = [
+"foo",
+"bar"
+];
+
+// short event that should collapse to one line
+(
+freq: 440,
+amp: 0.1
+).play;
+
+// long array: collapsing this would blow past 80 chars, so it should stay multi-line
+c = [
+"this is a pretty long string that will push the line over eighty characters when formatted",
+"second element also quite long to keep things wide"
+];
+
+// long event: also should remain multi-line
+(
+instrument: \default,
+freq: 440,
+amp: 0.1,
+attack: 0.001,
+decay: 0.2,
+sustain: 0.8,
+release: 1.5
+);
+
+// array with inline comment – should not be collapsed
+d = [
+1,  // stay multi-line because of comment
+2,
+3
+];
+
+// event with inline comment on a field – should not be collapsed
+(
+freq: 440,  // inline comment
+amp: 0.1
+);
+
+// already single-line array/event should stay as-is
+e = [1, 2, 3, 4];
+f = (freq: 220, amp: 0.05);
+)

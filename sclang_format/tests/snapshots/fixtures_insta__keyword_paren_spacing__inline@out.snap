@@ -22,8 +22,8 @@ for (0, 10, 1, { |i|
 });
 
 switch (x,
-    0, { "zero".postln },
-    1, { "one".postln }
+0, { "zero".postln },
+1, { "one".postln }
 );
 
 // ensure we don't touch function calls beyond the existing call/index rule

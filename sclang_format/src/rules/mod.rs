@@ -8,6 +8,7 @@ pub trait Rule {
 
 mod arg_to_pipe;
 mod assignment;
+mod ast_indent;
 mod binary_ops;
 mod block_brace;
 mod block_layout;
@@ -15,9 +16,12 @@ mod brace_pipes;
 mod call_index_paren;
 mod colons;
 mod comma;
+mod compact_collections;
+mod compact_if_trailing;
 mod dot;
 mod dot_chain_layout;
 mod events_multiline;
+mod expand_if_trailing;
 mod extra_trailing_closures;
 mod indent_style;
 mod inline_comment_spacing;
@@ -38,6 +42,7 @@ mod var_arg;
 
 pub use arg_to_pipe::ArgToPipeParams;
 pub use assignment::AddSpacesAroundAssignment;
+pub use ast_indent::IndentByAstLevel;
 pub use binary_ops::AddSpacesAroundBinaryOps;
 pub use block_brace::BlockBraceSpacing;
 pub use block_layout::BlockLayoutKAndR;
@@ -45,9 +50,12 @@ pub use brace_pipes::BraceAndPipesSingleLine;
 pub use call_index_paren::CallIndexParenSpacing;
 pub use colons::AddSpacesAroundColons;
 pub use comma::AddSpacesAfterCommas;
+pub use compact_collections::CompactShortCollections;
+pub use compact_if_trailing::CompactShortIfTrailingClosures;
 pub use dot::NoSpacesAroundDot;
 pub use dot_chain_layout::DotChainLayout;
 pub use events_multiline::MultiLineEventsOnePerLine;
+pub use expand_if_trailing::ExpandLongIfTrailingClosures;
 pub use extra_trailing_closures::ExtraTrailingClosures;
 pub use indent_style::IndentStyleRule;
 pub use inline_comment_spacing::InlineCommentSpacing;
@@ -72,21 +80,24 @@ pub const fn run_pre(_cx: &mut Ctx) -> Result<()> {
 
 pub fn run_inline(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
-        // Structure / Layout
-        Box::new(BlockLayoutKAndR),
+        // 1. Semantic / AST-level transforms
         Box::new(ArgToPipeParams),
-        Box::new(PipeParamOnBraceLine),
         Box::new(TrailingClosures),
         Box::new(ExtraTrailingClosures),
+        // 2. Structural layout (braces, dots, multi-line collection shape)
+        Box::new(BlockLayoutKAndR),
+        Box::new(PipeParamOnBraceLine),
         Box::new(DotChainLayout),
-        // Pipe Level Semantics
+        Box::new(MultiLineEventsOnePerLine),
+        Box::new(MultiLineArrayElementsPerLine),
+        // 3. Pipe-header semantics (now that pipes/braces are in place)
         Box::new(PipeParamAddMissingCommas),
         Box::new(PipeParamDefaultParens),
-        // Generic Spacing Rules
-        Box::new(AddSpacesAfterCommas),
+        // 4. Local spacing & punctuation
         Box::new(AddSpacesAroundAssignment),
         Box::new(AddSpacesAroundBinaryOps),
         Box::new(AddSpacesAroundColons),
+        Box::new(AddSpacesAfterCommas),
         Box::new(VarAndArgSpacing),
         Box::new(ParenBracketSpacing),
         Box::new(PipeHeadSpacing),
@@ -97,15 +108,17 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(NoSpacesAroundDot),
         Box::new(BraceAndPipesSingleLine),
-        Box::new(MultiLineEventsOnePerLine),
-        Box::new(MultiLineArrayElementsPerLine),
         Box::new(InlineCommentSpacing),
+        // 5. Indentation / global inline whitespace
+        Box::new(IndentByAstLevel),
+        Box::new(InlineWhitespaceFormat),
+        // 6. Width-aware 80-col logic
+        Box::new(ExpandLongIfTrailingClosures),
+        Box::new(CompactShortIfTrailingClosures),
+        Box::new(CompactShortCollections),
+        // 7. Final clean-ups
         Box::new(NoFinalSemicolon),
         Box::new(TrimTrailingWhitespaceAndEofNewline),
-        // Global Inline Rule
-        Box::new(InlineWhitespaceFormat),
-        // Block-Scoped Rules
-        Box::new(IndentStyleRule),
     ];
     for r in rules {
         let _ = r.run(cx)?;

@@ -45,6 +45,9 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
             if in_string_or_comment(root, open) {
                 continue;
             }
+            if Ctx::subtree_has_error(blk) {
+                continue;
+            }
 
             // After '{' -> exactly one space (unless already before '|', both fine: we want "{ |")
             let mut after_l = open + 1;

@@ -1,7 +1,7 @@
+use crate::engine::ast::in_string_or_comment;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use tree_sitter::Node;
 
 const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t' || b == b'\r' || b == b'\n'
@@ -9,19 +9,6 @@ const fn is_space(b: u8) -> bool {
 
 const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
-}
-
-/// AST-based “are we in a string/comment?”
-fn in_comment_or_string(root: &Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
 }
 
 /// Try to rewrite an `if(cond, { ... }, { ... })` or `if(cond, { ... })` call at `start_if`.
@@ -342,7 +329,7 @@ impl TrailingClosures {
             // First, try `if(...)` form.
             if i + 2 <= len
                 && &buf[i..i + 2] == b"if"
-                && !in_comment_or_string(&root, i)
+                && !in_string_or_comment(root, i)
                 && let Some((start, end, repl)) = rewrite_if_call(buf, i)
             {
                 edits.push(TextEdit {
@@ -357,7 +344,7 @@ impl TrailingClosures {
 
             // Then, try `.do({ ... })` form.
             if buf[i] == b'.'
-                && !in_comment_or_string(&root, i)
+                && !in_string_or_comment(root, i)
                 && let Some((start, end, repl)) = rewrite_do_call(buf, i)
             {
                 edits.push(TextEdit {

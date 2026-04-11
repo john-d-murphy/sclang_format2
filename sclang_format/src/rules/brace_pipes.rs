@@ -1,26 +1,14 @@
 use anyhow::Result;
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 use crate::engine::{Ctx, TextEdit};
+use crate::engine::ast::in_string_or_comment;
 
 pub struct BraceAndPipesSingleLine;
 
 impl BraceAndPipesSingleLine {
     fn same_line(src: &[u8], a: usize, b: usize) -> bool {
         !src[a..b].contains(&b'\n')
-    }
-
-    #[inline]
-    fn in_comment_or_string(root: Node, byte: usize) -> bool {
-        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-        while let Some(n) = cur {
-            match n.kind() {
-                "comment" | "block_comment" | "line_comment" | "string" => return true,
-                _ => {}
-            }
-            cur = n.parent();
-        }
-        false
     }
 }
 
@@ -54,7 +42,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
             if !Self::same_line(src, open, close) {
                 continue;
             }
-            if Self::in_comment_or_string(root, open) {
+            if in_string_or_comment(root, open) {
                 continue;
             }
 

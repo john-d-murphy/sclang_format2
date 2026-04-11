@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
 
 use crate::engine::{Ctx, TextEdit};
+use crate::engine::ast::in_string_or_comment;
 
 pub struct AddSpacesAroundAssignment;
 
@@ -13,20 +14,6 @@ impl AddSpacesAroundAssignment {
         let prev = bytes.get(eq.wrapping_sub(1)).copied().unwrap_or_default();
         let next = bytes.get(eq + 1).copied().unwrap_or_default();
         !(prev == b'=' || next == b'=' || prev == b'<' || prev == b'>' || prev == b'!')
-    }
-
-    #[inline]
-    fn in_comment_or_string(root: Node, byte: usize) -> bool {
-        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-        while let Some(n) = cur {
-            match n.kind() {
-                // conservative skip list; extend if your grammar uses different names
-                "comment" | "block_comment" | "line_comment" | "string" => return true,
-                _ => {}
-            }
-            cur = n.parent();
-        }
-        false
     }
 
     #[inline]
@@ -129,7 +116,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             if !Self::is_assignment_eq(src_slice, eq) {
                 continue;
             }
-            if Self::in_comment_or_string(root, eq) {
+            if in_string_or_comment(root, eq) {
                 continue;
             }
             // Note: We deliberately do NOT skip pipe parameter lists here.
@@ -147,7 +134,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             if !Self::is_assignment_eq(src_slice, i) {
                 continue;
             }
-            if Self::in_comment_or_string(root, i) {
+            if in_string_or_comment(root, i) {
                 continue;
             }
             // Note: We deliberately do NOT skip pipe parameter lists here.

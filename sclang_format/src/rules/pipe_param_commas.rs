@@ -1,3 +1,4 @@
+use crate::engine::ast::in_string_or_comment;
 // src/rules/pipe_param_commas.rs
 
 use crate::engine::{Ctx, TextEdit};
@@ -184,7 +185,7 @@ fn fix_arg_style_params(src: &[u8], root: &Node, edits: &mut Vec<TextEdit>) {
             && &src[i..i + 3] == b"arg"
             && (src[i + 3] == b' ' || src[i + 3] == b'\t' || src[i + 3] == b'\n')
         {
-            if in_comment_or_string(root, i) {
+            if in_string_or_comment(*root, i) {
                 i += 1;
                 continue;
             }
@@ -300,16 +301,4 @@ fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
     let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
     let next = seg.get(idx + 1).copied().unwrap_or(b' ');
     !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
-}
-
-fn in_comment_or_string(root: &Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
 }

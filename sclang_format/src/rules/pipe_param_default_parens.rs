@@ -1,6 +1,7 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
+use crate::engine::ast::in_string_or_comment;
 
 /// Whitespace
 const fn is_space(b: u8) -> bool {
@@ -121,17 +122,6 @@ fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
 }
 
 /// AST-based “are we in a string/comment?”
-fn in_comment_or_string(root: &tree_sitter::Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
-}
 
 /// Same header detection idea as in `pipe_param_commas`:
 /// - '|' not in string/comment
@@ -144,7 +134,7 @@ fn find_pipe_param_headers(buf: &[u8], root: &tree_sitter::Node) -> Vec<(usize, 
 
     while i < len {
         if buf[i] == b'|' {
-            if in_comment_or_string(root, i) {
+            if in_string_or_comment(*root, i) {
                 i += 1;
                 continue;
             }
@@ -178,7 +168,7 @@ fn find_pipe_param_headers(buf: &[u8], root: &tree_sitter::Node) -> Vec<(usize, 
                     break;
                 }
                 if c == b'|' {
-                    if in_comment_or_string(root, k) {
+                    if in_string_or_comment(*root, k) {
                         break;
                     }
                     end_opt = Some(k);

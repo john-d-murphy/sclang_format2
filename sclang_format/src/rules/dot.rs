@@ -1,24 +1,12 @@
 use anyhow::Result;
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 use crate::engine::{Ctx, TextEdit};
+use crate::engine::ast::in_string_or_comment;
 
 pub struct NoSpacesAroundDot;
 
 impl NoSpacesAroundDot {
-    #[inline]
-    fn in_comment_or_string(root: Node, byte: usize) -> bool {
-        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-        while let Some(n) = cur {
-            match n.kind() {
-                "comment" | "block_comment" | "line_comment" | "string" => return true,
-                _ => {}
-            }
-            cur = n.parent();
-        }
-        false
-    }
-
     #[inline]
     fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
         // Check if there's only whitespace (not newlines) before the dot since the last newline
@@ -54,7 +42,7 @@ impl crate::rules::Rule for NoSpacesAroundDot {
         while let Some((m, idx)) = caps.next() {
             let cap = m.captures[*idx];
             let dot = cap.node.start_byte();
-            if Self::in_comment_or_string(root, dot) {
+            if in_string_or_comment(root, dot) {
                 continue;
             }
 

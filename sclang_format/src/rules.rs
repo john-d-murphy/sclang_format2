@@ -18,6 +18,7 @@ mod colons;
 mod comma;
 mod compact_collections;
 mod compact_if_trailing;
+mod cuddle_else;
 mod dot;
 mod dot_chain_layout;
 mod events_multiline;
@@ -30,6 +31,7 @@ mod keyword_paren;
 mod multiline_arrays;
 mod no_final_semicolon;
 mod parens_brackets;
+mod parse_check;
 mod pipe_body;
 mod pipe_heads;
 mod pipe_param_commas;
@@ -52,6 +54,7 @@ pub use colons::AddSpacesAroundColons;
 pub use comma::AddSpacesAfterCommas;
 pub use compact_collections::CompactShortCollections;
 pub use compact_if_trailing::CompactShortIfTrailingClosures;
+pub use cuddle_else::CuddleElse;
 pub use dot::NoSpacesAroundDot;
 pub use dot_chain_layout::DotChainLayout;
 pub use events_multiline::MultiLineEventsOnePerLine;
@@ -64,6 +67,7 @@ pub use keyword_paren::KeywordParenSpacing;
 pub use multiline_arrays::MultiLineArrayElementsPerLine;
 pub use no_final_semicolon::NoFinalSemicolon;
 pub use parens_brackets::ParenBracketSpacing;
+pub use parse_check::ParseCheck;
 pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
 pub use pipe_param_commas::PipeParamAddMissingCommas;
@@ -80,49 +84,88 @@ pub const fn run_pre(_cx: &mut Ctx) -> Result<()> {
 
 pub fn run_inline(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
-        // 1. Semantic / AST-level transforms
+        // 1. Semantic / AST-level transforms (may fix parse errors)
+        Box::new(PipeParamAddMissingCommas),
         Box::new(ArgToPipeParams),
         Box::new(TrailingClosures),
         Box::new(ExtraTrailingClosures),
+        Box::new(CuddleElse),
+        // 1b. Now bail if the source STILL has parse errors
+        Box::new(ParseCheck),
         // 2. Structural layout (braces, dots, multi-line collection shape)
         Box::new(BlockLayoutKAndR),
         Box::new(PipeParamOnBraceLine),
+        Box::new(PipeParamDefaultParens),
+        Box::new(BraceAndPipesSingleLine),
         Box::new(DotChainLayout),
         Box::new(MultiLineEventsOnePerLine),
         Box::new(MultiLineArrayElementsPerLine),
-        // 3. Pipe-header semantics (now that pipes/braces are in place)
-        Box::new(PipeParamAddMissingCommas),
-        Box::new(PipeParamDefaultParens),
-        // 4. Local spacing & punctuation
-        Box::new(AddSpacesAroundAssignment),
-        Box::new(AddSpacesAroundBinaryOps),
-        Box::new(AddSpacesAroundColons),
-        Box::new(AddSpacesAfterCommas),
-        Box::new(VarAndArgSpacing),
-        Box::new(ParenBracketSpacing),
-        Box::new(PipeHeadSpacing),
-        Box::new(PipeBodySpacing),
-        Box::new(CallIndexParenSpacing),
-        Box::new(KeywordParenSpacing),
-        Box::new(BlockBraceSpacing),
-        Box::new(NoSpaceBeforeSemicolon),
-        Box::new(NoSpacesAroundDot),
-        Box::new(BraceAndPipesSingleLine),
-        Box::new(InlineCommentSpacing),
-        // 5. Indentation / global inline whitespace
-        Box::new(IndentStyleRule),
-        Box::new(InlineWhitespaceFormat),
-        // 6. Width-aware 80-col logic
+        // 3. Width-aware 80-col logic (single-line vs multi-line decisions)
         Box::new(ExpandLongIfTrailingClosures),
         Box::new(CompactShortIfTrailingClosures),
         Box::new(CompactShortCollections),
-        // 7. Final clean-ups
+        // 4. Local spacing & punctuation
+        Box::new(VarAndArgSpacing),
+        Box::new(AddSpacesAfterCommas),
+        Box::new(AddSpacesAroundColons),
+        Box::new(AddSpacesAroundAssignment),
+        Box::new(AddSpacesAroundBinaryOps),
+        Box::new(ParenBracketSpacing),
+        Box::new(CallIndexParenSpacing),
+        Box::new(KeywordParenSpacing),
+        Box::new(BlockBraceSpacing),
+        Box::new(PipeHeadSpacing),
+        Box::new(PipeBodySpacing),
+        Box::new(NoSpacesAroundDot),
+        Box::new(NoSpaceBeforeSemicolon),
+        Box::new(InlineCommentSpacing),
+        // 5. Indentation / global whitespace
+        Box::new(IndentByAstLevel),
+        Box::new(InlineWhitespaceFormat),
+        // 6. Final clean-ups
         Box::new(NoFinalSemicolon),
         Box::new(TrimTrailingWhitespaceAndEofNewline),
     ];
-    for r in rules {
-        let _ = r.run(cx)?;
+
+    // Print initial state if DEBUG_RULES is set
+    let debug = std::env::var("DEBUG_RULES").is_ok();
+    if debug {
+        eprintln!("\n{}", "=".repeat(60));
+        eprintln!("INITIAL SOURCE");
+        eprintln!("{}", "=".repeat(60));
+        eprintln!("{}", String::from_utf8_lossy(&cx.bytes()));
+        eprintln!("{}\n", "=".repeat(60));
     }
+
+    for r in rules {
+        // Track the rule name in the context for debugging AST breaks
+        cx.current_rule_name = Some(r.name());
+
+        // Print after each rule
+        if debug {
+            eprintln!(">>> Running rule: {}", r.name());
+            match r.run(cx) {
+                Ok(edits) => {
+                    eprintln!(">>> Finished Running rule: {}", r.name());
+                    eprintln!("\n{}", "=".repeat(60));
+                    eprintln!("After: {} ({} edits)", r.name(), edits);
+                    eprintln!("{}", "=".repeat(60));
+                    eprintln!("{}", String::from_utf8_lossy(&cx.bytes()));
+                    eprintln!("{}\n", "=".repeat(60));
+                }
+                Err(e) => {
+                    eprintln!("Triggered by Rule: {}", r.name());
+                    return Err(e);
+                }
+            }
+        } else {
+            if let Err(e) = r.run(cx) {
+                eprintln!("Triggered by Rule: {}", r.name());
+                return Err(e);
+            }
+        }
+    }
+
     Ok(())
 }
 

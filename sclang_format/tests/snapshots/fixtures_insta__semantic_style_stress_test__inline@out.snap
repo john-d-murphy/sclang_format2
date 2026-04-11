@@ -4,6 +4,7 @@ expression: out
 ---
 (
 // SEMANTIC / STYLE STRESS TEST
+var freq = 0, flag = 0;
 
 // 1. arg → pipe params, missing commas, non-literal defaults
 SynthDef(\stress1, { |freq = 440, amp = 0.1, pan = (4.dbamp)|
@@ -31,9 +32,9 @@ f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
 // Allman-ish if/else that should become if (...) { } else { }
 if (freq > 0) {
     "positive".postln
-} else {
+} {
     "non-positive".postln
-}
+};
 
 // messy spacing and semicolons
 x = 1 + 2 * 3;
@@ -54,7 +55,7 @@ b = ["foo", "bar", "baz"];
 "hello".asSymbol().asString
 .toUpper.postln;
 
-Button().states_([["blorp", nil, nil]]).action_( {
+Button().states_([["blorp", nil, nil]]).action_({
     "hey hey hey".postln
 });
 

@@ -308,6 +308,22 @@ impl Rule for ExtraTrailingClosures {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        // Loop until no more transformations are found.
+        // This handles nested patterns similar to trailing_closures.
+        let mut total_edits = 0;
+        loop {
+            let n = self.run_pass(cx)?;
+            if n == 0 {
+                break;
+            }
+            total_edits += n;
+        }
+        Ok(total_edits)
+    }
+}
+
+impl ExtraTrailingClosures {
+    fn run_pass(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
         let bytes: &[u8] = &src;
         let len = bytes.len();

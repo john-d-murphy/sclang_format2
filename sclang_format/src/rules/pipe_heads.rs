@@ -1,31 +1,7 @@
 // src/rules/pipe_heads.rs
-
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(byte: u8) -> bool {
-    byte == b' ' || byte == b'\t'
-}
-
-const fn is_newline(byte: u8) -> bool {
-    byte == b'\n' || byte == b'\r'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
-}
 
 pub struct PipeHeadSpacing;
 
@@ -35,190 +11,180 @@ impl Rule for PipeHeadSpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
-        let len = bytes.len();
-
         let mut edits = Vec::new();
 
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
+        {
+            let tree = &cx.tree;
+            let src = cx.bytes();
+            let root = tree.root_node();
 
-        let mut i = 0usize;
-        while i < len {
-            let byte = bytes[i];
-
-            // inside comments/strings
-            if in_line_comment {
-                if byte == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_block_comment {
-                if byte == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
-            }
-
-            if in_single_str {
-                if byte == b'\'' && !is_escaped(bytes, i) {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_double_str {
-                if byte == b'"' && !is_escaped(bytes, i) {
-                    in_double_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            // entering comments/strings
-            if byte == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if byte == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-
-            if byte == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // actual rule: block heads starting with `{` then optional ws then `|`
-            if byte == b'{' {
-                let brace_idx = i;
-
-                let mut j = brace_idx + 1;
-                let mut left_pipe: Option<usize> = None;
-
-                // search to end of line for the first '|', but only allow ws before it
-                while j < len {
-                    let c = bytes[j];
-                    if is_newline(c) {
-                        break;
-                    }
-                    if c == b'|' {
-                        left_pipe = Some(j);
-                        break;
-                    }
-                    if !is_space(c) {
-                        left_pipe = None;
-                        break;
-                    }
-                    j += 1;
-                }
-
-                let Some(lp) = left_pipe else {
-                    i += 1;
-                    continue;
-                };
-
-                // now find closing pipe on the same line
-                let mut k = lp + 1;
-                let mut right_pipe: Option<usize> = None;
-                while k < len {
-                    let c = bytes[k];
-                    if is_newline(c) {
-                        break;
-                    }
-                    if c == b'|' {
-                        right_pipe = Some(k);
-                        break;
-                    }
-                    k += 1;
-                }
-
-                let Some(rp) = right_pipe else {
-                    i += 1;
-                    continue;
-                };
-
-                // 1) ensure exactly one space between '{' and first '|'
-                let l = brace_idx + 1;
-                let r = lp;
-                if l == r {
-                    // `{|` -> `{ |`
-                    edits.push(TextEdit {
-                        start_byte: l,
-                        end_byte: l,
-                        replacement: " ".to_string(),
-                    });
-                } else {
-                    // `{  |` or `{ \t |` -> `{ |`
-                    edits.push(TextEdit {
-                        start_byte: l,
-                        end_byte: r,
-                        replacement: " ".to_string(),
-                    });
-                }
-
-                // 2) remove spaces immediately *after* left pipe: `| a` -> `|a`
-                let mut inner_start = lp + 1;
-                while inner_start < len
-                    && is_space(bytes[inner_start])
-                    && !is_newline(bytes[inner_start])
-                {
-                    inner_start += 1;
-                }
-                if inner_start != lp + 1 {
-                    edits.push(TextEdit {
-                        start_byte: lp + 1,
-                        end_byte: inner_start,
-                        replacement: String::new(),
-                    });
-                }
-
-                // 3) remove spaces immediately *before* right pipe: `a |` -> `a|`
-                let mut inner_end = rp;
-                while inner_end > lp + 1
-                    && is_space(bytes[inner_end - 1])
-                    && !is_newline(bytes[inner_end - 1])
-                {
-                    inner_end -= 1;
-                }
-                if inner_end != rp {
-                    edits.push(TextEdit {
-                        start_byte: inner_end,
-                        end_byte: rp,
-                        replacement: String::new(),
-                    });
-                }
-            }
-
-            i += 1;
+            let mut cursor = root.walk();
+            visit_pipe_params(&mut cursor, &src, &mut edits);
         }
 
         let n = edits.len();
         if n > 0 {
             cx.apply_edits(edits)?;
         }
-
         Ok(n)
+    }
+}
+
+fn visit_pipe_params(cursor: &mut tree_sitter::TreeCursor, src: &[u8], edits: &mut Vec<TextEdit>) {
+    let node = cursor.node();
+
+    if node.kind() == "pipe_parameter_list" {
+        if !is_valid_context(node) {
+            return;
+        }
+        fix_pipe_spacing(node, src, edits);
+    }
+
+    if cursor.goto_first_child() {
+        loop {
+            visit_pipe_params(cursor, src, edits);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn is_valid_context(pipe_list_node: tree_sitter::Node) -> bool {
+    let mut current = pipe_list_node.parent();
+    while let Some(node) = current {
+        if node.kind() == "function_block" {
+            if let Some(parent) = node.parent() {
+                if parent.kind() == "function_call" {
+                    let mut has_receiver = false;
+                    let mut cursor = parent.walk();
+                    if cursor.goto_first_child() {
+                        loop {
+                            if cursor.field_name() == Some("receiver") {
+                                has_receiver = true;
+                                break;
+                            }
+                            if !cursor.goto_next_sibling() {
+                                break;
+                            }
+                        }
+                    }
+
+                    if !has_receiver {
+                        return false;
+                    }
+                }
+            }
+            break;
+        }
+        current = node.parent();
+    }
+    true
+}
+
+fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    // Find parent function_block to get the opening brace
+    let func_block = pipe_list.parent().and_then(|p| {
+        if p.kind() == "parameter_list" {
+            p.parent()
+        } else {
+            Some(p)
+        }
+    });
+
+    let Some(func_block) = func_block else { return };
+    if func_block.kind() != "function_block" {
+        return;
+    }
+
+    // Find the opening brace token through the AST
+    let mut brace_node = None;
+    let mut cursor = func_block.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if cursor.node().kind() == "{" {
+                brace_node = Some(cursor.node());
+                break;
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+
+    let Some(brace) = brace_node else { return };
+
+    // Find the left and right pipe tokens
+    let mut left_pipe = None;
+    let mut right_pipe = None;
+    let mut cursor = pipe_list.walk();
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            if child.kind() == "pipe_token" {
+                if left_pipe.is_none() {
+                    left_pipe = Some(child);
+                } else {
+                    right_pipe = Some(child);
+                    break;
+                }
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+
+    let Some(left) = left_pipe else { return };
+    let Some(right) = right_pipe else { return };
+
+    // 1) Ensure exactly one space between { and |
+    let brace_end = brace.end_byte();
+    let left_start = left.start_byte();
+
+    // Handle both adjacent {| and spaced { | cases
+    if brace_end <= left_start {
+        let current_spacing = &src[brace_end..left_start];
+        if current_spacing != b" " {
+            // Replace whatever spacing exists (including none) with exactly one space
+            edits.push(TextEdit {
+                start_byte: brace_end,
+                end_byte: left_start,
+                replacement: " ".to_string(),
+            });
+        }
+    }
+
+    // 2) Remove spaces immediately after left pipe
+    let inner_start = left.end_byte();
+    let mut space_end = inner_start;
+    while space_end < src.len() && (src[space_end] == b' ' || src[space_end] == b'\t') {
+        space_end += 1;
+    }
+
+    if space_end > inner_start {
+        edits.push(TextEdit {
+            start_byte: inner_start,
+            end_byte: space_end,
+            replacement: String::new(),
+        });
+    }
+
+    // 3) Remove spaces immediately before right pipe
+    let inner_end = right.start_byte();
+    let mut space_start = inner_end;
+    while space_start > left.end_byte()
+        && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
+    {
+        space_start -= 1;
+    }
+
+    if space_start < inner_end {
+        edits.push(TextEdit {
+            start_byte: space_start,
+            end_byte: inner_end,
+            replacement: String::new(),
+        });
     }
 }

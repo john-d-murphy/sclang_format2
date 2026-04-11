@@ -11,7 +11,6 @@ const fn is_newline(b: u8) -> bool {
 }
 
 fn is_line_comment(line: &[u8]) -> bool {
-    // find first non-WS char
     let mut i = 0;
     while i < line.len() && is_space(line[i]) {
         i += 1;
@@ -25,13 +24,9 @@ fn line_can_take_brace(line: &[u8]) -> bool {
     if is_line_comment(line) {
         return false;
     }
-
-    // Don't touch lines that already have a brace
     if line.iter().any(|&b| b == b'{' || b == b'}') {
         return false;
     }
-
-    // Ignore empty / all-WS lines
     let mut end = line.len();
     while end > 0 && is_space(line[end - 1]) {
         end -= 1;
@@ -39,16 +34,10 @@ fn line_can_take_brace(line: &[u8]) -> bool {
     if end == 0 {
         return false;
     }
-
     let last = line[end - 1];
-
-    // Very conservative: only lines ending with these can take a block:
-    // "x =", "if (...)", "foo]", "bar}"
     matches!(last, b'=' | b')' | b']' | b'}')
 }
 
-/// Return slice for a line starting at `start` up to but not including '\n',
-/// and the index of that '\n' or `len` if none.
 fn line_slice(bytes: &[u8], start: usize, len: usize) -> (usize, &[u8]) {
     let mut end = start;
     while end < len && bytes[end] != b'\n' {
@@ -65,7 +54,7 @@ fn leading_ws_len(line: &[u8]) -> usize {
     i
 }
 
-/// True if, ignoring leading/trailing spaces/tabs, `line` is exactly `token`.
+/// True if `line` (trimmed) is exactly `token`.
 fn is_exact_token(line: &[u8], token: &[u8]) -> bool {
     let mut start = 0;
     while start < line.len() && is_space(line[start]) {
@@ -81,13 +70,12 @@ fn is_exact_token(line: &[u8], token: &[u8]) -> bool {
 pub struct BlockLayoutKAndR;
 
 impl BlockLayoutKAndR {
-    /// Pass 1: convert Allman
+    /// Pass 1: attach open braces to headers: `if (...) \n {` -> `if (...) {`
     fn attach_open_braces(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let len = bytes.len();
         let mut edits = Vec::<TextEdit>::new();
 
-        // Collect line starts
         let mut line_starts = Vec::<usize>::new();
         if len > 0 {
             line_starts.push(0usize);
@@ -102,19 +90,16 @@ impl BlockLayoutKAndR {
             let start = w[0];
             let next_start = w[1];
 
-            // current line slice [start, line_end)
             let mut line_end = next_start;
             if line_end > start && is_newline(bytes[line_end - 1]) {
                 line_end -= 1;
             }
             let line = &bytes[start..line_end];
 
-            // Skip comments / lines that can't take a brace
             if !line_can_take_brace(line) {
                 continue;
             }
 
-            // Next line slice [next_start, next_end)
             let mut next_end = len;
             for (i_offset, &b) in bytes[next_start..len].iter().enumerate() {
                 let i = i_offset + next_start;
@@ -125,49 +110,39 @@ impl BlockLayoutKAndR {
             }
             let next_line = &bytes[next_start..next_end];
 
-            // If next line is a comment, skip
             if is_line_comment(next_line) {
                 continue;
             }
 
-            // Parse next line: must be only indent + '{' + optional spaces
             let mut j = 0usize;
             while j < next_line.len() && is_space(next_line[j]) {
                 j += 1;
             }
             if j >= next_line.len() || next_line[j] != b'{' {
-                continue; // doesn't start with '{'
+                continue;
             }
             j += 1;
 
-            // Everything after '{' on that line must be spaces
             let mut k = j;
             while k < next_line.len() && is_space(next_line[k]) {
                 k += 1;
             }
             if k != next_line.len() {
-                // there's other stuff on the line (e.g. "{ foo"), don't touch
                 continue;
             }
 
-            // At this point we know we have:
-            // [line]\n[WS]{[WS]*\n
-            // Remove from the newline after current line up through the end of the brace line.
-            let newline_pos = line_end; // index of '\n' after header line
+            let newline_pos = line_end;
             let remove_start = newline_pos;
 
-            // Preserve the newline after the brace so the next line stays on its own line
             let mut nl_end = next_end;
             if nl_end < len && is_newline(bytes[nl_end]) {
                 nl_end += 1;
-                // handle CRLF as best we can
                 if nl_end < len && bytes[nl_end] == b'\n' {
                     nl_end += 1;
                 }
             }
             let remove_end = nl_end;
 
-            // Simple attach: " {\n"
             let replacement = " {\n".to_string();
 
             edits.push(TextEdit {
@@ -184,13 +159,13 @@ impl BlockLayoutKAndR {
         Ok(n)
     }
 
-    /// Pass 2: rewrite
-    fn join_else_blocks(&self, cx: &mut Ctx) -> Result<usize> {
+    /// Pass 2: Join consecutive blocks `} \n {` -> `} {`
+    /// This supports SuperCollider's `if(c) {true} {false}` syntax.
+    fn join_chained_blocks(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let len = bytes.len();
         let mut edits = Vec::<TextEdit>::new();
 
-        // Collect line starts again on the updated buffer
         let mut line_starts = Vec::<usize>::new();
         if len > 0 {
             line_starts.push(0usize);
@@ -201,47 +176,41 @@ impl BlockLayoutKAndR {
             }
         }
 
-        for win in line_starts.windows(3) {
+        for win in line_starts.windows(2) {
             let l1_start = win[0]; // line with '}'
-            let l2_start = win[1]; // line with 'else'
-            let l3_start = win[2]; // line with '{'
+            let l2_start = win[1]; // line with '{'
 
             let (_, l1_line) = line_slice(&bytes, l1_start, len);
-            let (_, l2_line) = line_slice(&bytes, l2_start, len);
-            let (l3_nl, l3_line) = line_slice(&bytes, l3_start, len);
+            let (l2_nl, l2_line) = line_slice(&bytes, l2_start, len);
 
-            // Skip comments entirely
-            if is_line_comment(l1_line) || is_line_comment(l2_line) || is_line_comment(l3_line) {
+            if is_line_comment(l1_line) || is_line_comment(l2_line) {
                 continue;
             }
 
-            // Must be exactly "}", "else", "{"
+            // Must be exactly "}" on the first line and "{" on the second
             if !is_exact_token(l1_line, b"}") {
                 continue;
             }
-            if !is_exact_token(l2_line, b"else") {
-                continue;
-            }
-            if !is_exact_token(l3_line, b"{") {
+            if !is_exact_token(l2_line, b"{") {
                 continue;
             }
 
-            // Require same indentation on all three lines
+            // Require same indentation to merge
             let indent1 = leading_ws_len(l1_line);
             let indent2 = leading_ws_len(l2_line);
-            let indent3 = leading_ws_len(l3_line);
-            if indent1 != indent2 || indent2 != indent3 {
+            if indent1 != indent2 {
                 continue;
             }
 
+            // Get the indent string
             let indent_bytes = &l1_line[..indent1];
             let indent_str = String::from_utf8(indent_bytes.to_vec()).unwrap_or_default();
 
-            // Replacement: "<indent>} else {\n"
-            let replacement = format!("{indent_str}}} else {{\n");
+            // Replacement: "<indent>} {\n"
+            let replacement = format!("{indent_str}}} {{\n");
 
             // Replace from start of '}' line through newline after '{' line
-            let mut replace_end = l3_nl;
+            let mut replace_end = l2_nl;
             if replace_end < len && bytes[replace_end] == b'\n' {
                 replace_end += 1;
             }
@@ -267,10 +236,8 @@ impl Rule for BlockLayoutKAndR {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        // 1) Attach `{` to "header" lines (x =, if (...), etc.)
         let n1 = self.attach_open_braces(cx)?;
-        // 2) On the updated text, join `}\nelse\n{` into `} else {`
-        let n2 = self.join_else_blocks(cx)?;
+        let n2 = self.join_chained_blocks(cx)?;
         Ok(n1 + n2)
     }
 }

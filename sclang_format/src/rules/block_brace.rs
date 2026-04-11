@@ -48,6 +48,33 @@ fn fix_before_brace(bytes: &[u8], brace: usize, edits: &mut Vec<TextEdit>) {
         return;
     }
 
+    // Closed function syntax: #{ should stay together, no space
+    if prev == b'#' {
+        // Remove any whitespace between # and {
+        if ws_start < brace {
+            edits.push(TextEdit {
+                start_byte: ws_start,
+                end_byte: brace,
+                replacement: String::new(),
+            });
+        }
+        return;
+    }
+
+    // Block as first argument: ({ should stay together, no space
+    // This covers apply calls like g.({...}) and function calls like foo({...})
+    if prev == b'(' {
+        // Remove any whitespace between ( and {
+        if ws_start < brace {
+            edits.push(TextEdit {
+                start_byte: ws_start,
+                end_byte: brace,
+                replacement: String::new(),
+            });
+        }
+        return;
+    }
+
     // we want exactly one space between prev token and '{'
     if brace - ws_start == 1 && bytes[ws_start] == b' ' {
         // already exactly one space
@@ -157,5 +184,85 @@ impl Rule for BlockBraceSpacing {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{Ctx, IndentStyle};
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        let rule = BlockBraceSpacing;
+        rule.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_adds_space_before_brace() {
+        assert_eq!(format("foo{ }"), "foo { }");
+    }
+
+    #[test]
+    fn test_preserves_single_space() {
+        assert_eq!(format("foo { }"), "foo { }");
+    }
+
+    #[test]
+    fn test_normalizes_multiple_spaces() {
+        assert_eq!(format("foo   { }"), "foo { }");
+    }
+
+    #[test]
+    fn test_closed_function_no_space() {
+        // #{ should stay together - no space between # and {
+        assert_eq!(format("#{ 1 + 2 }"), "#{ 1 + 2 }");
+    }
+
+    #[test]
+    fn test_closed_function_removes_space() {
+        // Remove any existing space between # and {
+        assert_eq!(format("# { 1 + 2 }"), "#{ 1 + 2 }");
+    }
+
+    #[test]
+    fn test_closed_function_in_assignment() {
+        assert_eq!(format("x = #{ ~dur }"), "x = #{ ~dur }");
+    }
+
+    #[test]
+    fn test_closed_function_removes_space_in_assignment() {
+        assert_eq!(format("x = # { ~dur }"), "x = #{ ~dur }");
+    }
+
+    #[test]
+    fn test_block_as_argument_no_space() {
+        // ({ should stay together - no space between ( and {
+        assert_eq!(format("foo({ })"), "foo({ })");
+    }
+
+    #[test]
+    fn test_block_as_argument_removes_space() {
+        // Remove any existing space between ( and {
+        assert_eq!(format("foo( { })"), "foo({ })");
+    }
+
+    #[test]
+    fn test_apply_call_no_space() {
+        // Apply calls g.({...}) should not have space after (
+        assert_eq!(format("g.({ 1 + 2 })"), "g.({ 1 + 2 })");
+    }
+
+    #[test]
+    fn test_apply_call_removes_space() {
+        // Remove space between .( and {
+        assert_eq!(format("g.( { 1 + 2 })"), "g.({ 1 + 2 })");
     }
 }

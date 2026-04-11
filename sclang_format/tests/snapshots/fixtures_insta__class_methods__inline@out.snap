@@ -1,0 +1,17 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+MyClass {
+    *new {
+        ^super.new
+    }
+
+    *fromArray { |array|
+        ^super.new.init(array)
+    }
+
+    init { |argData|
+        data = argData
+    }
+}

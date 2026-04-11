@@ -306,13 +306,30 @@ fn rewrite_do_call(buf: &[u8], dot: usize) -> Option<(usize, usize, String)> {
 }
 
 pub struct TrailingClosures;
-
 impl Rule for TrailingClosures {
     fn name(&self) -> &'static str {
         "trailing_closures"
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        // Loop until no more transformations are found.
+        // This handles nested patterns like `2.do({ 5.do({ ... }) })` where
+        // the outer transformation on pass 1 skips the inner, which then gets
+        // transformed on pass 2.
+        let mut total_edits = 0;
+        loop {
+            let n = self.run_pass(cx)?;
+            if n == 0 {
+                break;
+            }
+            total_edits += n;
+        }
+        Ok(total_edits)
+    }
+}
+
+impl TrailingClosures {
+    fn run_pass(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let buf: &[u8] = &bytes;
         let root = cx.tree.root_node();
@@ -323,29 +340,34 @@ impl Rule for TrailingClosures {
 
         while i < len {
             // First, try `if(...)` form.
-            if i + 2 <= len && &buf[i..i + 2] == b"if" && !in_comment_or_string(&root, i)
-                && let Some((start, end, repl)) = rewrite_if_call(buf, i) {
-                    edits.push(TextEdit {
-                        start_byte: start,
-                        end_byte: end,
-                        replacement: repl,
-                    });
-                    // Skip past this call to avoid overlapping edits.
-                    i = end;
-                    continue;
-                }
+            if i + 2 <= len
+                && &buf[i..i + 2] == b"if"
+                && !in_comment_or_string(&root, i)
+                && let Some((start, end, repl)) = rewrite_if_call(buf, i)
+            {
+                edits.push(TextEdit {
+                    start_byte: start,
+                    end_byte: end,
+                    replacement: repl,
+                });
+                // Skip past this call to avoid overlapping edits.
+                i = end;
+                continue;
+            }
 
             // Then, try `.do({ ... })` form.
-            if buf[i] == b'.' && !in_comment_or_string(&root, i)
-                && let Some((start, end, repl)) = rewrite_do_call(buf, i) {
-                    edits.push(TextEdit {
-                        start_byte: start,
-                        end_byte: end,
-                        replacement: repl,
-                    });
-                    i = end;
-                    continue;
-                }
+            if buf[i] == b'.'
+                && !in_comment_or_string(&root, i)
+                && let Some((start, end, repl)) = rewrite_do_call(buf, i)
+            {
+                edits.push(TextEdit {
+                    start_byte: start,
+                    end_byte: end,
+                    replacement: repl,
+                });
+                i = end;
+                continue;
+            }
 
             i += 1;
         }

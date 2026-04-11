@@ -1,125 +1,233 @@
+// src/rules/pipe_param_commas.rs
+
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
 
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
+pub struct PipeParamAddMissingCommas;
 
-const fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
-}
-
-/// Filter out `==`, `<=`, `>=`, `!=`
-fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
-    let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
-    let next = seg.get(idx + 1).copied().unwrap_or(b' ');
-    !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
-}
-
-/// AST-based “are we in a string/comment?”
-fn in_comment_or_string(root: &Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
+impl Rule for PipeParamAddMissingCommas {
+    fn name(&self) -> &'static str {
+        "pipe_param_missing_commas"
     }
-    false
+
+    fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        let root = cx.tree.root_node();
+        let src = cx.bytes();
+
+        let mut edits = Vec::new();
+
+        // Handle pipe-style with AST (works when commas are missing)
+        walk_tree_for_pipes(root, &src, &mut edits);
+
+        // Handle arg-style with byte scanning (AST is broken when commas are missing)
+        fix_arg_style_params(&src, &root, &mut edits);
+
+        let n = edits.len();
+        if n > 0 {
+            cx.apply_edits(edits)?;
+        }
+        Ok(n)
+    }
 }
 
-/// Find `| ... |` header segments that are *actually* pipe param lists:
-/// - opening `|` not in string/comment
-/// - `{` earlier on the same line
-/// - matching closing `|` on the same line, not in string/comment
-fn find_pipe_param_headers(buf: &[u8], root: &Node) -> Vec<(usize, usize)> {
-    let len = buf.len();
-    let mut res = Vec::new();
+fn walk_tree_for_pipes(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    if node.kind() == "pipe_parameter_list" {
+        fix_missing_commas_in_pipe_list(node, src, edits);
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_tree_for_pipes(child, src, edits);
+    }
+}
+
+/// Check if a node needs parentheses when used as a pipe parameter default
+fn needs_parens(node: Node) -> bool {
+    match node.kind() {
+        // Method calls need parens: 4.dbamp -> (4.dbamp)
+        "function_call" => {
+            // Check if it has a receiver (making it a method call)
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "receiver" {
+                    return true;
+                }
+            }
+            false
+        }
+        // Binary expressions need parens: 1 + 2 -> (1 + 2)
+        "binary_expression" => true,
+        // Unary expressions might need parens: -1 -> (-1)
+        "unary_expression" => true,
+        // Code blocks already have braces, no parens needed
+        "code_block" => false,
+        // Literals, variables, symbols don't need parens
+        _ => false,
+    }
+}
+
+fn get_node_text(src: &[u8], node: Node) -> String {
+    let start = node.start_byte();
+    let end = node.end_byte();
+    if end > src.len() {
+        return String::new();
+    }
+    String::from_utf8_lossy(&src[start..end]).to_string()
+}
+
+fn fix_missing_commas_in_pipe_list(pipe_list: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    let mut args = Vec::new();
+    let mut cursor = pipe_list.walk();
+
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            if child.kind() == "pipe_argument" {
+                args.push(child);
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+
+    if args.len() < 2 {
+        return;
+    }
+
+    // First pass: add missing commas
+    for window in args.windows(2) {
+        let arg1 = window[0];
+        let arg2 = window[1];
+
+        let between_start = arg1.end_byte();
+        let between_end = arg2.start_byte();
+
+        if between_start >= between_end {
+            continue;
+        }
+
+        let between = &src[between_start..between_end];
+        let has_comma = between.iter().any(|&b| b == b',');
+
+        if !has_comma {
+            edits.push(TextEdit {
+                start_byte: between_start,
+                end_byte: between_end,
+                replacement: ", ".to_string(),
+            });
+        }
+    }
+
+    // Second pass: wrap values in parens if needed
+    for arg in args {
+        wrap_value_if_needed(arg, src, edits);
+    }
+}
+
+fn wrap_value_if_needed(pipe_arg: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    // Find the value node within this pipe_argument
+    let mut cursor = pipe_arg.walk();
+    let mut value_node: Option<Node> = None;
+
+    for child in pipe_arg.children(&mut cursor) {
+        if child.kind() == "value" {
+            // The 'value' field wraps the actual expression
+            let mut value_cursor = child.walk();
+            for value_child in child.children(&mut value_cursor) {
+                value_node = Some(value_child);
+                break;
+            }
+            break;
+        }
+    }
+
+    let Some(value) = value_node else {
+        return; // No default value
+    };
+
+    if !needs_parens(value) {
+        return; // Doesn't need wrapping
+    }
+
+    let value_text = get_node_text(src, value);
+    let trimmed = value_text.trim();
+
+    // Check if already wrapped in parens
+    if trimmed.starts_with('(') && trimmed.ends_with(')') {
+        return; // Already has parens
+    }
+
+    // Wrap in parentheses
+    edits.push(TextEdit {
+        start_byte: value.start_byte(),
+        end_byte: value.start_byte(),
+        replacement: "(".to_string(),
+    });
+
+    edits.push(TextEdit {
+        start_byte: value.end_byte(),
+        end_byte: value.end_byte(),
+        replacement: ")".to_string(),
+    });
+}
+
+fn fix_arg_style_params(src: &[u8], root: &Node, edits: &mut Vec<TextEdit>) {
+    let len = src.len();
     let mut i = 0;
 
     while i < len {
-        if buf[i] == b'|' {
+        // Look for "arg " keyword
+        if i + 4 <= len
+            && &src[i..i + 3] == b"arg"
+            && (src[i + 3] == b' ' || src[i + 3] == b'\t' || src[i + 3] == b'\n')
+        {
             if in_comment_or_string(root, i) {
                 i += 1;
                 continue;
             }
 
-            // look backwards on this line for '{'
-            let mut j = i;
-            let mut saw_open_brace = false;
-            while j > 0 {
-                j -= 1;
-                let c = buf[j];
-                if c == b'\n' {
-                    break;
-                }
-                if c == b'{' {
-                    saw_open_brace = true;
-                    break;
-                }
-            }
-            if !saw_open_brace {
-                i += 1;
-                continue;
+            // Find the semicolon that ends this arg list
+            let mut j = i + 4;
+            while j < len && src[j] != b';' {
+                j += 1;
             }
 
-            // look forwards on this line for closing '|'
-            let start = i;
-            let mut k = i + 1;
-            let mut end_opt = None;
-            while k < len {
-                let c = buf[k];
-                if c == b'\n' {
-                    break;
-                }
-                if c == b'|' {
-                    if in_comment_or_string(root, k) {
-                        break;
-                    }
-                    end_opt = Some(k);
-                    break;
-                }
-                k += 1;
+            if j < len {
+                // Process the arg list from i+4 to j
+                fix_arg_list_segment(src, i + 4, j, edits);
             }
 
-            if let Some(end) = end_opt {
-                res.push((start, end));
-                i = end + 1;
-                continue;
-            }
+            i = j + 1;
+        } else {
+            i += 1;
         }
-
-        i += 1;
     }
-
-    res
 }
 
-/// Given the bytes between `|` and `|` (`seg_lo..seg_hi`), insert commas between
-/// `foo = ... bar = ...` style params that *lack* a comma.
-fn fix_header_segment(buf: &[u8], seg_lo: usize, seg_hi: usize, edits: &mut Vec<TextEdit>) {
-    let seg = &buf[seg_lo..seg_hi];
+fn fix_arg_list_segment(src: &[u8], start: usize, end: usize, edits: &mut Vec<TextEdit>) {
+    let seg = &src[start..end];
 
-    // 1. collect all single '=' positions in this header segment
-    let mut eqs: Vec<usize> = Vec::new();
+    // Find all '=' positions (assignments)
+    let mut eqs = Vec::new();
     for (i, &b) in seg.iter().enumerate() {
         if b == b'=' && is_assignment_eq(seg, i) {
             eqs.push(i);
         }
     }
+
     if eqs.len() < 2 {
         return;
     }
 
-    // 2. for each adjacent pair of assignments, ensure there's a top-level comma
+    // Between each pair of assignments, ensure there's a comma
     for win in eqs.windows(2) {
         let e1 = win[0];
         let e2 = win[1];
 
-        // find the *start* of the next param name (just before e2)
+        // Find start of next param name (before e2)
         let mut name2_end = e2;
         while name2_end > 0 && is_space(seg[name2_end - 1]) {
             name2_end -= 1;
@@ -128,23 +236,21 @@ fn fix_header_segment(buf: &[u8], seg_lo: usize, seg_hi: usize, edits: &mut Vec<
             continue;
         }
 
-        // scan backwards over identifier chars (including leading '\')
-        let mut s = name2_end;
-        while s > 0 {
-            let c = seg[s - 1];
+        let mut name2_start = name2_end;
+        while name2_start > 0 {
+            let c = seg[name2_start - 1];
             if is_ident_char(c) {
-                s -= 1;
+                name2_start -= 1;
             } else {
                 break;
             }
         }
-        let name2_start = s;
+
         if name2_start <= e1 + 1 {
-            // something weird; bail on this pair
             continue;
         }
 
-        // is there already a comma between RHS of first param and the start of the next name?
+        // Check for comma between e1+1 and name2_start
         let mut paren = 0i32;
         let mut brace = 0i32;
         let mut bracket = 0i32;
@@ -167,63 +273,43 @@ fn fix_header_segment(buf: &[u8], seg_lo: usize, seg_hi: usize, edits: &mut Vec<
             }
         }
 
-        if has_comma {
-            continue;
-        }
-
-        // no comma → insert ", " before the second param name.
-        // replace any whitespace right before the name, but don't cross newlines.
-        let mut ws_start = name2_start;
-        while ws_start > 0 {
-            let c = seg[ws_start - 1];
-            if c == b'\n' {
-                break;
-            }
-            if is_space(c) {
+        if !has_comma {
+            let mut ws_start = name2_start;
+            while ws_start > 0 && is_space(seg[ws_start - 1]) {
                 ws_start -= 1;
-            } else {
-                break;
             }
+
+            edits.push(TextEdit {
+                start_byte: start + ws_start,
+                end_byte: start + name2_start,
+                replacement: ", ".to_string(),
+            });
         }
-
-        let ins_start = ws_start;
-        let ins_end = name2_start;
-
-        edits.push(TextEdit {
-            start_byte: seg_lo + ins_start,
-            end_byte: seg_lo + ins_end,
-            replacement: ", ".to_string(),
-        });
     }
 }
 
-pub struct PipeParamAddMissingCommas;
+const fn is_space(b: u8) -> bool {
+    b == b' ' || b == b'\t' || b == b'\n'
+}
 
-impl Rule for PipeParamAddMissingCommas {
-    fn name(&self) -> &'static str {
-        "pipe_param_missing_commas"
-    }
+const fn is_ident_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
+}
 
-    fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let bytes = cx.bytes();
-        let buf: &[u8] = &bytes;
-        let root = cx.tree.root_node();
+fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
+    let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
+    let next = seg.get(idx + 1).copied().unwrap_or(b' ');
+    !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
+}
 
-        let mut edits: Vec<TextEdit> = Vec::new();
-
-        for (pipe_l, pipe_r) in find_pipe_param_headers(buf, &root) {
-            if pipe_r <= pipe_l + 1 {
-                continue;
-            }
-            let seg_lo = pipe_l + 1;
-            let seg_hi = pipe_r;
-            fix_header_segment(buf, seg_lo, seg_hi, &mut edits);
+fn in_comment_or_string(root: &Node, byte: usize) -> bool {
+    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
+    while let Some(n) = cur {
+        match n.kind() {
+            "comment" | "block_comment" | "line_comment" | "string" => return true,
+            _ => {}
         }
-
-        let n = edits.len();
-        if n > 0 {
-            cx.apply_edits(edits)?;
-        }
-        Ok(n)
+        cur = n.parent();
     }
+    false
 }

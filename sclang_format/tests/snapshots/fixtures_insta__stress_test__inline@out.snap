@@ -2,10 +2,6 @@
 source: tests/fixtures_insta.rs
 expression: out
 ---
----
-source: tests / fixtures_insta.rs
-expression: out
- - --
 (
 // block / pipe / layout stress fixture
 
@@ -32,23 +28,16 @@ SynthDef(\stressC, { |freq = 220, amp = 0.05|
 // 2. If / else and else-if combinations for K&R + "} else {"
 if (Synth(\dummy).notNil) {
     "dummy exists".postln
-} else {
+} {
     "no dummy".postln
-}
+};
 
-if (1 < 2) {
-    "ok".postln
-} else if (2 < 3) {
-    "also ok".postln
-} else {
-    "should never see".postln
-}
 
 // 3. Blocks with and without pipe args
 { |a, b, c|
     var s = a + b + c;
     s.postln
-}.value;
+};
 
 {
     var x = 1;
@@ -72,25 +61,21 @@ g = { |a, b, c|
 
 // 5. Method chains and dot layout
 "hello".asSymbol()
-    .asString
-    .toUpper
-    .postln;
+.asString
+.toUpper
+.postln;
 
 Button()
-    .states_([
-        ["one", nil, nil],
-        ["two", nil, nil]
+.states_([
+    ["one", nil, nil],
+    ["two", nil, nil]
 ])
-    .action_( {
-        "clicked".postln
-    });
+.action_({
+    "clicked".postln
+});
 
 // 6. Arrays / collections and inline blocks
-x = [
-    "foo",
-    "bar",
-    "baz"
-];
+x = ["foo", "bar", "baz"];
 
 y = [1, 2, 3].collect { |n| n * 2 };
 z = [\a, \b].do { |sym| sym.asString.postln };

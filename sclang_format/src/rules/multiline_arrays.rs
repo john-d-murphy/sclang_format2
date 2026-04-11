@@ -1,25 +1,19 @@
 use crate::engine::{Ctx, TextEdit};
+use crate::engine::ast::descendants_of_kind;
 use crate::rules::Rule;
 use anyhow::Result;
-use tree_sitter::Node;
 
 const fn is_space_or_tab(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-/// AST-based “are we in a string/comment?”
-fn in_comment_or_string(root: &Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
-}
-
+/// Ensure that multi-line array literals (`[ ... ]`) have exactly
+/// one element per line, but *only* for real collection literals,
+/// not for indexing or other uses of `[`.
+///
+/// This uses the AST to:
+///   * Only consider `[` tokens that belong to a `collection` node.
+///   * Explicitly skip `indexed_collection` / `index_subrange` uses.
 pub struct MultiLineArrayElementsPerLine;
 
 impl Rule for MultiLineArrayElementsPerLine {
@@ -30,138 +24,157 @@ impl Rule for MultiLineArrayElementsPerLine {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let buf: &[u8] = &bytes;
-        let root = cx.tree.root_node();
         let len = buf.len();
+        let root = cx.tree.root_node();
 
         let mut edits: Vec<TextEdit> = Vec::new();
-        let mut i = 0;
 
-        while i < len {
-            if buf[i] == b'[' {
-                // skip arrays that are inside comments/strings
-                if in_comment_or_string(&root, i) {
-                    i += 1;
-                    continue;
-                }
+        // Walk all `[` tokens in the tree, but restrict ourselves to those
+        // that live under a `collection` node (and not under index nodes).
+        for bracket in descendants_of_kind(root, "[") {
+            let open = bracket.start_byte();
+            if open >= len {
+                continue;
+            }
 
-                let open = i;
-                let mut depth = 1i32;
-                let mut j = open + 1;
-                let mut close_opt = None;
+            // Check ancestry: we want a `collection` ancestor, and we want
+            // to skip things that are clearly indexing.
+            let mut cur = bracket.parent();
+            let mut is_collection_array = false;
 
-                while j < len {
-                    match buf[j] {
-                        b'[' => depth += 1,
-                        b']' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                close_opt = Some(j);
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                    j += 1;
-                }
-
-                let close = if let Some(c) = close_opt { c } else {
-                    i += 1;
-                    continue;
-                };
-
-                // Only operate on *multi-line* arrays.
-                let mut has_nl = false;
-                for k in (open + 1)..close {
-                    if buf[k] == b'\n' {
-                        has_nl = true;
+            while let Some(node) = cur {
+                match node.kind() {
+                    // Treat anything inside an index as *not* a literal.
+                    "index_subrange" | "indexed_collection" => {
+                        is_collection_array = false;
                         break;
                     }
-                }
-                if !has_nl {
-                    i = close + 1;
-                    continue;
-                }
-
-                let seg_lo = open + 1;
-                let seg_hi = close;
-                let seg = &buf[seg_lo..seg_hi];
-
-                let mut paren = 0i32;
-                let mut brace = 0i32;
-                let mut bracket = 0i32;
-
-                for (idx, &b) in seg.iter().enumerate() {
-                    match b {
-                        b'(' => paren += 1,
-                        b')' => paren -= 1,
-                        b'{' => brace += 1,
-                        b'}' => brace -= 1,
-                        b'[' => bracket += 1,
-                        b']' => bracket -= 1,
-                        b',' if paren == 0 && brace == 0 && bracket == 0 => {
-                            // We have a top-level comma inside the array.
-                            let mut k = idx + 1;
-
-                            // skip spaces/tabs (but *not* newlines)
-                            while k < seg.len() && is_space_or_tab(seg[k]) {
-                                k += 1;
-                            }
-                            if k >= seg.len() {
-                                continue;
-                            }
-
-                            // If the next thing is newline, we already have
-                            // an element-per-line layout.
-                            if seg[k] == b'\n' {
-                                continue;
-                            }
-
-                            // If the next token starts a comment, we treat it as
-                            // “same element with trailing comment”, also fine.
-                            if seg[k] == b'/' && k + 1 < seg.len() {
-                                let c2 = seg[k + 1];
-                                if c2 == b'/' || c2 == b'*' {
-                                    continue;
-                                }
-                            }
-
-                            // Otherwise, we have another element starting on the same line.
-                            // Insert a newline + indent before that token.
-
-                            let insert_global = seg_lo + k;
-
-                            // Compute indent from start of this line.
-                            let mut line_start = insert_global;
-                            while line_start > 0 && buf[line_start - 1] != b'\n' {
-                                line_start -= 1;
-                            }
-                            let mut indent_end = line_start;
-                            while indent_end < insert_global && is_space_or_tab(buf[indent_end]) {
-                                indent_end += 1;
-                            }
-
-                            let indent =
-                                String::from_utf8_lossy(&buf[line_start..indent_end]).to_string();
-
-                            let replacement = if indent.is_empty() {
-                                "\n".to_string()
-                            } else {
-                                format!("\n{indent}")
-                            };
-
-                            edits.push(TextEdit {
-                                start_byte: insert_global,
-                                end_byte: insert_global,
-                                replacement,
-                            });
-                        }
-                        _ => {}
+                    "collection" => {
+                        is_collection_array = true;
+                        break;
+                    }
+                    _ => {
+                        cur = node.parent();
                     }
                 }
+            }
 
-                i = close + 1;
+            if !is_collection_array {
+                continue;
+            }
+
+            // Find the matching closing ']'. At this point we know this
+            // '[' really is the start of a collection literal.
+            let mut depth = 1i32;
+            let mut j = open + 1;
+            let mut close_opt = None;
+
+            while j < len {
+                match buf[j] {
+                    b'[' => depth += 1,
+                    b']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close_opt = Some(j);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+
+            let close = if let Some(c) = close_opt {
+                c
             } else {
-                i += 1;
+                continue;
+            };
+
+            // Only bother with arrays that are already multi-line.
+            let mut has_nl = false;
+            for k in (open + 1)..close {
+                if buf[k] == b'\n' {
+                    has_nl = true;
+                    break;
+                }
+            }
+            if !has_nl {
+                continue;
+            }
+
+            let seg_lo = open + 1;
+            let seg_hi = close;
+            let seg = &buf[seg_lo..seg_hi];
+
+            let mut paren = 0i32;
+            let mut brace = 0i32;
+            let mut bracket = 0i32;
+
+            for (idx, &b) in seg.iter().enumerate() {
+                match b {
+                    b'(' => paren += 1,
+                    b')' => paren -= 1,
+                    b'{' => brace += 1,
+                    b'}' => brace -= 1,
+                    b'[' => bracket += 1,
+                    b']' => bracket -= 1,
+                    b',' if paren == 0 && brace == 0 && bracket == 0 => {
+                        let mut k = idx + 1;
+
+                        // Skip spaces/tabs (but *not* newlines).
+                        while k < seg.len() && is_space_or_tab(seg[k]) {
+                            k += 1;
+                        }
+                        if k >= seg.len() {
+                            continue;
+                        }
+
+                        // If the next thing is a newline, we already have an
+                        // element-per-line layout.
+                        if seg[k] == b'\n' {
+                            continue;
+                        }
+
+                        // If the next token starts a comment, we treat it as
+                        // “same element with trailing comment”, also fine.
+                        if seg[k] == b'/' && k + 1 < seg.len() {
+                            let c2 = seg[k + 1];
+                            if c2 == b'/' || c2 == b'*' {
+                                continue;
+                            }
+                        }
+
+                        // Otherwise, we have another element starting on the
+                        // same line. Insert a newline + indent before it.
+                        let insert_global = seg_lo + k;
+
+                        // Compute indent from start of this line.
+                        let mut line_start = insert_global;
+                        while line_start > 0 && buf[line_start - 1] != b'\n' {
+                            line_start -= 1;
+                        }
+                        let mut indent_end = line_start;
+                        while indent_end < insert_global && is_space_or_tab(buf[indent_end]) {
+                            indent_end += 1;
+                        }
+
+                        let indent =
+                            String::from_utf8_lossy(&buf[line_start..indent_end]).to_string();
+
+                        let replacement = if indent.is_empty() {
+                            "\n".to_string()
+                        } else {
+                            format!("\n{indent}")
+                        };
+
+                        edits.push(TextEdit {
+                            start_byte: insert_global,
+                            end_byte: insert_global,
+                            replacement,
+                        });
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -172,3 +185,4 @@ impl Rule for MultiLineArrayElementsPerLine {
         Ok(n)
     }
 }
+

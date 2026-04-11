@@ -30,6 +30,7 @@ fn is_escaped(bytes: &[u8], i: usize) -> bool {
 }
 
 /// Check that `kw` starts at `i` and is a standalone token (not part of a longer ident).
+/// Also returns false if preceded by '.' (method call, not keyword).
 fn is_keyword_start(bytes: &[u8], i: usize, kw: &[u8]) -> bool {
     let len = bytes.len();
     let klen = kw.len();
@@ -43,6 +44,11 @@ fn is_keyword_start(bytes: &[u8], i: usize, kw: &[u8]) -> bool {
     // preceding boundary: start-of-file or non-identifier
     if i > 0 {
         let prev = bytes[i - 1];
+        // If preceded by '.', this is a method call like .if() or .for()
+        // not a control structure keyword
+        if prev == b'.' {
+            return false;
+        }
         if is_ident_char(prev) {
             return false;
         }

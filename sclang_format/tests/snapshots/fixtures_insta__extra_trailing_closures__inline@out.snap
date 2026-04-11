@@ -21,7 +21,7 @@ expression: out
 [1, 2, 3].inject(0, { |acc, x| acc + x });
 
 // should NOT change: extra non-block arg
-[1, 2, 3].collect( { |x| x * 2 },  // comment
+[1, 2, 3].collect({ |x| x * 2 },  // comment
     123);
 
 // should NOT change: not a block
@@ -31,7 +31,7 @@ expression: out
 while { x < 10 } { x = x + 1; "loop".postln };
 
 // while-like name but not keyword → should NOT change
-whilex( { x < 10 }, { x = x + 1 });
+whilex({ x < 10 }, { x = x + 1 });
 
 // nested blocks inside block arg
 [1, 2, 3].collect { |x|

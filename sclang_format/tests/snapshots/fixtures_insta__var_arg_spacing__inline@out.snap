@@ -9,7 +9,7 @@ var a, b, c, d;
 var foo;
 
 // SynthDef with ugly arg/var spacing
-SynthDef(\test1, { arg freq = 440, amp = 0.1, pan = -0.5;
+SynthDef(\test1, { |freq = 440, amp = 0.1, pan = (-0.5)|
     var sig1, sig2;
     sig1 = SinOsc.ar(freq, 0, amp);
     sig2 = sig1 ! 2;

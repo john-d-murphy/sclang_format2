@@ -17,10 +17,7 @@ SynthDef(\stress, { |freq = 440, amp = 0.1, pan = (4.dbamp)|
 g = { |foo = 3, bar = (4.dbamp), sum = (1 + 2)|
     var local1, local2;
     local1 = foo + bar;
-    local2 = [1,
-    2,
-        3,
-        4];
+    local2 = [1, 2, 3, 4];
     if (local1 > 0) { "pos".postln } { "neg".postln };
     [local1, local2]
 };
@@ -32,7 +29,7 @@ f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
     y = x - 3;
     if (freq > 0) {
         "freq ok".postln
-    } else {
+    } {
         "freq bad".postln
     };
     [x, y]
@@ -65,7 +62,7 @@ f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
 "hello".asSymbol().asString
 .toUpper.postln;
 
-Button().states_([["blorp", nil, nil]]).action_( {
+Button().states_([["blorp", nil, nil]]).action_({
     "button".postln
 });
 
@@ -78,12 +75,12 @@ Button().states_([["blorp", nil, nil]]).action_( {
 [1, 2, 3].do { |n| while { n < 3 } { n = n + 1; "loop".postln } };
 
 // should NOT change: extra arg
-[1, 2, 3].collect( { |n| n * 2 }, 42);
+[1, 2, 3].collect({ |n| n * 2 }, 42);
 
 // 7. while keyword vs while-like
 while { x < 10 } { x = x + 1 };
 
-whilex( { x < 10 }, { x = x + 1 });
+whilex({ x < 10 }, { x = x + 1 });
 
 // 8. K&R vs Allman blocks, binary operators, final semicolon rule
 
@@ -93,27 +90,22 @@ h = { |a, b|
         a,
         a + 1,
         a + 2
-];
-    arr;  // SHOULD lose this semicolon (final expr)
+    ];
+    arr  // SHOULD lose this semicolon (final expr)
 };
 
 k = {
     var r;
     if (a > 0) {
         r = 1
-    } else {
+    } {
         r = 0
     };
     r
 };
 
 // 9. Arrays – multi-line / spacing
-multi = [
-    "foo",
-    "bar",
-    "baz",
-    "quux"
-];
+multi = ["foo", "bar", "baz", "quux"];
 
 singleLine = [1, 2, 3, 4];
 
@@ -137,11 +129,11 @@ x = 1 + 2;  // inline
 y = 3 * 4;  //   too many spaces before
 z = x + y;  // tab before
 
-if (x > 0) { "pos".postln }  // trailing comment
-if (x < 0) { "neg".postln }  // no space before
+if (x > 0) { "pos".postln };  // trailing comment
+if (x < 0) { "neg".postln };  // no space before
 
 "This has // in string".postln;  // real comment
 // full-line comment should stay the same
-/* block comment with  // and : inside: SynthDef(\x, { arg a = 1 b = 2; a + b }); */
+/* block comment with // and : inside: SynthDef(\x, { arg a = 1 b = 2; a + b }); */
 
 )

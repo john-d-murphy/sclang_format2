@@ -1,90 +1,117 @@
 // src/rules/colons.rs
-
-use anyhow::Result;
-use tree_sitter::Node;
-
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
+use anyhow::Result;
+use tree_sitter::{Node, TreeCursor};
+
+fn is_identifier_char(b: u8) -> bool {
+    (b'a'..=b'z').contains(&b)
+        || (b'A'..=b'Z').contains(&b)
+        || (b'0'..=b'9').contains(&b)
+        || b == b'_'
+}
 
 pub struct AddSpacesAroundColons;
 
 impl AddSpacesAroundColons {
-    #[inline]
-    fn in_comment_or_string(root: Node, byte: usize) -> bool {
-        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-        while let Some(n) = cur {
-            match n.kind() {
-                // conservative skip list; adjust if your grammar uses different names
-                "comment" | "block_comment" | "line_comment" | "string" => return true,
-                _ => {}
-            }
-            cur = n.parent();
+    fn visit_node(&self, cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+        let node = cursor.node();
+
+        // Only process colons in associative items (event key:value pairs)
+        if node.kind() == "associative_item" {
+            self.process_associative_item(node, cx, edits);
         }
-        false
+
+        if cursor.goto_first_child() {
+            loop {
+                self.visit_node(cursor, cx, edits);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
+        }
     }
 
-    #[inline]
-    fn fix_one(bytes: &[u8], colon: usize, edits: &mut Vec<TextEdit>) {
-        let len = bytes.len();
-
-        // Don't touch weird double-colon things just in case
-        if bytes.get(colon + 1) == Some(&b':') {
+    fn process_associative_item(&self, node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+        let Some(key_node) = node.child_by_field_name("key") else {
             return;
+        };
+        let Some(value_node) = node.child_by_field_name("value") else {
+            return;
+        };
+
+        let src = cx.bytes();
+
+        // For event_key tokens, the colon is INSIDE the key token
+        // e.g., "freq:" or "amp :" - we need to normalize to "key:" (no space before colon)
+        if key_node.kind() == "event_key" {
+            let key_start = key_node.start_byte();
+            let key_end = key_node.end_byte();
+            let key_text = &src[key_start..key_end];
+
+            // Find where identifier ends (first non-ident char)
+            let ident_end = key_text
+                .iter()
+                .position(|&b| !is_identifier_char(b))
+                .unwrap_or(key_text.len());
+
+            // Find the colon position within the key token
+            if let Some(colon_offset) = key_text.iter().rposition(|&b| b == b':') {
+                let abs_ident_end = key_start + ident_end;
+                let abs_colon = key_start + colon_offset;
+
+                // Remove any whitespace between identifier and colon
+                if abs_ident_end < abs_colon {
+                    edits.push(TextEdit {
+                        start_byte: abs_ident_end,
+                        end_byte: abs_colon,
+                        replacement: String::new(),
+                    });
+                }
+            }
         }
 
-        // ----- left side: NO spaces before ':' -----
-        let mut l = colon;
-        while l > 0 && bytes[l - 1].is_ascii_whitespace() && bytes[l - 1] != b'\n' {
-            l -= 1;
+        // Fix spacing AFTER the key (before value)
+        // The key token ends after the colon, so we check from key_end to value_start
+        let after_key = key_node.end_byte();
+        let value_start = value_node.start_byte();
+
+        self.fix_space_after_colon(&src, after_key, value_start, edits);
+    }
+
+    fn fix_space_after_colon(
+        &self,
+        bytes: &[u8],
+        start: usize,
+        value_start: usize,
+        edits: &mut Vec<TextEdit>,
+    ) {
+        // Check for newlines - if multiline, don't touch
+        for i in start..value_start {
+            if bytes[i] == b'\n' || bytes[i] == b'\r' {
+                return;
+            }
         }
-        if l < colon {
-            // strip all spaces before colon
+
+        let whitespace_count = value_start - start;
+
+        if whitespace_count == 0 {
+            // No space after colon - insert one
             edits.push(TextEdit {
-                start_byte: l,
-                end_byte: colon,
-                replacement: String::new(),
+                start_byte: start,
+                end_byte: start,
+                replacement: " ".to_string(),
+            });
+        } else if whitespace_count != 1 {
+            // Wrong amount of whitespace - replace with exactly one space
+            edits.push(TextEdit {
+                start_byte: start,
+                end_byte: value_start,
+                replacement: " ".to_string(),
             });
         }
-
-        // ----- right side: at most one space after ':' -----
-        let mut r = colon + 1;
-        while r < len && bytes[r].is_ascii_whitespace() && bytes[r] != b'\n' {
-            r += 1;
-        }
-
-        let has_ws_after = r > colon + 1;
-        let next_is_newline = r < len && bytes[r] == b'\n';
-
-        match (has_ws_after, next_is_newline) {
-            // No whitespace after ':' and next is non-newline, insert one space.
-            (false, false) if r < len => {
-                edits.push(TextEdit {
-                    start_byte: r,
-                    end_byte: r,
-                    replacement: " ".to_string(),
-                });
-            }
-            // There was whitespace after ':', and next is non-newline:
-            // compress run to a single space.
-            (true, false) if r < len => {
-                edits.push(TextEdit {
-                    start_byte: colon + 1,
-                    end_byte: r,
-                    replacement: " ".to_string(),
-                });
-            }
-            // If next is newline or EOF, we want *no* spaces after colon.
-            (true, true | false) if r == len => {
-                edits.push(TextEdit {
-                    start_byte: colon + 1,
-                    end_byte: r,
-                    replacement: String::new(),
-                });
-            }
-            // (false, true) or (false, false with r == len):
-            // no spaces and nothing non-newline after -> nothing to do.
-            _ => {}
-        }
+        // If whitespace_count == 1, it's already correct
     }
 }
 
@@ -94,22 +121,12 @@ impl Rule for AddSpacesAroundColons {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let root = cx.tree.root_node();
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
+        let mut edits = Vec::new();
 
-        let mut edits: Vec<TextEdit> = Vec::new();
-
-        for (i, &b) in bytes.iter().enumerate() {
-            if b != b':' {
-                continue;
-            }
-
-            if Self::in_comment_or_string(root, i) {
-                continue;
-            }
-
-            Self::fix_one(bytes, i, &mut edits);
+        {
+            let root = cx.tree.root_node();
+            let mut cursor = root.walk();
+            self.visit_node(&mut cursor, cx, &mut edits);
         }
 
         let n = edits.len();

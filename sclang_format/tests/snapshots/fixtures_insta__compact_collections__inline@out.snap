@@ -6,16 +6,9 @@ expression: out
 // compact collections – arrays and events
 
 // short arrays that should collapse to one line
-a = [
-    1,
-    2,
-    3
-];
+a = [1, 2, 3];
 
-b = [
-    "foo",
-    "bar"
-];
+b = ["foo", "bar"];
 
 // short event that should collapse to one line
 (

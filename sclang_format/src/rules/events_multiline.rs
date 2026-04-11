@@ -1,328 +1,8 @@
+use crate::engine::ast::descendants_of_kind;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
-
-#[derive(Clone, Copy, Debug)]
-struct CommentState {
-    in_line: bool,
-    in_block: bool,
-    in_single: bool,
-    in_double: bool,
-    prev: u8,
-}
-
-impl CommentState {
-    const fn new() -> Self {
-        Self {
-            in_line: false,
-            in_block: false,
-            in_single: false,
-            in_double: false,
-            prev: 0,
-        }
-    }
-
-    const fn in_comment_or_string(&self) -> bool {
-        self.in_line || self.in_block || self.in_single || self.in_double
-    }
-
-    const fn step(&mut self, b: u8) {
-        // already inside something
-        if self.in_line {
-            if b == b'\n' {
-                self.in_line = false;
-            }
-            self.prev = b;
-            return;
-        }
-
-        if self.in_block {
-            if self.prev == b'*' && b == b'/' {
-                self.in_block = false;
-            }
-            self.prev = b;
-            return;
-        }
-
-        if self.in_single {
-            if b == b'\'' && self.prev != b'\\' {
-                self.in_single = false;
-            }
-            self.prev = b;
-            return;
-        }
-
-        if self.in_double {
-            if b == b'"' && self.prev != b'\\' {
-                self.in_double = false;
-            }
-            self.prev = b;
-            return;
-        }
-
-        // not inside anything yet
-        if self.prev == b'/' && b == b'/' {
-            self.in_line = true;
-        } else if self.prev == b'/' && b == b'*' {
-            self.in_block = true;
-        } else if b == b'\'' {
-            self.in_single = true;
-        } else if b == b'"' {
-            self.in_double = true;
-        }
-
-        self.prev = b;
-    }
-}
-
-/// Find the matching ')' for the '(' at `open`.
-fn match_paren(bytes: &[u8], open: usize) -> Option<usize> {
-    let len = bytes.len();
-    let mut depth: isize = 1;
-    let mut cs = CommentState::new();
-
-    for i in open + 1..len {
-        let b = bytes[i];
-        cs.step(b);
-        if cs.in_comment_or_string() {
-            continue;
-        }
-
-        if b == b'(' {
-            depth += 1;
-        } else if b == b')' {
-            depth -= 1;
-            if depth == 0 {
-                return Some(i);
-            }
-        }
-    }
-    None
-}
-
-/// Quick check: is there *any* newline between open and close?
-fn is_multiline(bytes: &[u8], open: usize, close: usize) -> bool {
-    bytes[open + 1..close].iter().any(|&b| is_newline(b))
-}
-
-/// Does this `( ... )` look like an event literal, i.e. has a top-level `:`?
-fn has_top_level_event_colon(bytes: &[u8], open: usize, close: usize) -> bool {
-    let mut cs = CommentState::new();
-    let mut par: isize = 1;
-    let mut br: isize = 0;
-    let mut brk: isize = 0;
-
-    for i in open + 1..close {
-        let b = bytes[i];
-        cs.step(b);
-        if cs.in_comment_or_string() {
-            continue;
-        }
-
-        match b {
-            b'(' => par += 1,
-            b')' => par -= 1,
-            b'{' => br += 1,
-            b'}' => br -= 1,
-            b'[' => brk += 1,
-            b']' => brk -= 1,
-            b':' if par == 1 && br == 0 && brk == 0 => {
-                // top-level colon → treat as event
-                return true;
-            }
-            _ => {}
-        }
-    }
-    false
-}
-
-/// Decide whether the comma at `comma_idx` is followed by another
-/// top-level `key: value` pair **on the same logical line** inside this event.
-fn comma_starts_event_key(bytes: &[u8], comma_idx: usize, _open: usize, close: usize) -> bool {
-    let mut cs = CommentState::new();
-    let mut par: isize = 1;
-    let mut br: isize = 0;
-    let mut brk: isize = 0;
-
-    // Start just after the comma, skipping horizontal whitespace (but *not*
-    // newlines). We want "per line" semantics: if the next key's `:` is on
-    // a later line, this comma shouldn't be treated as its introducer.
-    let mut j = comma_idx + 1;
-    while j < close && is_space(bytes[j]) {
-        j += 1;
-    }
-    if j >= close {
-        return false;
-    }
-
-    // Now scan until we either:
-    // - see a top-level ':' before any top-level newline/comma/closing paren → true
-    // - hit a top-level newline/comma/closing paren first → false
-    for k in j..close {
-        let c = bytes[k];
-
-        // A top-level newline means we've moved to the next logical line
-        // without seeing a colon for a new key.
-        if is_newline(c) && par == 1 && br == 0 && brk == 0 {
-            return false;
-        }
-
-        cs.step(c);
-        if cs.in_comment_or_string() {
-            continue;
-        }
-
-        match c {
-            b'(' => par += 1,
-            b')' => {
-                par -= 1;
-                // If we close the outer paren without seeing a top-level ':',
-                // this comma wasn't starting another key.
-                if par == 0 {
-                    return false;
-                }
-            }
-            b'{' => br += 1,
-            b'}' => br -= 1,
-            b'[' => brk += 1,
-            b']' => brk -= 1,
-
-            // Found a top-level colon on the *same line* → this comma starts
-            // another `key: value` pair.
-            b':' if par == 1 && br == 0 && brk == 0 => {
-                return true;
-            }
-
-            // Hit another top-level comma or the closing paren before any ':'
-            // on this line → no new key here.
-            b',' if par == 1 && br == 0 && brk == 0 => {
-                return false;
-            }
-
-            _ => {}
-        }
-    }
-
-    false
-}
-
-/// Split an event like `(freq: 440, amp: 0.1, pan: -0.5)` into one key per line,
-/// preserving indentation and avoiding comments/strings.
-fn split_event_items(bytes: &[u8], open: usize, close: usize, edits: &mut Vec<TextEdit>) {
-    let mut cs = CommentState::new();
-    let mut par: isize = 1;
-    let mut br: isize = 0;
-    let mut brk: isize = 0;
-    let mut commas: Vec<usize> = Vec::new();
-
-    // 1) collect top-level commas inside this `( ... )`
-    for i in open + 1..close {
-        let b = bytes[i];
-        cs.step(b);
-        if cs.in_comment_or_string() {
-            continue;
-        }
-
-        match b {
-            b'(' => par += 1,
-            b')' => par -= 1,
-            b'{' => br += 1,
-            b'}' => br -= 1,
-            b'[' => brk += 1,
-            b']' => brk -= 1,
-            b',' if par == 1 && br == 0 && brk == 0 => {
-                commas.push(i);
-            }
-            _ => {}
-        }
-    }
-
-    if commas.is_empty() {
-        return;
-    }
-
-    // 2) determine indentation based on the first key line
-    let mut cs2 = CommentState::new();
-    par = 1;
-    br = 0;
-    brk = 0;
-    let mut indent = String::new();
-
-    'outer: for i in open + 1..close {
-        let b = bytes[i];
-        cs2.step(b);
-        if cs2.in_comment_or_string() {
-            continue;
-        }
-
-        match b {
-            b'(' => par += 1,
-            b')' => par -= 1,
-            b'{' => br += 1,
-            b'}' => br -= 1,
-            b'[' => brk += 1,
-            b']' => brk -= 1,
-            b':' if par == 1 && br == 0 && brk == 0 => {
-                // Back up to line start to capture indent.
-                let mut line_start = i;
-                while line_start > 0 && bytes[line_start - 1] != b'\n' {
-                    line_start -= 1;
-                }
-                let mut indent_end = line_start;
-                while indent_end < i && (bytes[indent_end] == b' ' || bytes[indent_end] == b'\t') {
-                    indent_end += 1;
-                }
-                indent =
-                    String::from_utf8(bytes[line_start..indent_end].to_vec()).unwrap_or_default();
-                break 'outer;
-            }
-            _ => {}
-        }
-    }
-
-    // 3) rewrite commas that introduce a new key so that each key starts on its own line
-    for &comma_idx in &commas {
-        // Skip if what follows is already on a new line.
-        let mut j = comma_idx + 1;
-        while j < close && is_space(bytes[j]) {
-            j += 1;
-        }
-        if j < close && is_newline(bytes[j]) {
-            continue;
-        }
-
-        // Only touch commas that clearly start another event key.
-        if !comma_starts_event_key(bytes, comma_idx, open, close) {
-            continue;
-        }
-
-        // Extend replacement to eat any spaces after the comma.
-        let mut end = comma_idx + 1;
-        while end < close && is_space(bytes[end]) {
-            end += 1;
-        }
-
-        let repl = if indent.is_empty() {
-            ",\n".to_string()
-        } else {
-            format!(",\n{indent}")
-        };
-
-        edits.push(TextEdit {
-            start_byte: comma_idx,
-            end_byte: end,
-            replacement: repl,
-        });
-    }
-}
+use tree_sitter::Node;
 
 pub struct MultiLineEventsOnePerLine;
 
@@ -334,31 +14,26 @@ impl Rule for MultiLineEventsOnePerLine {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
         let bytes: &[u8] = &src;
-        let len = bytes.len();
-
+        let root = cx.tree.root_node();
         let mut edits: Vec<TextEdit> = Vec::new();
-        let mut cs = CommentState::new();
 
-        let mut i = 0usize;
-        while i < len {
-            let b = bytes[i];
-            cs.step(b);
+        // Process `event` nodes: (key: val, key: val)
+        for node in descendants_of_kind(root, "event") {
+            process_associative_node(node, bytes, &mut edits);
+        }
 
-            // Ignore anything inside comments/strings entirely.
-            if cs.in_comment_or_string() {
-                i += 1;
+        // Also process `collection` nodes that start with `(` and contain
+        // associative_item children (the grammar sometimes parses mixed
+        // content this way instead of as `event`).
+        for node in descendants_of_kind(root, "collection") {
+            if bytes.get(node.start_byte()) != Some(&b'(') {
                 continue;
             }
-
-            if b == b'('
-                && let Some(close) = match_paren(bytes, i) {
-                    // Only bother with genuinely multi-line parens that look like events.
-                    if is_multiline(bytes, i, close) && has_top_level_event_colon(bytes, i, close) {
-                        split_event_items(bytes, i, close, &mut edits);
-                    }
-                }
-
-            i += 1;
+            let has_assoc = node_has_child_kind(node, "associative_item");
+            if !has_assoc {
+                continue;
+            }
+            process_associative_node(node, bytes, &mut edits);
         }
 
         let n = edits.len();
@@ -367,4 +42,102 @@ impl Rule for MultiLineEventsOnePerLine {
         }
         Ok(n)
     }
+}
+
+fn node_has_child_kind(node: Node, kind: &str) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == kind {
+            return true;
+        }
+    }
+    false
+}
+
+/// For an event or collection node containing associative_items,
+/// ensure each key:value pair is on its own line.
+fn process_associative_node(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    // Must span multiple lines (or have multiple items on one line)
+    // to be worth processing.  We check for items sharing a row below,
+    // but bail early on single-line nodes.
+    if node.start_position().row == node.end_position().row {
+        return;
+    }
+
+    // Collect associative_item children in order.
+    let mut items: Vec<Node> = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "associative_item" {
+            items.push(child);
+        }
+    }
+
+    if items.len() < 2 {
+        return;
+    }
+
+    // Determine the target indent: use the leading whitespace of the
+    // first associative_item's line.
+    let indent = leading_whitespace_of_line(src, items[0].start_byte());
+
+    // For each consecutive pair on the same row, insert a line break
+    // after the comma that separates them.
+    for pair in items.windows(2) {
+        let item1 = pair[0];
+        let item2 = pair[1];
+
+        // Only split if they're on the same line.
+        if item1.start_position().row != item2.start_position().row {
+            continue;
+        }
+
+        // Find the comma between item1 and item2.
+        // It's in the byte range [item1.end_byte .. item2.start_byte].
+        let gap_start = item1.end_byte();
+        let gap_end = item2.start_byte();
+
+        if gap_start >= gap_end {
+            continue;
+        }
+
+        let gap = &src[gap_start..gap_end];
+
+        // Verify there's a comma in the gap.
+        let comma_offset = match gap.iter().position(|&b| b == b',') {
+            Some(pos) => pos,
+            None => continue,
+        };
+
+        let comma_byte = gap_start + comma_offset;
+
+        // Replace from comma through all trailing whitespace (up to item2)
+        // with ",\n<indent>".
+        let replace_end = gap_end;
+
+        let replacement = format!(",\n{indent}");
+
+        edits.push(TextEdit {
+            start_byte: comma_byte,
+            end_byte: replace_end,
+            replacement,
+        });
+    }
+}
+
+/// Extract the leading whitespace from the line containing `byte_pos`.
+fn leading_whitespace_of_line(src: &[u8], byte_pos: usize) -> String {
+    // Walk backwards to find line start.
+    let mut line_start = byte_pos;
+    while line_start > 0 && src[line_start - 1] != b'\n' {
+        line_start -= 1;
+    }
+
+    // Walk forward to find end of leading whitespace.
+    let mut ws_end = line_start;
+    while ws_end < src.len() && (src[ws_end] == b' ' || src[ws_end] == b'\t') {
+        ws_end += 1;
+    }
+
+    String::from_utf8_lossy(&src[line_start..ws_end]).to_string()
 }

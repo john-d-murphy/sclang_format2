@@ -1,0 +1,38 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// collections + events + arrays – edge cases
+
+// plain event – should stay multi-line, not collapse to one line
+(
+    freq: 440,
+    amp: 0.1,
+    pan: -0.5,
+    out: 0
+).play;
+
+// nested event, mixed spacing
+(
+    instrument: \default,
+    freq: 440,
+    amp: 0.1,
+    env: (attack: 0.01, release: 1.0)
+);
+
+// array of events – array should stay multi-line, not collapse
+[
+    (freq: 220, amp: 0.1),
+    (freq: 440, amp: 0.2)
+].do { |ev| ev.play };
+
+// short numeric array – should be compacted to single line
+nums = [1, 2, 3];
+
+// array containing events – should NOT be compacted
+arrOfEvents = [
+    (freq: 330, amp: 0.05),
+    (freq: 660, amp: 0.1)
+];
+)

@@ -30,6 +30,19 @@ impl AddSpacesAroundAssignment {
     }
 
     #[inline]
+    #[allow(dead_code)] // Kept for potential future use or debugging
+    fn in_pipe_parameter_list(root: Node, byte: usize) -> bool {
+        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
+        while let Some(n) = cur {
+            if n.kind() == "pipe_parameter_list" {
+                return true;
+            }
+            cur = n.parent();
+        }
+        false
+    }
+
+    #[inline]
     fn fix_one(bytes: &[u8], eq: usize, edits: &mut Vec<TextEdit>) {
         // Don't normalize spacing if we have K&R-style block attachment (= {)
         // Skip if right side is just a brace (possibly with whitespace before newline)
@@ -103,7 +116,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
         let mut seen_eq: HashSet<usize> = HashSet::new();
 
         // 1) Use a TS query to capture anonymous '=' tokens anywhere.
-        //    We'll filter out comparisons and skip strings/comments.
+        // We'll filter out comparisons and skip strings/comments.
         let lang = cx.tree.language();
         let q = Query::new(&lang, r#"("=") @eq"#)?;
         let mut cur = QueryCursor::new();
@@ -119,6 +132,8 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             if Self::in_comment_or_string(root, eq) {
                 continue;
             }
+            // Note: We deliberately do NOT skip pipe parameter lists here.
+            // Pipe parameter defaults like |freq=440| need spacing too.
 
             Self::fix_one(src_slice, eq, &mut edits);
             seen_eq.insert(eq);
@@ -135,6 +150,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             if Self::in_comment_or_string(root, i) {
                 continue;
             }
+            // Note: We deliberately do NOT skip pipe parameter lists here.
             Self::fix_one(src_slice, i, &mut edits);
         }
 

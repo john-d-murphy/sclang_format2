@@ -1,0 +1,2 @@
+// Source: Guides/NodeMessaging.schelp block 3 (part 2/3)
+n.set(\freq, 500)

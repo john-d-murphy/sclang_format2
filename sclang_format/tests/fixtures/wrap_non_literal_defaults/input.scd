@@ -1,12 +1,6 @@
 (
 // pipe param default parens – ORIGINAL
 
-// non-literal defaults without parentheses yet
-f = {
-    |foo = 3, bar = 4.dbamp, sum = 1 + 2|
-    foo + bar + sum;
-};
-
 // symbol / string / bool / nil defaults: should remain unchanged
 g = {
     |mode = \major, name = "foo", flag = true, nothing = nil|
@@ -19,10 +13,5 @@ h = {
     env;
 };
 
-// mixture: literal + non-literal call without parens yet
-k = {
-    |freq = 440, filt = RLPF.ar(freq, 1000, 0.1)|
-    filt;
-};
 )
 

@@ -1,9 +1,10 @@
 (
 // SEMANTIC / STYLE STRESS TEST
+var freq= 0,flag=0;
 
 // 1. arg → pipe params, missing commas, non-literal defaults
 SynthDef(\stress1, {
-    arg freq = 440 amp = 0.1, pan = 4.dbamp;
+    arg freq = 440, amp = 0.1, pan = 4.dbamp;
     var sig;
     sig = SinOsc.ar(freq, 0, amp);
     Out.ar(0, sig !2);
@@ -11,7 +12,7 @@ SynthDef(\stress1, {
 
 // weirder arg layout; no commas, non-literals
 g = {
-    arg foo = 3 bar = (4.dbamp), sum = 1 + 2;
+    arg foo = 3, bar = (4.dbamp), sum = 1 + 2;
     var x, y;
     x = foo+bar;
     y = x + sum;
@@ -20,7 +21,7 @@ g = {
 
 // 2. already pipe-style, but missing commas & non-literal defaults
 f = {
-    |freq = 440 amp = 4.dbamp, env = Env.perc(0.01, 1.0)|
+	|freq = 440 amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
     var sig;
     sig = Saw.ar(freq, env.levels[0]);
     Out.ar(0, sig ! 2);
@@ -31,10 +32,9 @@ f = {
 if( freq>0){
     "positive".postln;
 }
-else
 {
     "non-positive".postln;
-}
+};
 
 // messy spacing and semicolons
 x=1+2*3 ;
@@ -96,4 +96,5 @@ if (x > 0, { "pos".postln; }, { "neg".postln; });
 c = [  (1) , (2) ,(3) ];
 d = f.value( 10,20 );
 )
+
 

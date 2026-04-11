@@ -29,7 +29,6 @@ f = { |freq = 440 amp = 4.dbamp, env = Env.perc(0.01, 1.0)|
     if(freq>0){
         "freq ok".postln;
     }
-    else
     {
         "freq bad".postln;
     };
@@ -95,7 +94,6 @@ k =
     if(a > 0) {
         r = 1;
     }
-    else
     {
         r = 0;
     };
@@ -131,8 +129,8 @@ x = 1 + 2; //inline
 y = 3*4;   //   too many spaces before
 z = x + y;	//	tab before
 
-if(x>0){ "pos".postln } //trailing comment
-if(x<0) { "neg".postln }//no space before
+if(x>0){ "pos".postln }; //trailing comment
+if(x<0) { "neg".postln };//no space before
 
 "This has // in string".postln; // real comment
 // full-line comment should stay the same

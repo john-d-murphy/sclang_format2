@@ -15,12 +15,11 @@ b = (a>0)&&(b < 10) || (c>= 5);
 
 // unary minus and plus should be preserved
 a = -1;
-b = +2;
-c = a*-1 + (-b);
+b = 2;
+c = a*-1 + b.neg;
 
 // strings and comments with operators should be untouched
 "This is 1+2*3 in a string".postln;
 // comment: a=1+2*3
 /* block comment: x = y+z && a==b */
 )
-

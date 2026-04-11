@@ -1,0 +1,10 @@
+for input_file in ./tests/fixtures/*/input.scd; do
+    test_name="$(basename "$(dirname "$input_file")")"
+    snap_file="./tests/snapshots/fixtures_insta__${test_name}__inline@out.snap"
+    snap_new_file="./tests/snapshots/fixtures_insta__${test_name}__inline@out.snap.new"
+
+    if ! [[ -f "$snap_file" ]] && ! [[ -f "$snap_new_file" ]]; then
+        echo "$test_name"
+    fi
+done
+

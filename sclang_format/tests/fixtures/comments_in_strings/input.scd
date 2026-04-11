@@ -1,4 +1,5 @@
 (
+var a,b;
 // comment / string torture test
 
 // line comment with operators and pipes and braces
@@ -20,7 +21,6 @@
 "This is a \"nested \\\"quote\\\"\" test".postln;
 
 // code that *should* be formatted normally
-var a,b;
 a=1+2;
 if(a>0){
     "ok".postln;

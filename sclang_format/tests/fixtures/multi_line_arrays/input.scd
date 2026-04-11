@@ -1,10 +1,16 @@
 (
 // multi-line arrays – ORIGINAL
 
-// mixed elements on same line → should go one per line
+// mixed elements on same line → should be compacted bc no trailing comma
 a = [
     1, 2, 3,
     4, 5
+];
+
+// mixed elements on same line → should be one per line bc of trailing comma
+a = [
+    1, 2, 3,
+    4, 5,
 ];
 
 // already one-per-line → unchanged except for minor spacing

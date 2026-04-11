@@ -1,0 +1,16 @@
+// Source: Classes/Pen.schelp block 4
+(
+w = Window.new.front;
+w.view.background_(Color.white);
+w.drawFunc = {
+    80.do{
+        // set the Color
+        Pen.color = Color.green(rrand(0.0, 1), rrand(0.0, 0.5));
+        Pen.addRect(
+            Rect(20, 20, (w.bounds.width-40).rand, (w.bounds.height-40).rand)
+        );
+        Pen.perform([\stroke, \fill].choose);
+    }
+};
+w.refresh;
+)

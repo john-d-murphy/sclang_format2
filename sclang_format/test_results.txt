@@ -1,0 +1,79 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running tests/fixtures_insta.rs (target/debug/deps/fixtures_insta-8c8efbccdac3d65f)
+
+running 20 tests
+test sc_help_fixture ... ok
+Found arg at position 333, ends at 341
+  Full arg text: 'arg a, b;'
+=== Checking arg segment: 'a, b'
+  Total = signs: 0
+Found arg at position 333, ends at 341
+  Full arg text: 'arg a, b;'
+=== Checking arg segment: 'a, b'
+  Total = signs: 0
+Found arg at position 40, ends at 66
+  Full arg text: 'arg foo = 3, bar = 4.dbamp;'
+=== Checking arg segment: 'foo = 3, bar = 4.dbamp'
+  Found = at position 4
+  Found = at position 13
+  Total = signs: 2
+Found arg at position 97, ends at 102
+  Full arg text: 'arg a;'
+=== Checking arg segment: 'a'
+  Total = signs: 0
+Found arg at position 183, ends at 188
+  Full arg text: 'arg n;'
+=== Checking arg segment: 'n'
+  Total = signs: 0
+Found arg at position 40, ends at 66
+  Full arg text: 'arg foo = 3, bar = 4.dbamp;'
+=== Checking arg segment: 'foo = 3, bar = 4.dbamp'
+  Found = at position 4
+  Found = at position 13
+  Total = signs: 2
+Found arg at position 97, ends at 102
+  Full arg text: 'arg a;'
+=== Checking arg segment: 'a'
+  Total = signs: 0
+Found arg at position 183, ends at 188
+  Full arg text: 'arg n;'
+=== Checking arg segment: 'n'
+  Total = signs: 0
+stored new snapshot /home/murphy/Dropbox/GitHub/sclang_format2/sclang_format/tests/snapshots/fixtures_insta__multi_line_events__inline@out.snap.new
+test format_fixtures_to_snapshots ... FAILED
+Found arg at position 162, ends at 201
+  Full arg text: 'arg   freq = 440,amp = 0.1 , pan = -0.5;'
+=== Checking arg segment: '  freq = 440,amp = 0.1 , pan = -0.5'
+  Found = at position 7
+  Found = at position 17
+  Found = at position 29
+  Total = signs: 3
+Triggered by Rule: parse_check
+Error: parse error in source
+test formatter_is_idempotent ... FAILED
+Found arg at position 72, ends at 81
+  Full arg text: 'arg out=0;'
+=== Checking arg segment: 'out=0'
+  Found = at position 3
+  Total = signs: 1
+Found arg at position 74, ends at 83
+  Full arg text: 'arg out=0;'
+=== Checking arg segment: 'out=0'
+  Found = at position 3
+  Total = signs: 1
+Found arg at position 66, ends at 74
+  Full arg text: 'arg time;'
+=== Checking arg segment: 'time'
+  Total = signs: 0
+Found arg at position 128, ends at 144
+  Full arg text: 'arg appClockTime;'
+=== Checking arg segment: 'appClockTime'
+  Total = signs: 0
+Found arg at position 217, ends at 222
+  Full arg text: 'arg i;'
+=== Checking arg segment: 'i'
+  Total = signs: 0
+Found arg at position 49, ends at 54
+  Full arg text: 'arg i;'
+=== Checking arg segment: 'i'
+  Total = signs: 0

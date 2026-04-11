@@ -3,7 +3,7 @@
 
 // single-line block heads with inline bodies
 ~f = { |freq = 440, amp = 0.1|SinOsc.ar(freq) * amp};
-+~g = { |freq, amp|  Saw.ar(freq) * amp };
+~g = { |freq, amp|  Saw.ar(freq) * amp };
 ~h = { |x, y|x + y};
 
 // multiline heads should not get space before newline

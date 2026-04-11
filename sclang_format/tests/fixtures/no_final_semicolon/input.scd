@@ -38,9 +38,9 @@ j = {
     "already clean"
 };
 
-// last semicolon followed by a comment on same line – we *do not* touch it yet
+// last semicolon followed by a comment on same line
 k = {
-    "with comment";  // this semicolon should remain
+    "with comment";  // this semicolon should be removed
 };
 
 // strings / comments with "};" patterns should be untouched

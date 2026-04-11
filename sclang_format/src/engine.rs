@@ -155,6 +155,31 @@ impl Ctx {
         }
         // END DEBUG BLOCK
 
+        // === CENTRALIZED EDIT PROTECTION ===
+        // Drop any edits that are entirely INSIDE a comment or string node.
+        // This prevents rules from modifying content within /* ... */, // ...,
+        // or "..." regions.  Edits that SPAN across a protected range (like
+        // compacting an array that contains strings) are allowed — they're
+        // structural edits, not content modifications.
+        let protected = collect_protected_ranges(self.tree.root_node(), &self.bytes());
+        if !protected.is_empty() {
+            let before_count = edits.len();
+            edits.retain(|e| {
+                !protected.iter().any(|&(ps, pe)| {
+                    // Edit is strictly inside a protected range
+                    // (past the opening delimiter, before the closing one)
+                    e.start_byte > ps && e.end_byte < pe
+                })
+            });
+            let dropped = before_count - edits.len();
+            if dropped > 0 && self.debug_edits {
+                eprintln!("  Dropped {} edits inside comments/strings", dropped);
+            }
+            if edits.is_empty() {
+                return Ok(());
+            }
+        }
+
         edits.sort_by_key(|e| e.start_byte);
         for e in edits.into_iter().rev() {
             let start_char = self.rope.byte_to_char(e.start_byte);
@@ -225,5 +250,43 @@ impl Ctx {
             }
         }
         false
+    }
+}
+
+/// Collect byte ranges of all comment and string nodes in the tree.
+/// These are "no-touch" zones — edits strictly inside them are dropped.
+fn collect_protected_ranges(root: Node, src: &[u8]) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    collect_protected_ranges_inner(root, src, &mut ranges);
+    ranges
+}
+
+fn collect_protected_ranges_inner(node: Node, src: &[u8], ranges: &mut Vec<(usize, usize)>) {
+    match node.kind() {
+        "string" | "symbol" | "block_comment" => {
+            ranges.push((node.start_byte(), node.end_byte()));
+            return; // Don't recurse into protected nodes
+        }
+        "line_comment" => {
+            // Protect the comment TEXT but not the `// ` prefix.
+            // This allows inline_comment_spacing to normalize whitespace
+            // after `//` while preventing any rule from changing the words.
+            let start = node.start_byte();
+            let end = node.end_byte();
+            // Skip past `//` and any whitespace to find where text begins
+            let mut text_start = start + 2; // past "//"
+            while text_start < end && (src[text_start] == b' ' || src[text_start] == b'\t') {
+                text_start += 1;
+            }
+            if text_start < end {
+                ranges.push((text_start, end));
+            }
+            return;
+        }
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_protected_ranges_inner(child, src, ranges);
     }
 }

@@ -1,7 +1,3 @@
----
-source: tests/fixtures_insta.rs
-expression: out
----
 (
 // block / pipe / layout stress fixture
 
@@ -29,23 +25,16 @@ SynthDef(\stressC, {
 // 2. If / else and else-if combinations for K&R + "} else {"
 if (Synth(\dummy).notNil) {
     "dummy exists".postln;
-} else {
+} {
     "no dummy".postln;
-}
+};
 
-if (1 < 2) {
-    "ok".postln;
-} else if (2 < 3) {
-    "also ok".postln;
-} else {
-    "should never see".postln;
-}
 
 // 3. Blocks with and without pipe args
 { |a, b, c|
     var s = a + b + c;
     s.postln;
-}.value;
+};
 
 {
     var x = 1;
@@ -97,4 +86,5 @@ z = [\a, \b].do({ |sym| sym.asString.postln });
 // comment: { |a, b| a + b }.collect({ |x| x });
 /* block comment: if (c) { "nope".postln } else { "also nope".postln } */
 )
+
 

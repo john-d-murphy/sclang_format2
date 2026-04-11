@@ -4,19 +4,19 @@
 // simple Allman-style assignment block
 x =
 {
-    y = y + 1;
+    var y = y + 1;
     3.rand;
 };
 
 // Allman-style if/else
-if (x > 0)
+if (x.value > 0)
 {
     "positive".postln;
 }
-else
+
 {
     "non-positive".postln;
-}
+};
 
 // this comment ends with an identifier; brace must NOT be moved onto it
 // block with both var and arg; weird spacing

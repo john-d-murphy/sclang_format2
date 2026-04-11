@@ -1,0 +1,2 @@
+// Source: Classes/SequenceableCollection.schelp block 10
+[3, 4, 5]@|@[6, 8];

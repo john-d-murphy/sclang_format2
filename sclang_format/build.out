@@ -1,0 +1,107 @@
+   Compiling sclang_format v0.1.0 (/home/murphy/Dropbox/GitHub/sclang_format2/sclang_format)
+error[E0425]: cannot find value `cur` in this scope
+  --> src/rules/ast_indent.rs:72:33
+   |
+72 |             while let Some(n) = cur {
+   |                                 ^^^ not found in this scope
+
+error[E0425]: cannot find value `first_fn_block_ancestor` in this scope
+  --> src/rules/ast_indent.rs:77:28
+   |
+77 |                         if first_fn_block_ancestor.is_none() {
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `first_fn_block_ancestor` in this scope
+  --> src/rules/ast_indent.rs:78:29
+   |
+78 | ...                   first_fn_block_ancestor = Some(n);
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: you might have meant to introduce a new binding
+   |
+78 |                             let first_fn_block_ancestor = Some(n);
+   |                             +++
+
+error[E0425]: cannot find value `cur` in this scope
+   --> src/rules/ast_indent.rs:109:17
+    |
+109 |                 cur = n.parent();
+    |                 ^^^
+    |
+help: you might have meant to introduce a new binding
+    |
+109 |                 let cur = n.parent();
+    |                 +++
+
+error[E0425]: cannot find value `first_fn_block_ancestor` in this scope
+   --> src/rules/ast_indent.rs:113:37
+    |
+113 |             if let Some(fn_block) = first_fn_block_ancestor {
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `is_trailing_closure` in this scope
+   --> src/rules/ast_indent.rs:116:25
+    |
+116 |                         is_trailing_closure = true;
+    |                         ^^^^^^^^^^^^^^^^^^^
+    |
+help: you might have meant to introduce a new binding
+    |
+116 |                         let is_trailing_closure = true;
+    |                         +++
+
+error[E0425]: cannot find value `trailing_on_collection` in this scope
+   --> src/rules/ast_indent.rs:120:33
+    |
+120 | ...                   trailing_on_collection = true;
+    |                       ^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: you might have meant to introduce a new binding
+    |
+120 |                                 let trailing_on_collection = true;
+    |                                 +++
+
+warning: unused doc comment
+   --> src/rules/ast_indent.rs:357:13
+    |
+357 | /             ///if has_collection && has_event && !has_fn_block {
+358 | |             ///    if first == b'(' && is_pure_opener_line {
+359 | |             ///        is_pure_opener_line = false;
+360 | |             ///    }
+...   |
+363 | |             ///    }
+364 | |             ///}
+    | |________________^
+...
+371 | /             if has_collection && has_event && !has_fn_block {
+372 | |                 match first {
+373 | |                     // opening delimiters for inner event/list chunks
+374 | |                     b'(' | b'[' if is_pure_opener_line => {
+...   |
+383 | |             }
+    | |_____________- rustdoc does not generate documentation for expressions
+    |
+    = help: use `//` for a plain comment
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cursor`
+   --> src/engine/ast_utils.rs:131:13
+    |
+131 |     let mut cursor: TreeCursor = node.walk();
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_cursor`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/engine/ast_utils.rs:131:9
+    |
+131 |     let mut cursor: TreeCursor = node.walk();
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `sclang_format` (lib) generated 3 warnings
+error: could not compile `sclang_format` (lib) due to 7 previous errors; 3 warnings emitted

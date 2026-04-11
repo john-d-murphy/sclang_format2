@@ -3,49 +3,38 @@
 
 var a,b , c   ,d ;
 var foo;
+var arr = [ 1,2 , 3 ];
+var amp;
+var out;
 
 // SynthDef with weird spacing
-SynthDef(\testA, { arg   freq=440,amp =0.1 , pan = -0.5;
+SynthDef(\testA, { arg   freq = 440,amp = 0.1 , pan = -0.5;
     var   sig1 ,sig2;
-    sig1=SinOsc.ar(freq.linexp(0,1, 200, 2000))*0.1;
+    sig1 = SinOsc.ar(freq.linexp(0,1, 200, 2000))*0.1;
     sig2 = sig1 !2 ;
     Out.ar( 0 ,sig2 );
 });
-
 // NodeProxy / JITLib style
-+~f = { |freq = 440, amp = 0.1|SinOsc.ar(freq) * amp};
-~g = { | freq , amp | PinkNoise.ar(amp) }.dup(2);
-
-// events / colons
-(
-    freq:440,
-    amp :0.1,
-    pan:-0.5,
-    out : 0
-).play;
+~f = { |freq = 440, amp = 0.1 | SinOsc.ar(freq) * amp};
+~g = { | freq , amp | PinkNoise.ar(amp).dup(2) };
 
 // arrays / indexing / calls
-var arr = [ 1,2 , 3 ];
+
 [ 1,2 ,3 ].do{ |x, i|(x + i).postln;};
-arr [0];
-arr  [ 1 ];
-foo ( 1, 2 );
-bar(3,4);
 
 // operators, unary, and parens
 a = 1+2 *3;
-b = 10-  5;
-c = (a + b) *(c -1);
-d = a * -1 + (-b);
+b = 10 -  5;
+c = 0;
+c = (a + b) *(c - 1);
+d = a * -1 + b.neg;
 
 // control keywords
 if(a>0){
     "a>0".postln;
 };
-while(true){
-    "loop".postln;
-};
-for(0,10,1,{ |i|i.postln;});
+/*
+for(0,10,1,{ |i|i.postln;});*/
 
 // trailing whitespace, dots, semicolons
 "hello"  .  toUpper   .reverse .postln  ;
@@ -54,4 +43,6 @@ for(0,10,1,{ |i|i.postln;});
 "This has foo (1, 2), arr [0], and { |x| x } in it".postln;
 // comment: if(x>0){ foo (1, 2); }
 // comment: { |a, b|a + b}
+
 )
+

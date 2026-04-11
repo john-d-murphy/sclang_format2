@@ -1,0 +1,6 @@
+// 4. Multi-line event literals vs non-events
+
+(
+    freq:440,amp:0.1, pan:-0.5, name:"foo:bar" // event with inline comment
+).play;
+

@@ -1,0 +1,2 @@
+// Source: Classes/MantissaMask.schelp block 0 (part 2/6)
+{ SinOsc.ar(SinOsc.kr(0.2, 0, 400, 500), 0, 0.4) }.play

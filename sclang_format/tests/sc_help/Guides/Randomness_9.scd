@@ -1,0 +1,8 @@
+// Source: Guides/Randomness.schelp block 9
+(
+var randomNumbers, histogram, minValue = -250, maxValue = 250, numVals = 10000, numBins = 500;
+
+randomNumbers = Array.fill(numVals, { maxValue.bilinrand; });
+histogram = randomNumbers.histo(numBins, minValue, maxValue);
+histogram.plot("histogram for bilinrand" + minValue + "to" + maxValue);
+)

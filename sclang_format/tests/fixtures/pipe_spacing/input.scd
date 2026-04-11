@@ -27,6 +27,11 @@ SynthDef(\testB, {|freq,amp|
     x.squared.postln;
 }.value;
 
+{
+    | freq = 440 , amp = 0.1 |
+    SinOsc.ar(freq) * amp
+}.value;
+
 // strings/comments with pipes should be untouched
 "This has |pipes| in a string".postln;
 // comment: { |a, b| a + b }

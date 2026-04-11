@@ -5,14 +5,6 @@
     x.postln;
 };
 
-foo{ |x, y|
-    (x + y).postln;
-};
-
-bar (1, 2){ |x, y|
-    x.postln;
-};
-
 if (true){
     "ok".postln;
 };

@@ -121,6 +121,10 @@ impl Rule for AddSpacesAroundColons {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        if cx.tree.root_node().has_error() {
+            return Ok(0);
+        }
+
         let mut edits = Vec::new();
 
         {

@@ -198,6 +198,10 @@ impl Rule for PipeParamDefaultParens {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        if cx.tree.root_node().has_error() {
+            return Ok(0);
+        }
+
         let bytes = cx.bytes();
         let buf: &[u8] = &bytes;
         let root = cx.tree.root_node();

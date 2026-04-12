@@ -1,5 +1,6 @@
 // src/rules/parens_brackets.rs
 
+use crate::engine::ast::in_string_or_comment;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -11,19 +12,6 @@ const fn is_space(b: u8) -> bool {
 
 const fn is_newline(b: u8) -> bool {
     b == b'\n' || b == b'\r'
-}
-
-/// Check if byte position is inside a string or comment node
-fn in_string_or_comment(root: Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
 }
 
 /// Check if there's a comment node starting at or near the given byte position
@@ -96,6 +84,11 @@ impl Rule for ParenBracketSpacing {
 
                     // Only remove if there's whitespace to remove
                     if j < i {
+                        // Don't remove whitespace that is part of a char literal
+                        // e.g. $ (dollar-space) is the char literal for space
+                        if j > 0 && bytes[j - 1] == b'$' {
+                            continue;
+                        }
                         edits.push(TextEdit {
                             start_byte: j,
                             end_byte: i,

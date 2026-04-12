@@ -317,6 +317,12 @@ impl Rule for TrailingClosures {
 
 impl TrailingClosures {
     fn run_pass(&self, cx: &mut Ctx) -> Result<usize> {
+        // Don't rewrite closures on broken trees — byte-level rewrites
+        // will produce garbage if the AST doesn't match the source.
+        if cx.tree.root_node().has_error() {
+            return Ok(0);
+        }
+
         let bytes = cx.bytes();
         let buf: &[u8] = &bytes;
         let root = cx.tree.root_node();

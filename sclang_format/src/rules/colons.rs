@@ -73,11 +73,21 @@ impl AddSpacesAroundColons {
         }
 
         // Fix spacing AFTER the key (before value)
-        // The key token ends after the colon, so we check from key_end to value_start
+        // For event_key tokens, the colon is inside the key token.
+        // For symbol/string/number keys, the colon is a separate token
+        // between key and value — we must skip past it.
         let after_key = key_node.end_byte();
         let value_start = value_node.start_byte();
 
-        self.fix_space_after_colon(&src, after_key, value_start, edits);
+        let src_slice = &src[after_key..value_start];
+        let colon_offset = if key_node.kind() == "event_key" {
+            0 // colon already inside key token
+        } else {
+            // Find the colon in the gap between key and value
+            src_slice.iter().position(|&b| b == b':').map(|p| p + 1).unwrap_or(0)
+        };
+
+        self.fix_space_after_colon(&src, after_key + colon_offset, value_start, edits);
     }
 
     fn fix_space_after_colon(

@@ -63,6 +63,11 @@ impl Rule for ParenBracketSpacing {
                             continue;
                         }
 
+                        // Don't remove whitespace in empty brackets/parens: [ ] or ( )
+                        if j < len && (bytes[j] == b']' || bytes[j] == b')') {
+                            continue;
+                        }
+
                         edits.push(TextEdit {
                             start_byte: i + 1,
                             end_byte: j,
@@ -87,6 +92,10 @@ impl Rule for ParenBracketSpacing {
                         // Don't remove whitespace that is part of a char literal
                         // e.g. $ (dollar-space) is the char literal for space
                         if j > 0 && bytes[j - 1] == b'$' {
+                            continue;
+                        }
+                        // Don't remove whitespace in empty brackets/parens: [ ] or ( )
+                        if j > 0 && (bytes[j - 1] == b'[' || bytes[j - 1] == b'(') {
                             continue;
                         }
                         edits.push(TextEdit {

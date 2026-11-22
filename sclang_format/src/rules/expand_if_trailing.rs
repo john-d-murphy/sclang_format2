@@ -339,10 +339,9 @@ impl ExpandLongIfTrailingClosures {
         replacement.push('\n');
 
         replacement.push_str(indent);
+        replacement.push('}');
         if has_semi {
-            replacement.push_str("};\n");
-        } else {
-            replacement.push_str("}\n");
+            replacement.push(';');
         }
 
         Some(TextEdit {
@@ -393,5 +392,32 @@ impl Rule for ExpandLongIfTrailingClosures {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        ExpandLongIfTrailingClosures.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_expanded_if_adds_no_blank_line_after_it() {
+        let src = "if (condition) { \"a long enough true branch to pass the width\" } { \"and the false one\" };\nx = 1;";
+        assert_eq!(
+            format(src),
+            "if (condition) {\n    \"a long enough true branch to pass the width\"\n} {\n    \"and the false one\"\n};\nx = 1;"
+        );
     }
 }

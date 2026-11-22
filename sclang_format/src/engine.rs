@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context, Result};
-use ropey::Rope;
 use std::fmt;
 use tree_sitter::{Language, Node, Parser, Tree};
 
@@ -25,7 +24,7 @@ pub enum IndentStyle {
 }
 
 pub struct Ctx {
-    rope: Rope,
+    text: String,
     parser: Parser,
     pub tree: Tree,
     pub indent_style: IndentStyle,
@@ -35,7 +34,7 @@ pub struct Ctx {
 
 impl fmt::Display for Ctx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.rope.to_string())
+        f.write_str(&self.text)
     }
 }
 
@@ -80,7 +79,7 @@ impl Ctx {
         let tree = parser.parse(src.as_str(), None).context("parse failed")?;
 
         Ok(Self {
-            rope: Rope::from_str(&src),
+            text: src,
             parser,
             tree,
             indent_style,
@@ -102,9 +101,11 @@ impl Ctx {
         }
     }
 
+    /// The text as it now stands. Borrowed, not copied: rules ask for it once
+    /// a node, and a copy each time made the cost grow with the square of the file.
     #[must_use]
-    pub fn bytes(&self) -> Vec<u8> {
-        self.rope.to_string().into_bytes()
+    pub fn bytes(&self) -> &[u8] {
+        self.text.as_bytes()
     }
 
     pub fn apply_edits(&mut self, mut edits: Vec<TextEdit>) -> Result<()> {
@@ -161,7 +162,7 @@ impl Ctx {
         // or "..." regions.  Edits that SPAN across a protected range (like
         // compacting an array that contains strings) are allowed — they're
         // structural edits, not content modifications.
-        let protected = collect_protected_ranges(self.tree.root_node(), &self.bytes());
+        let protected = collect_protected_ranges(self.tree.root_node(), self.bytes());
         if !protected.is_empty() {
             let before_count = edits.len();
             edits.retain(|e| {
@@ -194,19 +195,15 @@ impl Ctx {
             ));
         }
         for e in edits.into_iter().rev() {
-            let start_char = self.rope.byte_to_char(e.start_byte);
-            let end_char = self.rope.byte_to_char(e.end_byte);
-            self.rope.remove(start_char..end_char);
-            if !e.replacement.is_empty() {
-                self.rope.insert(start_char, &e.replacement);
-            }
+            self.text
+                .replace_range(e.start_byte..e.end_byte, &e.replacement);
         }
 
-        let source_string = self.rope.to_string(); // Capture this once for reuse below
+        let source_string = &self.text;
 
         let new_tree = self
             .parser
-            .parse(&source_string, None)
+            .parse(source_string, None)
             .context("reparse failed")?;
 
         // === CRITICAL ERROR CHECK ===
@@ -247,7 +244,7 @@ impl Ctx {
 
     #[must_use]
     pub fn slice_bytes(&self, start: usize, end: usize) -> String {
-        self.rope.byte_slice(start..end).to_string()
+        self.text[start..end].to_string()
     }
 
     #[must_use]

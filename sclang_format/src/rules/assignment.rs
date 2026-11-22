@@ -97,7 +97,7 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let root = cx.tree.root_node();
         let src = cx.bytes(); // Vec<u8>
-        let src_slice: &[u8] = src.as_slice(); // &[u8] for TS & helpers
+        let src_slice: &[u8] = src; // &[u8] for TS & helpers
 
         let mut edits: Vec<TextEdit> = Vec::new();
         let mut seen_eq: HashSet<usize> = HashSet::new();

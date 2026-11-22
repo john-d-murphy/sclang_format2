@@ -10,7 +10,7 @@ impl crate::rules::Rule for TrimTrailingWhitespaceAndEofNewline {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
-        let b = bytes.as_slice();
+        let b = bytes;
 
         let mut edits = Vec::<TextEdit>::new();
 

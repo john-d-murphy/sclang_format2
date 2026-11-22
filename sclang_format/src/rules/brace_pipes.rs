@@ -19,7 +19,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
-        let src = bytes.as_slice();
+        let src = bytes;
         let root = cx.tree.root_node();
         let lang = cx.tree.language();
 

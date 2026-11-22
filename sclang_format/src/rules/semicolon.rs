@@ -17,7 +17,7 @@ impl Rule for NoSpaceBeforeSemicolon {
 
         let q = Query::new(&cx.tree.language(), r#"( ";" ) @semi"#)?;
         let mut cur = QueryCursor::new();
-        let mut it = cur.matches(&q, root, src.as_slice());
+        let mut it = cur.matches(&q, root, src);
 
         while let Some(m) = it.next() {
             let n = m.captures[0].node;

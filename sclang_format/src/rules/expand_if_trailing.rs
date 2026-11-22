@@ -367,7 +367,7 @@ impl Rule for ExpandLongIfTrailingClosures {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
-        let bytes: &[u8] = src.as_slice();
+        let bytes: &[u8] = src;
         let len = bytes.len();
 
         let mut edits = Vec::new();

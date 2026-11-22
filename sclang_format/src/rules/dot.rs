@@ -30,7 +30,7 @@ impl crate::rules::Rule for NoSpacesAroundDot {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let root = cx.tree.root_node();
         let bytes = cx.bytes();
-        let src = bytes.as_slice();
+        let src = bytes;
 
         let mut edits = Vec::<TextEdit>::new();
 

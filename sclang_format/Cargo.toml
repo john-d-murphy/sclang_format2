@@ -8,7 +8,6 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 tree-sitter = "0.25"
 owo-colors = "4"
-ropey = "1.6.1"
 pretty_assertions = "1.4.1"
 glob = "0.3.3"
 # tree-sitter-supercollider = { git = "https://github.com/john-d-murphy/tree-sitter-supercollider"}

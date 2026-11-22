@@ -297,7 +297,7 @@ fn class_forms_keep_their_meaning() {
 
     // What the class library holds from each file: its lines, by file.
     let by_file = |dir: &Path, work: &Path| -> BTreeMap<String, BTreeSet<String>> {
-        let lines = compile_classes(dir, work).unwrap_or_else(|said| {
+        let lines = compile_classes(dir, work, true).unwrap_or_else(|said| {
             panic!(
                 "sclang did not compile the class files in {}; it said:\n{said}",
                 dir.display()

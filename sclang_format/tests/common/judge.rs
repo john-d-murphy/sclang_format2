@@ -96,16 +96,19 @@ pub fn compile_all(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Compiled> {
 /// `method <class>:<name> <file> ...`, the file given from `dir`. sclang
 /// compiles class files only as it starts, with `dir` as an include path; a
 /// file it refuses leaves it without a library, and then what it said is
-/// the error.
-pub fn compile_classes(dir: &Path, work: &Path) -> Result<Vec<String>, String> {
+/// the error. `dir` is compiled beside the installed class library, or, when
+/// it is a class library itself, in its place.
+pub fn compile_classes(dir: &Path, work: &Path, beside: bool) -> Result<Vec<String>, String> {
     let xdg = work.join("xdg");
     fs::create_dir_all(&xdg).unwrap();
     let configuration = work.join("sclang_conf.yaml");
     fs::write(
         &configuration,
         format!(
-            "includePaths:\n    - {}\nexcludePaths: []\npostInlineWarnings: false\n",
-            dir.display()
+            "includePaths:\n    - {}\nexcludePaths: []\npostInlineWarnings: false\n\
+             excludeDefaultPaths: {}\n",
+            dir.display(),
+            !beside
         ),
     )
     .unwrap();

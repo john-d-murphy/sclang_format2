@@ -10,6 +10,9 @@
 //! - `test_suite_scripts_keep_their_meaning` requires the same of the
 //!   scripts of SuperCollider's own test suite, and skips when its source
 //!   is not there.
+//! - `class_library_keeps_its_meaning` formats the class library as it is
+//!   installed and requires sclang to compile the formatted library to the
+//!   same classes and methods.
 //! - `corpus_design` needs python3 and the SuperCollider help sources as
 //!   well, so it runs only when asked for:
 //!
@@ -24,8 +27,10 @@
 mod common;
 
 use common::judge::{
-    Verdict, compile_all, declare, fresh_dir, judge, manifest_dir, par_map, sclang_installed, tally,
+    Verdict, compile_all, compile_classes, declare, fresh_dir, judge, manifest_dir, par_map,
+    sclang_installed, tally,
 };
+use std::collections::BTreeSet;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -211,6 +216,74 @@ fn test_suite_scripts_keep_their_meaning() {
         formatted.differing,
         formatted.unformatted,
         formatted.revived
+    );
+}
+
+/// The class library as it is installed, and the same library formatted,
+/// each compiled by sclang in place of its own: the two must hold the same
+/// classes, with the same variables and constants, and the same methods,
+/// each compiled to the same code. The help corpus and the forms of
+/// tests/lang11d are interpreted code; this is what says that formatting a
+/// class file keeps its meaning, on every class file SuperCollider has.
+#[test]
+fn class_library_keeps_its_meaning() {
+    let library = Path::new("/usr/share/SuperCollider/SCClassLibrary");
+    if !sclang_installed() || !library.is_dir() {
+        eprintln!(
+            "Skipping class_library_keeps_its_meaning: needs sclang and its class library at {}",
+            library.display()
+        );
+        return;
+    }
+    let work = fresh_dir(&manifest_dir().join("target/judge/class_library"));
+
+    // The library formatted, file for file. A file the formatter refuses
+    // is tests/class_library.rs's business, and is copied as it stands.
+    let formatted_dir = work.join("formatted");
+    let files: Vec<PathBuf> = glob::glob(&format!("{}/**/*.sc", library.display()))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    par_map(&files, |path| {
+        let text = fs::read_to_string(path).unwrap();
+        let formatted = sclang_format::format_source(&text, "all").unwrap_or(text);
+        let out = formatted_dir.join(path.strip_prefix(library).unwrap());
+        fs::create_dir_all(out.parent().unwrap()).unwrap();
+        fs::write(out, formatted).unwrap();
+    });
+
+    let compile = |dir: &Path, name: &str| -> BTreeSet<String> {
+        compile_classes(dir, &fresh_dir(&work.join(name)), false)
+            .unwrap_or_else(|said| {
+                panic!("sclang did not compile {}; it said:\n{said}", dir.display())
+            })
+            .into_iter()
+            .collect()
+    };
+    let original = compile(library, "original-work");
+    let formatted = compile(&formatted_dir, "formatted-work");
+
+    // A line is `class <name> <file> ...` or `method <class>:<name> <file> ...`.
+    let name = |line: &String| line.split(' ').take(3).collect::<Vec<_>>().join(" ");
+    let changed: BTreeSet<String> = original
+        .symmetric_difference(&formatted)
+        .map(name)
+        .collect();
+    eprintln!(
+        "class library: {} files, {} classes and methods, {} changed by formatting",
+        files.len(),
+        original.len(),
+        changed.len()
+    );
+    assert!(
+        changed.is_empty(),
+        "{} classes and methods of the class library mean something else once formatted:\n{}",
+        changed.len(),
+        changed
+            .iter()
+            .take(40)
+            .map(|c| format!("  {c}\n"))
+            .collect::<String>()
     );
 }
 

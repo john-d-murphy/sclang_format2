@@ -79,7 +79,8 @@ classes = {
 	var all = Class.allClasses.copy.sort { |a, b| a.name <= b.name };
 	all.select(from).reject(_.isMetaClass).do { |class|
 		"@@judge class % % {superclass:%; instVars:%; instDefaults:%; classVars:%; classDefaults:%; consts:%; constValues:%}".format(
-			class.name, class.filenameSymbol.asString.drop(dir.size), class.superclass.name,
+			class.name, class.filenameSymbol.asString.drop(dir.size),
+			class.superclass !? _.name, // Object has none
 			dump.(class.instVarNames), dump.(class.iprototype),
 			dump.(class.classVarNames), dump.(class.cprototype),
 			dump.(class.constNames), dump.(class.constValues)

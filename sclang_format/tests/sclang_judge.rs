@@ -437,15 +437,16 @@ fn formatter_status(text: &str) -> &'static str {
     }
 }
 
-/// A form's text with the extraction header dropped and every run of blanks
-/// made one space, so that a form is found in the corpus whatever its file is
-/// called there and however its spacing was mended since.
+/// A form's text with the extraction header and every blank dropped, so that
+/// a form is found in the corpus whatever its file is called there and however
+/// it is spaced: the help has been respaced since the corpus was cut from it
+/// (`|x=0|` is now `|x = 0|`), and the corpus mended by hand.
 fn form_text(text: &str) -> String {
     let body = match text.split_once('\n') {
         Some((first, rest)) if first.starts_with("// Source:") => rest,
         _ => text,
     };
-    body.split_whitespace().collect::<Vec<_>>().join(" ")
+    body.split_whitespace().collect()
 }
 
 #[test]

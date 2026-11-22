@@ -366,45 +366,6 @@ mod tests {
         }
     }
 
-    // Whether a binary_expression under `node` holds a `!`.
-    fn find_binary_with_bang(node: Node, src: &[u8]) -> bool {
-        if node.kind() == "binary_expression" {
-            let text = &src[node.start_byte()..node.end_byte()];
-            if text.contains(&b'!') {
-                eprintln!("\nFound binary_expression with !:");
-                eprintln!("  Range: [{}-{}]", node.start_byte(), node.end_byte());
-                eprintln!("  Text: {:?}", String::from_utf8_lossy(text));
-
-                // Check for left/right fields
-                if let Some(left) = node.child_by_field_name("left") {
-                    let lt = &src[left.start_byte()..left.end_byte()];
-                    eprintln!("  Left: {} {:?}", left.kind(), String::from_utf8_lossy(lt));
-                } else {
-                    eprintln!("  Left: NONE");
-                }
-                if let Some(right) = node.child_by_field_name("right") {
-                    let rt = &src[right.start_byte()..right.end_byte()];
-                    eprintln!(
-                        "  Right: {} {:?}",
-                        right.kind(),
-                        String::from_utf8_lossy(rt)
-                    );
-                } else {
-                    eprintln!("  Right: NONE");
-                }
-                return true;
-            }
-        }
-
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if find_binary_with_bang(child, src) {
-                return true;
-            }
-        }
-        false
-    }
-
     #[test]
     fn depth_outside_any_block_is_zero() {
         let src = "1 + 2;\n";
@@ -637,64 +598,6 @@ x = { |foo = 3, bar = (4.dbamp)|
             v, 1,
             "Function body inside top-level parens should be Depth 1"
         );
-    }
-
-    #[test]
-    fn debug_bang_operator_ast() {
-        // Test to see how tree-sitter parses the ! operator with extra whitespace
-        let src = "c = [10, 20]!  4;";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        eprintln!("\n=== DEBUG BANG OPERATOR AST ===");
-        eprintln!("Source: {src}");
-        eprintln!("Tree has error: {}", root.has_error());
-
-        // Find the ! position
-        let bang_pos = src.find('!').unwrap();
-        eprintln!("Bang position: {bang_pos}");
-
-        // Dump the full tree
-
-        dump_tree(root, &bytes, 0);
-
-        let found = find_binary_with_bang(root, &bytes);
-        eprintln!("\nBinary expression with ! found: {found}");
-
-        // Also test with proper spacing
-        let src2 = "c = [10, 20]!4;";
-        let (tree2, bytes2) = parse_source(src2);
-        let root2 = tree2.root_node();
-        eprintln!("\n=== Comparison: properly spaced ===");
-        eprintln!("Source: {src2}");
-        eprintln!("Tree has error: {}", root2.has_error());
-        dump_tree(root2, &bytes2, 0);
-        let found2 = find_binary_with_bang(root2, &bytes2);
-        eprintln!("\nBinary expression with ! found: {found2}");
-    }
-
-    #[test]
-    fn debug_collection_ast_structure() {
-        // Test various collection element types to understand AST structure
-        let cases = [
-            "[1, 2, 3]",
-            "[\"foo\", \"bar\"]",
-            "[\\a, \\b]",
-            "[-1, -2]",
-            "[3.14, 2.71]",
-            "[a, b, c]",
-            "[(1 + 2), (3 * 4)]",
-            "[foo.bar, baz.qux]",
-            "[[1, 2], [3, 4]]",
-        ];
-
-        for src in cases {
-            eprintln!("\n=== COLLECTION: {src} ===");
-            let (tree, bytes) = parse_source(src);
-            let root = tree.root_node();
-
-            dump_tree(root, &bytes, 0);
-        }
     }
 
     #[test]

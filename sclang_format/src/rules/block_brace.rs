@@ -3,29 +3,7 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
-}
+use crate::engine::text::{is_space, is_newline, is_escaped};
 
 fn fix_before_brace(bytes: &[u8], brace: usize, edits: &mut Vec<TextEdit>) {
     if brace == 0 {

@@ -4,10 +4,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
+use crate::engine::text::{is_newline};
 
 /// Operators that should have spaces around them
 const SPACED_OPERATORS: &[&str] = &[

@@ -1,16 +1,9 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
+use crate::engine::text::{is_space, is_newline};
 
 const MAX_LINE_WIDTH: usize = 80;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
 
 fn is_ident_char(b: u8) -> bool {
     (b'A'..=b'Z').contains(&b)

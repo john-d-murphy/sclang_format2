@@ -4,14 +4,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
+use crate::engine::text::{is_space, is_newline};
 
 /// Check if this byte position is the START of a line comment node
 fn is_line_comment_start(root: Node, byte: usize) -> bool {

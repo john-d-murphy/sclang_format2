@@ -1,17 +1,10 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(byte: u8) -> bool {
-    byte == b' ' || byte == b'\t'
-}
+use crate::engine::text::{is_space, is_newline};
 
 const fn is_ident_start(byte: u8) -> bool {
     byte.is_ascii_lowercase() || byte.is_ascii_uppercase() || byte == b'_' || byte == b'\\'
-}
-
-const fn is_newline(byte: u8) -> bool {
-    byte == b'\n' || byte == b'\r'
 }
 
 pub struct DotChainLayout;

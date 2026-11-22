@@ -2,11 +2,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use crate::engine::ast::in_string_or_comment;
-
-/// Whitespace
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
+use crate::engine::text::{is_space};
 
 /// Simple literal classification
 fn is_numeric_literal(s: &str) -> bool {

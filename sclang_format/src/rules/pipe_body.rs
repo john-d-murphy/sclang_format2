@@ -3,29 +3,7 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(byte: u8) -> bool {
-    byte == b' ' || byte == b'\t'
-}
-
-const fn is_newline(byte: u8) -> bool {
-    byte == b'\n' || byte == b'\r'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
-}
+use crate::engine::text::{is_space, is_newline, is_escaped};
 
 pub struct PipeBodySpacing;
 

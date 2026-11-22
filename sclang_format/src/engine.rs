@@ -5,6 +5,7 @@ use tree_sitter::{Language, Node, Parser, Tree};
 pub mod ast;
 pub mod ast_utils;
 pub mod layout;
+pub mod text;
 
 pub use ast::in_string_or_comment;
 

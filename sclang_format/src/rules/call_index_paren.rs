@@ -3,32 +3,10 @@
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
+use crate::engine::text::{is_space, is_newline, is_escaped};
 
 const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
 }
 
 fn is_keyword(bytes: &[u8], start: usize, end: usize) -> bool {

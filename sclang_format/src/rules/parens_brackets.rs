@@ -5,14 +5,7 @@ use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
+use crate::engine::text::{is_space, is_newline};
 
 /// Check if there's a comment node starting at or near the given byte position
 fn comment_starts_at(root: Node, byte: usize) -> bool {

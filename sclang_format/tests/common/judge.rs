@@ -90,6 +90,52 @@ pub fn compile_all(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Compiled> {
     files
 }
 
+/// What sclang's class library holds from the class files under `dir`: one
+/// line for each class and each method, as `tests/judge.scd` posts them,
+/// less the `@@judge` that opens the line, so `class <name> <file> ...` or
+/// `method <class>:<name> <file> ...`, the file given from `dir`. sclang
+/// compiles class files only as it starts, with `dir` as an include path; a
+/// file it refuses leaves it without a library, and then what it said is
+/// the error.
+pub fn compile_classes(dir: &Path, work: &Path) -> Result<Vec<String>, String> {
+    let xdg = work.join("xdg");
+    fs::create_dir_all(&xdg).unwrap();
+    let configuration = work.join("sclang_conf.yaml");
+    fs::write(
+        &configuration,
+        format!(
+            "includePaths:\n    - {}\nexcludePaths: []\npostInlineWarnings: false\n",
+            dir.display()
+        ),
+    )
+    .unwrap();
+    let out = Command::new("timeout")
+        .arg("300")
+        .arg("sclang")
+        .arg("-l")
+        .arg(&configuration)
+        .arg(manifest_dir().join("tests/judge.scd"))
+        .arg(dir)
+        .arg("classes")
+        .env("XDG_DATA_HOME", &xdg)
+        .env("QT_QPA_PLATFORM", "offscreen")
+        .current_dir(work)
+        .stdin(Stdio::null())
+        .output()
+        .expect("run sclang");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    if !stdout.lines().any(|line| line == "@@judge done") {
+        let said: Vec<&str> = stdout.lines().collect();
+        return Err(said[said.len().saturating_sub(40)..].join("\n"));
+    }
+    Ok(stdout
+        .lines()
+        .filter_map(|line| line.strip_prefix("@@judge "))
+        .filter(|line| line.starts_with("class ") || line.starts_with("method "))
+        .map(String::from)
+        .collect())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Reason {
     SyntaxError,

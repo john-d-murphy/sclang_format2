@@ -33,8 +33,6 @@ impl Rule for IndentByAstLevel {
             }
 
 
-            let content = &bytes[line.first_non_ws..line.end];
-            let is_line_comment = content.starts_with(b"//");
             let byte = line.first_non_ws;
 
 
@@ -51,37 +49,7 @@ impl Rule for IndentByAstLevel {
             }
 
 
-            // 1. Calculate structural depth from AST
-            let mut depth = visual_block_depth_at(root, byte, bytes);
-
-
-            // 2. Adjust for lines starting with closing delimiters
-            // This handles both pure delimiter lines like `};` AND
-            // lines like `).play;` or `}.value;`
-            let starts_closing = starts_with_closing_delim(content);
-            if !is_line_comment && starts_closing && depth > 0 {
-                depth -= 1;
-            }
-
-
-            // 3. Adjust for block headers (like 'if (...) {') which visually sit outside
-            let is_block_header = is_function_block_header(&node);
-            if is_block_header && depth > 0 {
-                depth -= 1;
-            }
-
-
-            // 4. Adjust for switch cases
-            let is_switch_case = is_case_like_line_after_switch(&node, bytes);
-            if is_switch_case && depth > 0 {
-                depth -= 1;
-            }
-
-
-            // 5. Trailing Closure Handling
-            // NOTE: This is now handled in block_depth_at by not double-counting
-            // method_call when we're inside its trailing function_block.
-
+            let depth = line_depth(root, bytes, byte);
 
             let desired_indent = make_indent(cx.indent_style, depth);
 
@@ -105,24 +73,6 @@ impl Rule for IndentByAstLevel {
 }
 
 
-fn is_case_like_line_after_switch(node: &Node, _src: &[u8]) -> bool {
-    let kind = node.kind();
-    if kind != "function_block" && kind != "literal" {
-        return false;
-    }
-
-
-    if let Some(parent) = node.parent() {
-        if parent.kind() == "switch" {
-            return true;
-        }
-    }
-
-
-    false
-}
-
-
 /// Check if a node is inside a block comment
 fn is_inside_block_comment(node: &Node) -> bool {
     let mut current = Some(*node);
@@ -136,28 +86,16 @@ fn is_inside_block_comment(node: &Node) -> bool {
 }
 
 
-/// Check if a line starts with a closing delimiter (}, ], or ))
-/// Used for outdenting lines like `}.value;` or `).play;`
-fn starts_with_closing_delim(content: &[u8]) -> bool {
-    // content is already trimmed to start at first non-whitespace
-    matches!(content.first(), Some(b'}') | Some(b']') | Some(b')'))
-}
-
-
-fn is_function_block_header(node: &Node) -> bool {
-    match node.kind() {
-        "if" | "while" | "for" | "switch" => {
-            let count = node.named_child_count();
-            for i in 0..count {
-                if let Some(child) = node.named_child(i) {
-                    if child.kind() == "function_block" {
-                        return true;
-                    }
-                }
-            }
-            false
-        }
-        _ => false,
+/// The depth of the line whose first character that is not a blank is at
+/// `first`: what the tree says, less one for a line that begins with a
+/// closing bracket (`};`, `).play;`, `}.value;`), which stands level with
+/// the line its bracket was opened on.
+pub(super) fn line_depth(root: Node, bytes: &[u8], first: usize) -> usize {
+    let depth = visual_block_depth_at(root, first, bytes);
+    if matches!(bytes[first], b'}' | b']' | b')') {
+        depth.saturating_sub(1)
+    } else {
+        depth
     }
 }
 

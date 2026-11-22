@@ -24,6 +24,7 @@ mod dot_chain_layout;
 mod events_multiline;
 mod expand_if_trailing;
 mod extra_trailing_closures;
+mod if_trailing;
 mod inline_comment_spacing;
 mod inline_ws;
 mod keyword_paren;

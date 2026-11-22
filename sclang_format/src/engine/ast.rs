@@ -42,3 +42,19 @@ pub fn operator_end(op: Node) -> usize {
         .filter(|n| n.kind() == "adverb")
         .map_or_else(|| op.end_byte(), |adverb| adverb.end_byte())
 }
+
+/// Where the token before `node` ends. The blanks a rule may delete before a
+/// token stop here: the blank of the character `$ ` is part of that token.
+#[must_use]
+pub fn end_of_token_before(node: Node) -> usize {
+    let mut n = node;
+    loop {
+        if let Some(prev) = n.prev_sibling() {
+            return prev.end_byte();
+        }
+        match n.parent() {
+            Some(parent) => n = parent,
+            None => return 0,
+        }
+    }
+}

@@ -1,3 +1,4 @@
+use crate::engine::ast::end_of_token_before;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::{Result, Ok};
@@ -22,9 +23,7 @@ impl Rule for NoSpaceBeforeSemicolon {
         while let Some(m) = it.next() {
             let n = m.captures[0].node;
             let start = n.start_byte();
-            // A blank that ends the token before the ';' (the character `$ `)
-            // is part of that token, not space before the ';'.
-            let token_before_end = n.prev_sibling().map_or(start, |p| p.end_byte());
+            let token_before_end = end_of_token_before(n);
             // remove spaces/tabs immediately before ';' (don’t cross newline)
             let mut j = start;
             while j > token_before_end && (src[j - 1] == b' ' || src[j - 1] == b'\t') {

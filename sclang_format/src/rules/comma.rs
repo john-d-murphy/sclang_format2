@@ -1,5 +1,6 @@
 // src/rules/comma.rs
 
+use crate::engine::ast::end_of_token_before;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -70,9 +71,7 @@ fn space_commas_within(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
 
 fn normalize_comma_spacing(src: &[u8], comma: Node, edits: &mut Vec<TextEdit>) {
     let comma_pos = comma.start_byte();
-    // A blank that ends the token before the comma (the character `$ `) is
-    // part of that token, not space before the comma.
-    let token_before_end = comma.prev_sibling().map_or(comma_pos, |n| n.end_byte());
+    let token_before_end = end_of_token_before(comma);
     let mut left = comma_pos;
 
     // Scan backwards for spaces before comma

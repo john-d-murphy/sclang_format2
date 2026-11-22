@@ -1,10 +1,13 @@
 // src/rules/pipe_body.rs
 
+use crate::engine::ast::descendants_of_kind;
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use crate::engine::text::{is_space, is_newline, is_escaped};
 
+/// One space between a block's closing pipe and its body on the same line,
+/// and none after a pipe that ends its line: `{ |a|a }` is `{ |a| a }`.
 pub struct PipeBodySpacing;
 
 impl Rule for PipeBodySpacing {
@@ -13,165 +16,44 @@ impl Rule for PipeBodySpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
-        let len = bytes.len();
-
+        let bytes = cx.bytes();
         let mut edits = Vec::new();
 
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
-
-        let mut i = 0usize;
-        while i < len {
-            let byte = bytes[i];
-
-            // inside comments/strings
-            if in_line_comment {
-                if byte == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
+        for list in descendants_of_kind(cx.tree.root_node(), "pipe_parameter_list") {
+            // The brace and the two pipes, when all three are on one line
+            // with nothing but blanks between the brace and the first pipe.
+            let Some(brace) = list
+                .parent()
+                .and_then(|parameters| parameters.prev_sibling())
+                .filter(|brace| brace.kind() == "{")
+            else {
+                continue;
+            };
+            let (Some(open), Some(close)) = (list.child(0), list.child(list.child_count() - 1))
+            else {
+                continue;
+            };
+            let row = brace.start_position().row;
+            if open.start_position().row != row
+                || close.start_position().row != row
+                || !bytes[brace.end_byte()..open.start_byte()]
+                    .iter()
+                    .all(|&b| is_space(b))
+            {
                 continue;
             }
 
-            if in_block_comment {
-                if byte == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
+            let start = close.end_byte();
+            let blanks = bytes[start..].iter().take_while(|&&b| is_space(b)).count();
+            let ends_line = bytes.get(start + blanks).is_none_or(|&b| is_newline(b));
+            let wanted = if ends_line { "" } else { " " };
+            if &bytes[start..start + blanks] != wanted.as_bytes() {
+                edits.push(TextEdit {
+                    start_byte: start,
+                    end_byte: start + blanks,
+                    replacement: wanted.to_string(),
+                });
             }
-
-            if in_single_str {
-                if byte == b'\'' && !is_escaped(bytes, i) {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_double_str {
-                if byte == b'"' && !is_escaped(bytes, i) {
-                    in_double_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            // entering comments/strings
-            if byte == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if byte == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-
-            if byte == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // actual rule: find `{ ... |args| body...` on a single line
-            if byte == b'{' {
-                let brace_idx = i;
-
-                // first pipe on the same line, only whitespace between { and |
-                let mut j = brace_idx + 1;
-                let mut left_pipe: Option<usize> = None;
-
-                while j < len {
-                    let c = bytes[j];
-                    if is_newline(c) {
-                        break;
-                    }
-                    if c == b'|' {
-                        left_pipe = Some(j);
-                        break;
-                    }
-                    if !is_space(c) {
-                        left_pipe = None;
-                        break;
-                    }
-                    j += 1;
-                }
-
-                let Some(lp) = left_pipe else {
-                    i += 1;
-                    continue;
-                };
-
-                // second pipe on same line = closing pipe for block head
-                let mut k = lp + 1;
-                let mut right_pipe: Option<usize> = None;
-                while k < len {
-                    let c = bytes[k];
-                    if is_newline(c) {
-                        break;
-                    }
-                    if c == b'|' {
-                        right_pipe = Some(k);
-                        break;
-                    }
-                    k += 1;
-                }
-
-                let Some(rp) = right_pipe else {
-                    i += 1;
-                    continue;
-                };
-
-                // normalize spaces after the closing pipe
-                let mut after = rp + 1;
-                while after < len && is_space(bytes[after]) && !is_newline(bytes[after]) {
-                    after += 1;
-                }
-                let has_ws = after > rp + 1;
-
-                if after == len || is_newline(bytes[after]) {
-                    // body starts on next line or EOF: no trailing spaces wanted
-                    if has_ws {
-                        edits.push(TextEdit {
-                            start_byte: rp + 1,
-                            end_byte: after,
-                            replacement: String::new(),
-                        });
-                    }
-                } else {
-                    // body code is on same line: want exactly one space
-                    if has_ws {
-                        edits.push(TextEdit {
-                            start_byte: rp + 1,
-                            end_byte: after,
-                            replacement: " ".to_string(),
-                        });
-                    } else {
-                        edits.push(TextEdit {
-                            start_byte: rp + 1,
-                            end_byte: rp + 1,
-                            replacement: " ".to_string(),
-                        });
-                    }
-                }
-            }
-
-            i += 1;
         }
 
         let n = edits.len();
@@ -179,5 +61,45 @@ impl Rule for PipeBodySpacing {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeBodySpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_one_space_after_the_closing_pipe_and_none_at_the_end_of_a_line() {
+        assert_eq!(format("f = { |a|a };"), "f = { |a| a };");
+        assert_eq!(format("f = { |a|   a };"), "f = { |a| a };");
+        assert_eq!(format("f = { |a|  \n    a\n};"), "f = { |a|\n    a\n};");
+        assert_eq!(format("f = {|a|}"), "f = {|a| }");
+    }
+
+    #[test]
+    fn test_a_pipe_in_a_character_a_string_or_an_expression_is_not_the_lists() {
+        for src in [
+            "x = $\"; f = { |a| a }; y = $\";",
+            "x = $'; f = { |a| a }; y = $';",
+            "f = { |a = \"|\"| a };",
+            "f = { |a = $|| a };",
+            "f = { a |b| c };",
+        ] {
+            assert_eq!(format(src), src);
+        }
+        assert_eq!(format("x = $\"; f = { |a|a }; y = $\";"), "x = $\"; f = { |a| a }; y = $\";");
     }
 }

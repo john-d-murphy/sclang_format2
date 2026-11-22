@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 44 (part 2/6)
-[[1, 2, 3], [[41, 52], 5, 6], 1, 2, 3].maxSizeAtDepth(1);
+// Source: Classes/SequenceableCollection.schelp block 44 (part 2/4)
+x = [[[a, 5], [a, 10]], [[a, 50, 60]]].flopDeep(1);

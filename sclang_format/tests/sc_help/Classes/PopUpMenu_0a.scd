@@ -11,7 +11,7 @@ m.items = [
 m.background_(Color.green(0.7));  // only changes the look of displayed item
 m.stringColor_(Color.white);   // only changes the look of displayed item
 m.font_(Font("Courier", 13));   // only changes the look of displayed item
-m.action = { arg menu;
+m.action = { |menu|
  [menu.value, menu.item].postln;
 };
 )

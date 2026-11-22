@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 39 (part 3/4)
-a[0] = pi;
+// Source: Classes/SequenceableCollection.schelp block 39 (part 3/3)
+[].flop;

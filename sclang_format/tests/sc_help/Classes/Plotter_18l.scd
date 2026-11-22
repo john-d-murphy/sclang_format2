@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 18 (part 12/12)
-p.domainSpecs_([1, 1000, \exp].asSpec).refresh;
+// Source: Classes/Plotter.schelp block 18 (part 12/13)
+Env.new({ 1.0.rand2 }! 8, { 1.0.rand } ! 7, \sin).plot;

@@ -1,8 +1,6 @@
 // Source: Classes/Date.schelp block 1
 (
-var a = Date.seed;
-thisThread.randSeed = a;
-20.do { [1,0].choose.post }; "".postln;
-thisThread.randSeed = a;
-25.do { [1,0].choose.post }; "".postln;
+var d = Date.new.postln;
+var e = Date(rawSeconds: d.rawSeconds); // create a new Date with the same time
+d == e; // true
 )

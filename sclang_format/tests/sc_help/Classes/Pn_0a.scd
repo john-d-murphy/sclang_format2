@@ -3,5 +3,5 @@
 var a, b;
 a = Pn(Pseq(#[1, 2, 3], 1), 4);	// repeat pattern four times
 b = a.asStream;
-16.do({ b.next.postln; });
+16.do({ b.next.postln });
 )

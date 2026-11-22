@@ -1,2 +1,2 @@
-// Source: Classes/GrainSin.schelp block 0 (part 4/5)
-x.set(\envbuf, -1);
+// Source: Classes/GrainSin.schelp block 0 (part 4/7)
+x = Synth(\sin_grain_test, [\envbuf, -1])

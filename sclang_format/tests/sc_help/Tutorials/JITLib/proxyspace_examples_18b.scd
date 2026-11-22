@@ -1,4 +1,4 @@
-// Source: Tutorials/JITLib/proxyspace_examples.schelp block 18 (part 2/11)
+// Source: Tutorials/JITLib/proxyspace_examples.schelp block 18 (part 2/14)
 (
 SynthDef("grain", { arg i_out = 0, pan;
 	var env;

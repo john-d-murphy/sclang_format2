@@ -11,9 +11,8 @@ a = RangeSlider(w, Rect(20, 80, 120, 30))
 b = RangeSlider(w, Rect(220, 80, 20, 130))
     .lo_(0.2)
     .hi_(0.8)
-    .knobColor_(HiliteGradient(Color.grey, Color.white,\h))
+    .knobColor_(HiliteGradient(Color.grey, Color.white, \h))
     .action_({ |slider|
         [\sliderLOW, slider.lo, \sliderHI, slider.hi].postln;
     });
-
 )

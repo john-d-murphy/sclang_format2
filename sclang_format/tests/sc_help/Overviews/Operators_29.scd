@@ -1,2 +1,8 @@
 // Source: Overviews/Operators.schelp block 29
-abs(x) + abs(y) - ((sqrt(2) - 1) * min(abs(x), abs(y)))
+(
+{
+	var a, b;
+	a = FSinOsc.ar(800);
+	b = FSinOsc.ar(XLine.kr(200,500,5));
+	((a * b) + a + b) * 0.125
+}.play)

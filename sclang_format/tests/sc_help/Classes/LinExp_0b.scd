@@ -2,6 +2,6 @@
 (
 {
 	var mod = SinOsc.kr(Line.kr(1, 10, 10));
-	SinOsc.ar(LinExp.kr(mod, -1,1, 100, 900)) * 0.1
+	SinOsc.ar(LinExp.kr(mod, -1, 1, 100, 900)) * 0.1
 }.play;
 )

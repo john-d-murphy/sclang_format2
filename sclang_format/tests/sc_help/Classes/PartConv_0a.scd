@@ -18,7 +18,7 @@ s.waitForBoot {
 
 		ir = [1] ++ 0.dup(100) ++ (
 			(1, 0.99998 .. 0)
-			.collect {|f|
+			.collect { |f|
 				f = f.squared.squared;
 				f = if(f.coin) { 0 }{ f.squared };
 				f = if(0.5.coin) { 0 - f } { f }
@@ -32,7 +32,7 @@ s.waitForBoot {
 
 		bufsize = PartConv.calcBufSize(~fftsize, irbuffer);
 
-		// ~numpartitions= PartConv.calcNumPartitions(~fftsize, irbuffer);
+		// ~numpartitions = PartConv.calcNumPartitions(~fftsize, irbuffer);
 
 		~irspectrum = Buffer.alloc(s, bufsize, 1);
 		~irspectrum.preparePartConv(irbuffer, ~fftsize);

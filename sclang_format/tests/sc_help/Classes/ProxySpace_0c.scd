@@ -1,2 +1,2 @@
-// Source: Classes/ProxySpace.schelp block 0 (part 3/9)
+// Source: Classes/ProxySpace.schelp block 0 (part 3/10)
 p.fadeTime = 2;

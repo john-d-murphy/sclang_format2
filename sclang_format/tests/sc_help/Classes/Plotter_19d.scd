@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 19 (part 4/7)
-p.superpose_(true);
+// Source: Classes/Plotter.schelp block 19 (part 4/9)
+a.specs = [1e4, 1e7, \exp].asSpec;

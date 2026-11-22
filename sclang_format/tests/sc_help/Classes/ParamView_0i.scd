@@ -1,2 +1,2 @@
-// Source: Classes/ParamView.schelp block 0 (part 9/16)
-~pv.label_(\freq);
+// Source: Classes/ParamView.schelp block 0 (part 9/17)
+~pv.viewType_(2);

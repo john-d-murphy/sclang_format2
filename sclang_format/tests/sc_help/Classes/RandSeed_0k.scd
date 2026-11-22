@@ -1,7 +1,7 @@
 // Source: Classes/RandSeed.schelp block 0 (part 11/11)
 (
 fork {
-	var id=0;
+	var id = 0;
 	(1902..2005).do { |seed|
 		seed.postln;
 		3.do {

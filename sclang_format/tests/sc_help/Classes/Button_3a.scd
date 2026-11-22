@@ -9,7 +9,7 @@ b = Button(w, Rect(90, 20, 200, 30))
 			["noise", Color.black, Color.rand],
 			["pulse", Color.black, Color.rand]
 		])
-		.action_({ arg butt;
+		.action_({ |butt|
 			butt.value.postln;
 		});
 w.front;

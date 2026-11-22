@@ -1,2 +1,2 @@
 // Source: Classes/Collection.schelp block 43
-Set[Set[1, 2, 3], Set[Set[41, 52], 5, 6], 1, 2, 3].maxDepth
+[3, 6, 12, 24].mean // -> 11.25

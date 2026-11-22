@@ -1,2 +1,2 @@
-// Source: Classes/NetAddr.schelp block 2 (part 2/14)
-r = OSCFunc({ arg msg, time; [time, msg].postln }, '/good/news', n);
+// Source: Classes/NetAddr.schelp block 2 (part 2/16)
+r = OSCFunc({ |msg, time| [time, msg].postln }, '/good/news', n);

@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/jitlib_efficiency.schelp block 4 (part 1/6)
+// Source: Tutorials/JITLib/jitlib_efficiency.schelp block 4 (part 1/7)
 ~a.set(\freq, 400, \dt, 0.2);

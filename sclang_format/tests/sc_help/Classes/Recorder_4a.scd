@@ -1,4 +1,4 @@
-// Source: Classes/Recorder.schelp block 4 (part 1/7)
+// Source: Classes/Recorder.schelp block 4 (part 1/8)
 (
 SynthDef("bubbles", { |out|
 	var f, sound;

@@ -1,0 +1,9 @@
+// Source: Classes/Pfsm.schelp block 0 (part 1/3)
+(
+SynthDef(\help_sinegrain,
+	{ |out = 0, freq = 440, sustain = 0.05|
+		var env;
+		env = EnvGen.kr(Env.perc(0.01, sustain, 0.2), doneAction: Done.freeSelf);
+		Out.ar(out, SinOsc.ar(freq, 0, env))
+	}).add;
+)

@@ -1,2 +1,2 @@
 // Source: Classes/Collection.schelp block 31 (part 2/6)
-a.collectInPlace { |x| 2 ** x };
+[1, 2, 3, 4, 5].inject(1, _*_);

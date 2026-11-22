@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/jitlib_basic_concepts_04.schelp block 0 (part 11/17)
-p.quant = 1.0;
+// Source: Tutorials/JITLib/jitlib_basic_concepts_04.schelp block 0 (part 11/20)
+~y = { Ringz.ar(Impulse.ar(1), 600, 0.05).dup };

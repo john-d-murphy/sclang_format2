@@ -1,6 +1,6 @@
 // Source: Classes/LeastChange.schelp block 1 (part 1/4)
 (
-d = { arg freq=440;
+d = { |freq = 440|
 	var internalFreq;
 	internalFreq = LFNoise0.ar(0.3, 300, 800);
 	SinOsc.ar(

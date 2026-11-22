@@ -3,7 +3,7 @@
 {
 	Shaper.ar(
 		b,
-		SinOsc.ar(300, 0, Line.kr(0,1,6)),
+		SinOsc.ar(300, 0, Line.kr(0, 1, 6)),
 		0.5
 	)
 }.scope;

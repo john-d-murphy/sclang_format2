@@ -1,2 +1,2 @@
-// Source: Classes/ArrayedCollection.schelp block 13 (part 3/3)
-y.includes(\solipsism);
+// Source: Classes/ArrayedCollection.schelp block 13 (part 3/6)
+a.foldAt(3) // folds back

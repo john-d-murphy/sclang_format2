@@ -1,2 +1,2 @@
 // Source: Overviews/Operators.schelp block 44
-{ (FSinOsc.ar(800) sqrsum: FSinOsc.ar(XLine.kr(200,500,5))) * 0.125 }.play;
+{ LFNoise0.ar(50, 0.5) thresh: 0.45 }.play // a low-rent gate

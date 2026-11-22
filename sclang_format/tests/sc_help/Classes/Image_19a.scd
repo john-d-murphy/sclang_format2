@@ -1,7 +1,7 @@
 // Source: Classes/Image.schelp block 19 (part 1/5)
 (
-	j = Image.new(400,300);
-	j.draw({ arg image;
+	j = Image.new(400, 300);
+	j.draw({ |image|
 
 		Pen.translate(100, 100);
 		1000.do {
@@ -16,5 +16,5 @@
 			);
 			Pen.perform([\stroke, \fill].choose);
 		};
-	}).plot(freeOnClose:true);
+	}).plot(freeOnClose: true);
 )

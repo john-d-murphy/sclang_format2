@@ -1,0 +1,2 @@
+// Source: Classes/BufCombL.schelp block 0 (part 7/8)
+{ BufCombC.ar(b.bufnum, WhiteNoise.ar(0.01), XLine.kr(0.0001, 0.01, 20), -0.2) }.play;

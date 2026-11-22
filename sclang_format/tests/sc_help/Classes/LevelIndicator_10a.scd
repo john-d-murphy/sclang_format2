@@ -2,7 +2,7 @@
 (
 // something to meter
 s.waitForBoot({
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+b = Buffer.read(s, ExampleFiles.child);
 
 	x = {
 		var colum, noise, imp, delimp, mul = 1;
@@ -14,9 +14,9 @@ b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
 	colum;
 }.play;
 
-	a = LevelIndicator(bounds:Rect(100, 100, 100, 400)).front;
-	a.onClose_({ x.free; o.free; });
-o = OSCFunc({arg msg;
+	a = LevelIndicator(bounds: Rect(100, 100, 100, 400)).front;
+	a.onClose_({ x.free; o.free });
+o = OSCFunc({ |msg|
 	{
 		a.value = msg[3].ampdb.linlin(-40, 0, 0, 1);
 		a.peakLevel = msg[4].ampdb.linlin(-40, 0, 0, 1);

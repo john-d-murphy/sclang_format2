@@ -1,2 +1,2 @@
-// Source: Classes/TdefAllGui.schelp block 0 (part 4/8)
-Tdef(\a_dede);
+// Source: Classes/TdefAllGui.schelp block 0 (part 4/9)
+Tdef(\a_hannerl);

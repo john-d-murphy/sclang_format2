@@ -1,7 +1,7 @@
-// Source: Classes/TDuty.schelp block 0 (part 5/7)
+// Source: Classes/TDuty.schelp block 0 (part 5/10)
 (
 	{
-		var a, trig, n=5, m=64;
+		var a, trig, n = 5, m = 64;
 		a = {
 			var x;
 			x = { 0.2.rand2 } ! m;

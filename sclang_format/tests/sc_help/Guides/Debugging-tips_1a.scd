@@ -1,4 +1,4 @@
-// Source: Guides/Debugging-tips.schelp block 1 (part 1/5)
+// Source: Guides/Debugging-tips.schelp block 1 (part 1/6)
 {	var	freq;
 	freq = LFNoise1.kr(2, 600, 800);
 		// Impulse is needed to trigger the /tr message to be sent

@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 21 (part 3/7)
-f.value([2], 4);
+// Source: Classes/Function.schelp block 21 (part 3/3)
+x.value;

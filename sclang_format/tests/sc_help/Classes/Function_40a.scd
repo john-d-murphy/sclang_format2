@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 40 (part 1/7)
-value { 8.zorg; \didnt_continue.postln; }
+// Source: Classes/Function.schelp block 40 (part 1/2)
+a = r { 5.do { |i| i.rand.yield } };

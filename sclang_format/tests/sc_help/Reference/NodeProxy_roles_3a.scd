@@ -1,2 +1,2 @@
-// Source: Reference/NodeProxy_roles.schelp block 3 (part 1/6)
+// Source: Reference/NodeProxy_roles.schelp block 3 (part 1/7)
 a = NodeProxy(s);

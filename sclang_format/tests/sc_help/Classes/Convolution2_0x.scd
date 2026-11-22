@@ -5,8 +5,8 @@
 
 	input = SoundIn.ar(0);
 
-	//must have power of two framesize
-	Convolution2.ar(input,b.bufnum,0, 512, 0.5)
+	// must have power of two framesize
+	Convolution2.ar(input, b.bufnum, 0, 512, 0.5)
 }.play;
 
 )

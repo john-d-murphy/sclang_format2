@@ -1,6 +1,6 @@
 // Source: Classes/PV_BinWipe.schelp block 0 (part 3/4)
 (
-SynthDef("help-binWipe", { arg out=0;
+SynthDef("help-binWipe", { |out = 0|
 	var inA, chainA, inB, chainB, chain;
 	inA = WhiteNoise.ar(0.2);
 	inB = LFSaw.ar(100, 0, 0.2);

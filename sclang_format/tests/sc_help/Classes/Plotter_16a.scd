@@ -1,5 +1,6 @@
-// Source: Classes/Plotter.schelp block 16 (part 1/34)
+// Source: Classes/Plotter.schelp block 16 (part 1/2)
 (
-a = Plotter("the plot", Rect(600, 30, 600, 400));
-a.value = (0..100).normalize(0, 8pi).sin;
+a = { (0..10).scramble.normalize }.dup(2).plot;
+a.editMode = true;
+a.editFunc = { |...args| args.postln };
 )

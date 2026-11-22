@@ -1,4 +1,4 @@
-// Source: Classes/Dictionary.schelp block 17 (part 1/4)
+// Source: Classes/Dictionary.schelp block 17 (part 1/6)
 (
 d = Dictionary.newFrom([
 	0, \zero,

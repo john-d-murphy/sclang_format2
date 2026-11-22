@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 65 (part 1/2)
-[0, 0, 0, 1, 1, 1, 0, 1, 0, 0].hammingDistance([0, 0, 1, 1, 0, 0, 0, 0, 1, 1]);
+// Source: Classes/SequenceableCollection.schelp block 65 (part 1/3)
+[1, 2] *.x [10, 20, 30]

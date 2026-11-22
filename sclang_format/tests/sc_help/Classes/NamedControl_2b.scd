@@ -1,2 +1,2 @@
-// Source: Classes/NamedControl.schelp block 2 (part 2/7)
-a.set(\freq, 120);
+// Source: Classes/NamedControl.schelp block 2 (part 2/9)
+a.set(\freq, 1220);

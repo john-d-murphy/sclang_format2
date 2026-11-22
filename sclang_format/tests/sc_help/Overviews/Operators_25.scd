@@ -1,6 +1,2 @@
 // Source: Overviews/Operators.schelp block 25
-{ // distorts and envelopes z
-var z;
-z = FSinOsc.ar(500);
-z min: FSinOsc.ar(0.1);
-}.play;
+{ (FSinOsc.ar(800) ring1: FSinOsc.ar(XLine.kr(200,500,5))) * 0.125 }.play;

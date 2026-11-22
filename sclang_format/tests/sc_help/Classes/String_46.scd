@@ -1,2 +1,2 @@
 // Source: Classes/String.schelp block 46
-"hello word".scramble
+"hello word".rotate(1)

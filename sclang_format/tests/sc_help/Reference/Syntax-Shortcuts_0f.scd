@@ -1,2 +1,2 @@
-// Source: Reference/Syntax-Shortcuts.schelp block 0 (part 6/12)
-collect((1..10), { arg n; n.squared });
+// Source: Reference/Syntax-Shortcuts.schelp block 0 (part 6/13)
+(1..10).collect({ arg n; n.squared });

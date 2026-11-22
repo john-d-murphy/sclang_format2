@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 17 (part 2/15)
-a.domainSpecs = [0.1, 10, \exponential, 0, 0, " Kg"].asSpec;
+// Source: Classes/Plotter.schelp block 17 (part 2/24)
+a.value = { |i| (0..90) % (i + 12) + ((0..90) % (i + 2 * 1)) }.dup(3);

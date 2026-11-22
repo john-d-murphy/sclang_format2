@@ -1,7 +1,7 @@
 // Source: Classes/PathName.schelp block 18
 (
 FileDialog.new(
-	{ arg ok, path;
+	{ |ok, path|
 	var myPathName, myFile;
 	if (ok,
 		{
@@ -13,11 +13,11 @@ FileDialog.new(
 			if (myFile.openRead(path),
 				{
 					Library.put(
-						[ myPathName.folderName.asSymbol, myPathName.fileName.asSymbol ],
+						[myPathName.folderName.asSymbol, myPathName.fileName.asSymbol],
 						myFile);
 					("Check Library.global" + myPathName.folderName + "please.").postln;
 				},
-				{ ("Could not read soundfile" + path ++ ".").postln; }
+				{ ("Could not read soundfile" + path ++ ".").postln }
 			);
 			myFile.close;
 		}

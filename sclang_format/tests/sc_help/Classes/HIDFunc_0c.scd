@@ -1,2 +1,2 @@
 // Source: Classes/HIDFunc.schelp block 0 (part 3/3)
-~myhid = HID.open( 1103, 53251 );
+~myhid = HID.open(1103, 53251);

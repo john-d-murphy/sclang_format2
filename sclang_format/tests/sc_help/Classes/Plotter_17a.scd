@@ -1,6 +1,5 @@
-// Source: Classes/Plotter.schelp block 17 (part 1/15)
+// Source: Classes/Plotter.schelp block 17 (part 1/24)
 (
-a = (4 ** (-5..0)).postln.plot;
-a.specs = \delay; a.refresh;
-a.domainSpecs = [0, 10, \lin, 0, 0, " Kg"].asSpec; a.refresh;
-);
+a = Plotter("the plot", Rect(600, 30, 600, 400));
+a.value = (0..100).normalize(0, 8pi).sin;
+)

@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/jitlib_basic_concepts_04.schelp block 2 (part 9/9)
-~y.free;
+// Source: Tutorials/JITLib/jitlib_basic_concepts_04.schelp block 2 (part 9/10)
+~x.free;

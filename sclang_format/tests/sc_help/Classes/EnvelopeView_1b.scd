@@ -2,7 +2,7 @@
 (
 r = Routine({
 	var j = 0;
-	20.do({ arg i;
+	20.do({ |i|
 		b.selectIndex((b.size - 1).rand.abs);
 		0.1.wait;
 		b.x_(1.0.rand.abs);

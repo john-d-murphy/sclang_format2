@@ -1,6 +1,6 @@
 // Source: Classes/PV_CopyPhase.schelp block 0 (part 4/4)
 (
-SynthDef("help-copyPhase2", { arg out=0, soundBufnum=2;
+SynthDef("help-copyPhase2", { |out = 0, soundBufnum = 2|
 	var inA, chainA, inB, chainB, chain;
 	inA = PlayBuf.ar(1, soundBufnum, BufRateScale.kr(soundBufnum), loop: 1);
 	inB =  SinOsc.ar(SinOsc.kr(SinOsc.kr(0.08, 0, 6, 6.2).squared, 0, 100, 800));

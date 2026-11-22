@@ -1,6 +1,6 @@
 // Source: Classes/Pen.schelp block 28
 (
-	var blendMode=0, blendString="Normal";
+	var blendMode = 0, blendString = "Normal";
 	w = Window.new.front;
 	m = PopUpMenu(w, Rect(10, w.view.bounds.height - 30, 150, 20));
 	m.items = [
@@ -22,13 +22,13 @@
 		"15 - Luminosity"
 	];
 
-	m.action_({|view|
+	m.action_({ |view|
 		blendMode = view.value;
 		blendString = view.items.at(blendMode);
 		w.refresh;
 	});
 	w.drawFunc = {
-		80.do{|i|
+		80.do{ |i|
 			Pen.use {
 			Pen.blendMode_(blendMode);
 			Pen.color = Color.green(0.6, 0.10);

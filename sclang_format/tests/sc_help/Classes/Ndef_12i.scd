@@ -1,2 +1,2 @@
-// Source: Classes/Ndef.schelp block 12 (part 9/24)
-Ndef(\ppar).mold(~numChans, \audio, \elastic);
+// Source: Classes/Ndef.schelp block 12 (part 9/11)
+Ndef(\a) <<>.phase Ndef(\sound);

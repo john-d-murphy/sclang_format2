@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 35 (part 2/5)
-a.flatten(1);
+// Source: Classes/SequenceableCollection.schelp block 35 (part 2/2)
+[1, 2, [3, 4, [5, 6, [7, 8, [9, 0]]]]].flat;

@@ -1,6 +1,6 @@
-// Source: Classes/Control.schelp block 1 (part 1/17)
+// Source: Classes/Control.schelp block 1 (part 1/18)
 (
-SynthDef(\help_Control, { arg out=0, i_freq;
+SynthDef(\help_Control, { |out = 0, i_freq|
 	var klank, harm, amp, ring;
 
 	// harmonics

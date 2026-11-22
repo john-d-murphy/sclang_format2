@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 72 (part 1/2)
-([1, 2, 3, 4] * 10);
+// Source: Classes/SequenceableCollection.schelp block 72 (part 1/3)
+"hello".similarity("hello");

@@ -1,2 +1,2 @@
-// Source: Classes/BinaryOpFunction.schelp block 0 (part 6/7)
-b = 8;
+// Source: Classes/BinaryOpFunction.schelp block 0 (part 6/6)
+a.value;

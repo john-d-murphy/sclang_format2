@@ -1,10 +1,2 @@
-// Source: Classes/Float.schelp block 5 (part 1/9)
-(
-g = { |a, b|
-	if(b == 0) {
-		a
-	} {
-		g.(b, mod(a, b))
-	}
-}
-)
+// Source: Classes/Float.schelp block 5 (part 1/6)
+f = { |x| if(x < 2) { x } { x * f.(x - 1) } };

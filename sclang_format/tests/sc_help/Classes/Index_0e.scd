@@ -1,6 +1,6 @@
 // Source: Classes/Index.schelp block 0 (part 5/6)
 (
-SynthDef(\help_Index, { |out=0, bufnum=0|
+SynthDef(\help_Index, { |out = 0, bufnum = 0|
 	Out.ar(out,
 		SinOsc.ar(
 			Index.kr(

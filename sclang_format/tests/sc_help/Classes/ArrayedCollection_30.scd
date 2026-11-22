@@ -1,7 +1,9 @@
 // Source: Classes/ArrayedCollection.schelp block 30
 (
-var y;
-y = Array.newClear(15);
-y.seriesFill(5, 3);
+// in this case a new object is returned
+var y, z;
+z = [1, 2, 3, 4];
+y = z.addFirst(999);
+z.postln;
 y.postln;
 )

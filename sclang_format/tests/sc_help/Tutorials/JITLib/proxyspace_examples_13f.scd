@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/proxyspace_examples.schelp block 13 (part 6/35)
+// Source: Tutorials/JITLib/proxyspace_examples.schelp block 13 (part 6/38)
 ~out.unset(\freq, \ffreq);

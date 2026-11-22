@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 31 (part 2/3)
-a.keep(3);
+// Source: Classes/SequenceableCollection.schelp block 31 (part 2/5)
+a.instill(2, -1);

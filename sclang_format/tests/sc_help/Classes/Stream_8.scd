@@ -2,7 +2,7 @@
 (
 x = Routine({
 	2.do({
-		[1,2,3,4].do({ arg i; i.yield; });
+		[1, 2, 3, 4].do({ |i| i.yield });
 	});
 });
 y = Routine({

@@ -1,2 +1,2 @@
 // Source: Classes/Platform.schelp block 2
-Platform.when(#[\Document, \SCWindow], { "yeehah!".postln });
+Platform.when(#[\Document, \Window], { "yeehah!".postln });

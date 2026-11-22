@@ -1,4 +1,4 @@
-// Source: Classes/Env.schelp block 19 (part 2/27)
+// Source: Classes/Env.schelp block 19 (part 2/28)
 (
 {
 	var env = Env([1, [1, 2, 3], 0.5, 0.5, [3, 2, 1], 2], [1, 1, 0.5, 1], [[\exp, \sin]]);

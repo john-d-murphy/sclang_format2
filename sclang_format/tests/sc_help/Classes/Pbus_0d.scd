@@ -1,7 +1,7 @@
 // Source: Classes/Pbus.schelp block 0 (part 4/4)
 (
 var p, q, r, o;
-p = Pbind(\degree, Prand((0..7),12), \dur, 0.3, \legato, 0.2);
+p = Pbind(\degree, Prand((0..7), 12), \dur, 0.3, \legato, 0.2);
 
 q = Pfx(p, \echo, \dtime, 0.2, \decay, 3);
 

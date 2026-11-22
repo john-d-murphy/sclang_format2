@@ -1,2 +1,2 @@
-// Source: Classes/Buffer.schelp block 2 (part 3/9)
-b = Buffer.read(s, p);
+// Source: Classes/Buffer.schelp block 2 (part 3/10)
+p.postln;

@@ -8,7 +8,7 @@ w = Window.new.front;
 w.view.background_(Color.white);
 
 // create a controller-window
-controlWindow = Window("matrix controls", Rect(400,200,350,120));
+controlWindow = Window("matrix controls", Rect(400, 200, 350, 120));
 controlWindow.front;
 
 // determine the rectangle to be drawn
@@ -29,14 +29,14 @@ w.drawFunc = {
     Pen.line(b, d);
     Pen.stroke;
 
-    Pen.font = Font( "Helvetica-Bold", 12 );
-    Pen.stringAtPoint( "A", a - 6 );
-    Pen.stringAtPoint( "B", b - 6 );
-    Pen.stringAtPoint( "C", c - (0@6) );
-    Pen.stringAtPoint( "D", d - (0@6) );
+    Pen.font = Font("Helvetica-Bold", 12);
+    Pen.stringAtPoint("A", a - 6);
+    Pen.stringAtPoint("B", b - 6);
+    Pen.stringAtPoint("C", c - (0@6));
+    Pen.stringAtPoint("D", d - (0@6));
 
-    Pen.font = Font( "Helvetica", 10 );
-    Pen.stringInRect( "a matrix test", r.moveBy( 50, 50 ));
+    Pen.font = Font("Helvetica", 10);
+    Pen.stringInRect("a matrix test", r.moveBy(50, 50));
 };
 
 controlWindow.view.decorator = sliders = FlowLayout(controlWindow.view.bounds);

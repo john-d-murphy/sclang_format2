@@ -1,2 +1,2 @@
 // Source: Classes/Integer.schelp block 16
-7.exit;
+(0..12).wrap(0, 3);

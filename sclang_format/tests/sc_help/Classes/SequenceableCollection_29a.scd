@@ -1,6 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 29 (part 1/4)
-(
-a = [10, 20, 30];
-b = [10, 20];
-c = 7;
-);
+// Source: Classes/SequenceableCollection.schelp block 29 (part 1/3)
+a = [11, 12, 13, 14, 15];

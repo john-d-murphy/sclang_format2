@@ -1,2 +1,2 @@
-// Source: Classes/List.schelp block 4 (part 2/3)
-y.wrapAt(3).postln;
+// Source: Classes/List.schelp block 4 (part 2/6)
+x.at(1) //-> 2

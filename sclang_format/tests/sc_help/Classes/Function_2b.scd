@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 2 (part 2/2)
-{ arg a, b; (a * b).postln }.value(3, 10);
+// Source: Classes/Function.schelp block 2 (part 2/3)
+{ |a, b| a * b }.value(a: 3, b: 10);

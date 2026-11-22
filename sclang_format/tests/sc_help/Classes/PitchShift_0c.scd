@@ -9,7 +9,7 @@ play({
 		SoundIn.ar([0, 1]),
 		grainSize,
 		1,						// nominal pitch rate = 1
-		MouseX.kr(0,1), 			// pitch dispersion
+		MouseX.kr(0, 1), 			// pitch dispersion
 		MouseY.kr(0, grainSize)	// time dispersion
 	)
 }))

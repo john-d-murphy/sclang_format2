@@ -1,4 +1,4 @@
-// Source: Classes/Server.schelp block 3 (part 2/2)
+// Source: Classes/Server.schelp block 3 (part 2/3)
 (
 o = ServerOptions.new;
 o.maxLogins = 2;

@@ -1,4 +1,4 @@
-// Source: Reference/randomSeed.schelp block 2 (part 1/2)
+// Source: Reference/randomSeed.schelp block 2 (part 1/7)
 (
 thisThread.randSeed = 1000;
 TempoClock.sched(0, { 1000.rand.debug("main RNG"); 1 });

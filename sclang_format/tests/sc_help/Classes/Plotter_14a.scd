@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 14 (part 1/3)
-a = (0..20).plot;
+// Source: Classes/Plotter.schelp block 14 (part 1/2)
+a = [1, 4, 2, 7, 4].dup(2).plot;

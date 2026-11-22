@@ -1,2 +1,2 @@
-// Source: Classes/Object.schelp block 33 (part 1/2)
-a.removeUniqueMethod(\sayHello);
+// Source: Classes/Object.schelp block 33 (part 1/3)
+a = { |a, b, c| format("% plus % times % is %", a, b, c, a + b * c).quote };

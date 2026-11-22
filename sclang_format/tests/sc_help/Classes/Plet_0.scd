@@ -11,7 +11,7 @@
 	a = Pbind(
 		\dur, 0.125, 
 		\octave, 4,
-		\degree, Plet(\melody, pattern: Pwhite(0,7))
+		\degree, Plet(\melody, pattern: Pwhite(0, 7))
 	);
 
 	// the bass, scale degrees sampled from the \melody variable defined above 

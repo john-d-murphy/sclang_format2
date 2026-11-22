@@ -1,4 +1,4 @@
-// Source: Classes/MonitorGui.schelp block 1 (part 2/4)
+// Source: Classes/MonitorGui.schelp block 1 (part 2/7)
 (
 w = Window.new.front;
 w.addFlowLayout;

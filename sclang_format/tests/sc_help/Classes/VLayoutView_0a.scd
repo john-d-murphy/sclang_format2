@@ -3,10 +3,10 @@
 q = 10;
 w = Window.new;
 
-v = VLayoutView(w,Rect(10,10,300,300));
+v = VLayoutView(w, Rect(10, 10, 300, 300));
 
-Array.fill(q,{ arg i;
-    Slider(v,Rect(0,0,75,20)).value_(i / q)
+Array.fill(q, { |i|
+    Slider(v, Rect(0, 0, 75, 20)).value_(i / q)
 });
 
 w.front

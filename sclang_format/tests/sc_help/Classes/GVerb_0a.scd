@@ -1,4 +1,4 @@
-// Source: Classes/GVerb.schelp block 0 (part 1/12)
+// Source: Classes/GVerb.schelp block 0 (part 1/13)
 (
 SynthDef(\test, { |out, roomsize, revtime, damping, inputbw, spread = 15, drylevel, earlylevel,
 	taillevel|

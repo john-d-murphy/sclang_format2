@@ -3,5 +3,5 @@
 var a, b;
 a = Psetp(\freq, 801, Pbind(\freq, 108));
 x = a.asStream;
-9.do({ x.next(Event.new).postln; });
+9.do({ x.next(Event.new).postln });
 )

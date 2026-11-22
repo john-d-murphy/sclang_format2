@@ -1,8 +1,8 @@
 // Source: Classes/Dialog.schelp block 1
 (
-Dialog.savePanel({ arg path;
+Dialog.savePanel({ |path|
 	path.postln;
-},{
+}, {
 	"cancelled".postln;
 });
 )

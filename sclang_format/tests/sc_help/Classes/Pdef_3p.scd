@@ -2,10 +2,10 @@
 (
 x = Ppar([
 	Pbindf(Pn(Pdef(\a), inf),
-		\gtranspose, Pdup(8, Pseq(#[0, 2, 0, 3],inf))
+		\gtranspose, Pdup(8, Pseq(#[0, 2, 0, 3], inf))
 	),
 	Pbindf(Pn(Pdef(\a), inf),
-		\gtranspose, Pdup(8, Pseq(#[7, 4, 0, 3],inf)),
+		\gtranspose, Pdup(8, Pseq(#[7, 4, 0, 3], inf)),
 		\dur, 0.6
 	),
 	Pbindf(Pn(Pdef(\a), inf),

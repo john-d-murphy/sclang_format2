@@ -1,4 +1,4 @@
-// Source: Classes/HLayout.schelp block 0 (part 1/5)
+// Source: Classes/HLayout.schelp block 0 (part 1/6)
 (
 w = Window().front;
 a = { Button(w) } ! 10;

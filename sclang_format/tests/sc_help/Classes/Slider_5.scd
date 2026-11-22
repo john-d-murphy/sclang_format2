@@ -2,14 +2,14 @@
 (
 s.waitForBoot({
 
-	SynthDef(\pluck, { |out, freq=55|
+	SynthDef(\pluck, { |out, freq = 55|
 		Out.ar(out,
 			Pluck.ar(WhiteNoise.ar(0.06),
-				EnvGen.kr(Env.perc(0,4), 1.0, doneAction: Done.freeSelf),
+				EnvGen.kr(Env.perc(0, 4), 1.0, doneAction: Done.freeSelf),
 				freq.reciprocal,
 				freq.reciprocal,
 				10,
-				coef:0.1)
+				coef: 0.1)
 		);
 	}).add;
 
@@ -20,7 +20,7 @@ s.waitForBoot({
 	.action_({
 		// trigger a synth with varying frequencies
 		Synth(\pluck, [\freq, 55 + (1100 * a.value)]);
-		w.view.background_(Gradient(Color.rand,Color.rand));
+		w.view.background_(Gradient(Color.rand, Color.rand));
 	})
 });
 )

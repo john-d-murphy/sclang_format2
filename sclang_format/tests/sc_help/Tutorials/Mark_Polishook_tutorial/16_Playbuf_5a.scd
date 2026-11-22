@@ -1,7 +1,7 @@
 // Source: Tutorials/Mark_Polishook_tutorial/16_Playbuf.schelp block 5 (part 1/4)
 (
 // read a soundfile
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+b = Buffer.read(s, ExampleFiles.child);
 
 // define a sample player that will loop over a soundfile
 SynthDef("aLoopingSamplePlayer", { arg outBus = 0, bufnum = 0, rateScale = 1, mul = 1;

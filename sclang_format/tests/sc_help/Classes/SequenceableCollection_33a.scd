@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 33 (part 1/2)
-["m", "ss", "ss", "pp", ""].join("i").postcs;
+// Source: Classes/SequenceableCollection.schelp block 33 (part 1/3)
+a = [1, 2, 3, 4, 5];

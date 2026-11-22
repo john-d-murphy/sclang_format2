@@ -1,2 +1,2 @@
-// Source: Classes/TaskProxy.schelp block 0 (part 7/12)
-x.source = { "one more".postln };
+// Source: Classes/TaskProxy.schelp block 0 (part 7/15)
+TempoClock.default.tempo = 2;

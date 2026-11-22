@@ -1,2 +1,2 @@
 // Source: Classes/String.schelp block 51
-"spaces".zeroPad.postcs;
+"tell your" + "friends".quote + "not to tread onto the lawn"

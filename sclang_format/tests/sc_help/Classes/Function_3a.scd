@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 3 (part 1/4)
-{ |a, b, c| ((a * b) + c).postln }.valueArray([3, 10, 7]);
+// Source: Classes/Function.schelp block 3 (part 1/3)
+{ |a=3, b=10| a * b }.value;

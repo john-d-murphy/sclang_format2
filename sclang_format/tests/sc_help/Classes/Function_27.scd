@@ -1,2 +1,2 @@
 // Source: Classes/Function.schelp block 27
-AppClock.play({ "And again".postln; 2 });
+{ |x| x > 5 }.matchItem(6);

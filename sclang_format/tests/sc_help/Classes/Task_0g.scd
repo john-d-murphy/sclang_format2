@@ -2,9 +2,9 @@
 (
 t = Task({
 	["go", thisThread.clock.beats].postln;
-	inf.do({ arg i;
+	inf.do({ |i|
 		2.wait;
-		[ "wake up", i ].postln;
+		["wake up", i].postln;
 	});
 });
 

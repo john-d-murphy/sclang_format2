@@ -1,2 +1,2 @@
-// Source: Classes/Object.schelp block 31 (part 2/3)
-a.multiChannelPerform(\value, [1, 10, 100, 1000], [2, 7, 9], [3, 7]);
+// Source: Classes/Object.schelp block 31 (part 2/2)
+a.performKeyValuePairs(\value, [\a, 1, \b, 2, \c, 3, \d, 4]);

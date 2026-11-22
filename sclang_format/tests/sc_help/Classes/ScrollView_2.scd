@@ -20,7 +20,7 @@ a.action = { var origin;
 };
 
 drawFunc = {
-	30.do({arg i;
+	30.do({ |i|
 		(i+1).asString.drawAtPoint((i+1 * 20)@0, Font("Courier", 9), Color.black);
 	});
 };

@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 66 (part 1/5)
-"hello".editDistance("hallo");
+// Source: Classes/SequenceableCollection.schelp block 66 (part 1/3)
+[1, 0, 0, 0].convertDigits;

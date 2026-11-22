@@ -1,4 +1,4 @@
-// Source: Classes/TDuty.schelp block 0 (part 4/7)
+// Source: Classes/TDuty.schelp block 0 (part 4/10)
 (
 	{
 		var trig;

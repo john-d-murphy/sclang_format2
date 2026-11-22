@@ -8,6 +8,6 @@
 	w = Window.new("Image", Rect(120, 400, 360, 180)).front;
 	w.onClose_({ i.free }); // free the image when the window is closed
 	w.drawHook_({
-		i.drawInRect(Rect(10,10,50,50), Rect(10,10,50,50), 2, 1.0); // only a section
+		i.drawInRect(Rect(10, 10, 50, 50), Rect(10, 10, 50, 50), 2, 1.0); // only a section
 	});
 )

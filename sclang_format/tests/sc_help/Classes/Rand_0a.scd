@@ -1,6 +1,6 @@
 // Source: Classes/Rand.schelp block 0 (part 1/2)
 (
-SynthDef("help-Rand", { arg out=0;
+SynthDef("help-Rand", { |out = 0|
 	Out.ar(out,
 		FSinOsc.ar(
 			Rand(200.0, 400.0),

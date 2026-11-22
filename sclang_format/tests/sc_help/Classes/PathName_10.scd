@@ -2,5 +2,5 @@
 (
 var myPath;
 myPath = PathName.new("./");
-myPath.filesDo{|afile| afile.postln};
+myPath.filesDo{ |afile| afile.postln };
 )

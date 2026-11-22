@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 39 (part 2/4)
-x = [[[a, 5], [a, 10]], [[a, 50, 60]]].flop;
+// Source: Classes/SequenceableCollection.schelp block 39 (part 2/3)
+[[1, 2, 3], [4, 5, 6], [7, 8]].flop;

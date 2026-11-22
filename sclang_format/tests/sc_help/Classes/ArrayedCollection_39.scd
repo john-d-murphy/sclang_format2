@@ -1,2 +1,8 @@
 // Source: Classes/ArrayedCollection.schelp block 39
-[1, 2, 3].normalizeSum.postln;
+(
+var y, z;
+z = [1, 2, 3, 4];
+y = z.reverse;
+z.postln;
+y.postln;
+)

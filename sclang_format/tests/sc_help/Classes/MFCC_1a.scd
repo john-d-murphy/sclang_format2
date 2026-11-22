@@ -1,4 +1,4 @@
-// Source: Classes/MFCC.schelp block 1 (part 1/6)
+// Source: Classes/MFCC.schelp block 1 (part 1/7)
 (
 var mel_freq_max, mel_freq_min, freq_bw_mel, freq_bands, freq_max, freq_min;
 var mel_peak, lin_peak, fft_peak;
@@ -10,19 +10,19 @@ var whichbandscale, lintoscale, scaletolin;
 
 freq_max = 18000;
 freq_min = 80;
-sr = 48000; //44100;
+sr = 48000; // 44100;
 fftsize = 1024;
 halffftsize = fftsize.div(2);
 freq_bands = 42;
 
-//whichbandscale = 0; // 0 = mel; 1 = bark (CB) 2 = ERB
+// whichbandscale = 0; // 0 = mel; 1 = bark (CB) 2 = ERB
 //
-//lintoscale = { |freq|
-//switch(whichbandscale, 0, { 1127 * log(1 + (freq / 700))}, 1, { }, 2, { }).value
-//};
-//scaletolin = { |scalepos|
-//switch(whichbandscale, 0, {700 * (exp(scalepos / 1127.0) -1) }, 1, { }, 2, { }).value
-//};
+// lintoscale = { |freq|
+// switch(whichbandscale, 0, { 1127 * log(1 + (freq / 700)) }, 1, { }, 2, { }).value
+// };
+// scaletolin = { |scalepos|
+// switch(whichbandscale, 0, { 700 * (exp(scalepos / 1127.0) -1) }, 1, { }, 2, { }).value
+// };
 
 lintoscale = { |freq|
 	1127 * log(1 + (freq / 700))
@@ -32,7 +32,7 @@ scaletolin = { |scalepos|
 };
 
 mel_freq_max = lintoscale.value(freq_max); // 1127 * log(1 + (freq_max / 700));
-mel_freq_min = lintoscale.value(freq_min); //1127 * log(1 + (freq_min / 700));
+mel_freq_min = lintoscale.value(freq_min); // 1127 * log(1 + (freq_min / 700));
 freq_bw_mel = (mel_freq_max - mel_freq_min) / freq_bands;
 
 [mel_freq_max, mel_freq_min, freq_bw_mel].postln;
@@ -51,13 +51,13 @@ for(1, freq_bands + 1, { |n|
 
 	mel_peak[n] = mel_peak[n - 1] + freq_bw_mel;
 	lin_peak[n] = scaletolin.value(mel_peak[n]); // 700 * (exp(mel_peak[n] / 1127.0) -1);
-	fft_peak[n] = ((lin_peak[n] / freqperbin).asInteger).min(halffftsize); // fft size //rounds down here
+	fft_peak[n] = ((lin_peak[n] / freqperbin).asInteger).min(halffftsize); // fft size // rounds down here
 
 });
 
-//Post << mel_peak << nl;
-//Post << lin_peak << nl;
-//Post << fft_peak << nl;
+// Post << mel_peak << nl;
+// Post << lin_peak << nl;
+// Post << fft_peak << nl;
 
 //  [2 / (lin_peak[freq_bands + 1] - lin_peak[freq_bands-1]), 1.0 / (2 / (lin_peak[2] - lin_peak[0]))].postln;
 
@@ -68,9 +68,9 @@ fftbinmult = [];
 
 pos = 0;
 
-freq_bands.do {|i|
+freq_bands.do { |i|
 
-	//var normmult = 1.0; // preserve power, don't modify band power by area
+	// var normmult = 1.0; // preserve power, don't modify band power by area
 	var startbin, endbin, numbins, averager;
 
 	if(i == 0) {

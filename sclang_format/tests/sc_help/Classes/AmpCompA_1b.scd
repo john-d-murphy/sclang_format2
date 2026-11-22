@@ -1,4 +1,4 @@
-// Source: Classes/AmpCompA.schelp block 1 (part 2/11)
+// Source: Classes/AmpCompA.schelp block 1 (part 2/10)
 (
 {
 	var freq;

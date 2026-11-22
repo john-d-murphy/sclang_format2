@@ -1,2 +1,2 @@
-// Source: Classes/Ndef.schelp block 12 (part 3/24)
-~durs = ~numChans.collect({ |i| PatternProxy(0.5 + (i/10)) });
+// Source: Classes/Ndef.schelp block 12 (part 3/11)
+Ndef(\b, { LFDNoise3.ar(MouseY.kr(3, 1000, 1) * [1, 1.2]) });

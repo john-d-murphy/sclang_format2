@@ -1,8 +1,8 @@
 // Source: Classes/PdurStutter.schelp block 1
 (
 a = PdurStutter(
-	Pseq(#[1,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,0,4,4],inf),
-	Pseq((80 + [ 0, 2, 3, 5, 7, 9, 10 ]).midicps ,inf)
+	Pseq(#[1,1,1,1,1,2,2,2,2,2,3,3,3,3,4,4,0,4,4], inf),
+	Pseq((80 + [0, 2, 3, 5, 7, 9, 10]).midicps, inf)
 );
 x = a.asStream;
 Routine({

@@ -1,2 +1,2 @@
-// Source: Classes/Bag.schelp block 7 (part 7/9)
-a.add("something");
+// Source: Classes/Bag.schelp block 7 (part 7/10)
+a = IdentityBag.new;

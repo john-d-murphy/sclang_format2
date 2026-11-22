@@ -1,6 +1,6 @@
-// Source: Classes/VarLag.schelp block 1 (part 1/6)
+// Source: Classes/VarLag.schelp block 1 (part 1/8)
 (
-x = play { |amp=0, time=0, curve=0, warp=5|
+x = play { |amp = 0, time = 0, curve = 0, warp = 5|
     PinkNoise.ar(VarLag.kr(amp, time, curve, warp) ! 2)
 }
 )

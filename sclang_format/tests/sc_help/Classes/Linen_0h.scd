@@ -1,6 +1,6 @@
 // Source: Classes/Linen.schelp block 0 (part 8/8)
 (
-SynthDef("help-Linen",{ arg out = 0;
+SynthDef("help-Linen", { |out = 0|
 	Out.ar(out,
 
 		Linen.kr(Impulse.kr(2),

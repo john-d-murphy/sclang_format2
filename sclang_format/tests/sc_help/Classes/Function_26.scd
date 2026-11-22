@@ -1,10 +1,14 @@
 // Source: Classes/Function.schelp block 26
 (
-var f = {|degree, stepsPerOctave, acc|
-	(1.8 ** (degree % stepsPerOctave) + acc).postln
-};
-Pbind(
-	\scale, f,
-	\degree, Pseq([0, 1, 2b, 3s, 4s, 6, 14, [0, 2, 4], [1, 3, 6]], inf)
-).play
+var i, x, z;
+z = [0, 1, 1.1, 1.3, 1.5, 2];
+i = z.choose;
+x = case
+	{ i == 1 }   { \no }
+	{ i == 1.1 } { \wrong }
+	{ i == 1.3 } { \wrong }
+	{ i == 1.5 } { \wrong }
+	{ i == 2 }   { \wrong }
+	{ i == 0 }   { \true };
+x.postln;
 )

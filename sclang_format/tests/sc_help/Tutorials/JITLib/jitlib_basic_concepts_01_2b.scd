@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/jitlib_basic_concepts_01.schelp block 2 (part 2/9)
+// Source: Tutorials/JITLib/jitlib_basic_concepts_01.schelp block 2 (part 2/10)
 y = NodeProxy.audio(s, 2);

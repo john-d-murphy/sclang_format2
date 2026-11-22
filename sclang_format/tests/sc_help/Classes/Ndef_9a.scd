@@ -1,2 +1,2 @@
-// Source: Classes/Ndef.schelp block 9 (part 1/7)
-Ndef(\sound, { |freq = 56, numHarm = 10| Blip.ar(freq, numHarm, 30) * 0.2 }).play;
+// Source: Classes/Ndef.schelp block 9 (part 1/3)
+Ndef(\lfo2, { LFNoise1.kr(LFNoise1.kr(0.1).exprange(1, 300) ! 2, 400, 800) });

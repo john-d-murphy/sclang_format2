@@ -2,5 +2,5 @@
 (
 i.scalesWhenResized_(true);
 i.setSize(400, (400 / (i.width / i.height)).asInteger);
-a =i.plot;
+a = i.plot;
 )

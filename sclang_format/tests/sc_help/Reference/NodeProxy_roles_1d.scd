@@ -1,4 +1,4 @@
-// Source: Reference/NodeProxy_roles.schelp block 1 (part 4/6)
+// Source: Reference/NodeProxy_roles.schelp block 1 (part 4/7)
 (
 a[1] = \set -> Pbind(
 	\dur, Prand([1, 0.5], inf),

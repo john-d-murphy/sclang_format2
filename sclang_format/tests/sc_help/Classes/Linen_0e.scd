@@ -1,6 +1,6 @@
 // Source: Classes/Linen.schelp block 0 (part 5/8)
 (
-SynthDef("help-Linen",{ arg out = 0, dur = 0.1;
+SynthDef("help-Linen", { |out = 0, dur = 0.1|
 	var gate;
 	gate = Trig.kr(1.0, dur);
 	Out.ar(out,

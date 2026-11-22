@@ -1,2 +1,5 @@
-// Source: Reference/Functions.schelp block 11 (part 1/2)
-{ arg x = 10.rand; x };
+// Source: Reference/Functions.schelp block 11 (part 1/7)
+(
+var abc = 2;
+{ arg x = abc+1; x }   // OK
+)

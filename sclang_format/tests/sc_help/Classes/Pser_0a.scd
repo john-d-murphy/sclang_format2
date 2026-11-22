@@ -3,5 +3,5 @@
 var a, b;
 a = Pser([1, 2, 3], 5);	// return 5 items
 b = a.asStream;
-6.do({ b.next.postln; });
+6.do({ b.next.postln });
 )

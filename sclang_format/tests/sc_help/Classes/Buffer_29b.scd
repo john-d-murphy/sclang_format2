@@ -1,2 +1,6 @@
-// Source: Classes/Buffer.schelp block 29 (part 2/5)
-b = Buffer.alloc(s, 512, 1, {arg buf; buf.chebyMsg([1,0,1,1,0,1])});
+// Source: Classes/Buffer.schelp block 29 (part 2/4)
+(
+b = Buffer.alloc(s, 512, 1);
+b.sine1(1.0 / [1, 2, 3, 4], true, true, true);
+x = { Osc.ar(b, 200, 0, 0.5) }.play;
+)

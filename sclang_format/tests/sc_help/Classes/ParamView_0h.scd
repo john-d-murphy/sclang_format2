@@ -1,2 +1,2 @@
-// Source: Classes/ParamView.schelp block 0 (part 8/16)
-~pv.viewType_(2);
+// Source: Classes/ParamView.schelp block 0 (part 8/17)
+~pv.viewType_(1);

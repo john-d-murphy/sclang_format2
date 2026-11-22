@@ -1,4 +1,4 @@
-// Source: Tutorials/JITLib/basic_live_coding_techniques.schelp block 0 (part 3/15)
+// Source: Tutorials/JITLib/basic_live_coding_techniques.schelp block 0 (part 3/16)
 (
 SynthDef(\x, { |out, freq = 440|
 	Out.ar(out,

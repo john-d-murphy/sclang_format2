@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 20 (part 5/11)
-p.axisLabelX = "X LABEL";
+// Source: Classes/Plotter.schelp block 20 (part 5/7)
+p.superpose_(false);

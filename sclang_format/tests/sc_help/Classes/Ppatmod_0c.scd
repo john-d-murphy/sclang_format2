@@ -2,8 +2,8 @@
 (
 a = Pn(
 	Ppatmod(
-		Pseq([0, 0, 0, 0],1),
-		{ arg pat, i;
+		Pseq([0, 0, 0, 0], 1),
+		{ |pat, i|
 			var list;
 			list = pat.list;
 			pat.list = list.put(list.size.rand, 2);

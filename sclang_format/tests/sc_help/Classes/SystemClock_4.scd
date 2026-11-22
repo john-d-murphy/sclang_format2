@@ -3,8 +3,8 @@
 var w, r;
 w = Window.new("trem", Rect(512, 256, 360, 130));
 w.front;
-r = Routine({ arg time;
-	60.do({ arg i;
+r = Routine({ |time|
+	60.do({ |i|
 		0.05.yield;
 		{
 			w.bounds = w.bounds.moveBy(10.rand2, 10.rand2);

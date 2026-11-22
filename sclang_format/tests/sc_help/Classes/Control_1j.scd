@@ -1,6 +1,6 @@
-// Source: Classes/Control.schelp block 1 (part 10/17)
+// Source: Classes/Control.schelp block 1 (part 10/18)
 (
-SynthDef(\help_Control_DynKlank, { arg out=0, freq = 440;
+SynthDef(\help_Control_DynKlank, { |out = 0, freq = 440|
 	var klank, harm, amp, ring;
 
 	// harmonics
@@ -9,7 +9,7 @@ SynthDef(\help_Control_DynKlank, { arg out=0, freq = 440;
 	amp = Control.names(\amp).kr(Array.fill(4, 0.05));
 	// ring times
 	ring = Control.names(\ring).kr(Array.fill(4, 1));
-	klank = DynKlank.ar(`[harm, amp, ring], {ClipNoise.ar(0.003)}.dup, freq);
+	klank = DynKlank.ar(`[harm, amp, ring], { ClipNoise.ar(0.003) }.dup, freq);
 	Out.ar(out, klank);
 }).add
 )

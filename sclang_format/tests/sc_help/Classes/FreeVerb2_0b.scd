@@ -1,4 +1,4 @@
-// Source: Classes/FreeVerb2.schelp block 0 (part 2/7)
+// Source: Classes/FreeVerb2.schelp block 0 (part 2/8)
 (
 SynthDef(\FreeVerb2x2, { |out, mix = 0.25, room = 0.15, damp = 0.5, amp = 1.0|
 	var signal;

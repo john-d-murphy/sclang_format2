@@ -2,7 +2,7 @@
 (
 {
 	NumChannels.ar(
-		SinOsc.ar([100,200,300],0,0.2), // 3 becomes 2
+		SinOsc.ar([100, 200, 300], 0, 0.2), // 3 becomes 2
 		2)
 }.play
 )

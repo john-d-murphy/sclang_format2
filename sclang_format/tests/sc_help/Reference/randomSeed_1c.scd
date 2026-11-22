@@ -1,2 +1,2 @@
-// Source: Reference/randomSeed.schelp block 1 (part 3/4)
-thisThread.randSeed = 1923;
+// Source: Reference/randomSeed.schelp block 1 (part 3/5)
+Array.fill(7, r.value);

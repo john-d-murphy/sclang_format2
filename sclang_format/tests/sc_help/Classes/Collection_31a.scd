@@ -1,2 +1,2 @@
 // Source: Classes/Collection.schelp block 31 (part 1/6)
-a = [1, 5, 3, 4];
+[1, 2, 3, 4, 5].inject(0, _+_);

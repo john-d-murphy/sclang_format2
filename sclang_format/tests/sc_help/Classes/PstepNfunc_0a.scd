@@ -1,6 +1,6 @@
 // Source: Classes/PstepNfunc.schelp block 0 (part 1/4)
 (
-f = { arg vals;
+f = { |vals|
 	vals.postln;
 };
 x = PstepNfunc(f, [

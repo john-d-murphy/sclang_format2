@@ -1,7 +1,7 @@
 // Source: Classes/ProgramChangeResponder.schelp block 1 (part 1/2)
 (
-	c = ProgramChangeResponder({ |src,chan,val|
-		[src,chan,val].postln;
+	c = ProgramChangeResponder({ |src, chan, val|
+		[src, chan, val].postln;
 		},
 		nil, // any source
 		nil, // any channel

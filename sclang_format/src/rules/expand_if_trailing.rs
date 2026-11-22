@@ -316,13 +316,16 @@ impl ExpandLongIfTrailingClosures {
         //
         // (last line "};" only if has_semi)
 
-        // indentation (bytes[line_start..start]) should be just ws
-        let indent_bytes = &bytes[line_start..start];
-        let indent = std::str::from_utf8(indent_bytes).unwrap_or("");
+        // The closing braces line up with the start of the line, which may
+        // hold more than blanks before the `if` (`x = if ...`).
+        let mut indent_end = line_start;
+        while indent_end < start && is_space(bytes[indent_end]) {
+            indent_end += 1;
+        }
+        let indent = std::str::from_utf8(&bytes[line_start..indent_end]).unwrap_or("");
         let indent_body = format!("{}    ", indent); // 4 spaces deeper
 
         let mut replacement = String::new();
-        replacement.push_str(indent);
         replacement.push_str("if (");
         replacement.push_str(cond_body);
         replacement.push_str(") {\n");
@@ -418,6 +421,15 @@ mod tests {
         assert_eq!(
             format(src),
             "if (condition) {\n    \"a long enough true branch to pass the width\"\n} {\n    \"and the false one\"\n};\nx = 1;"
+        );
+    }
+
+    #[test]
+    fn test_what_stands_before_the_if_on_its_line_is_not_written_again() {
+        let src = "    x = if (condition) { \"a long enough true branch to pass the width\" } { \"and the false one\" };";
+        assert_eq!(
+            format(src),
+            "    x = if (condition) {\n        \"a long enough true branch to pass the width\"\n    } {\n        \"and the false one\"\n    };"
         );
     }
 }

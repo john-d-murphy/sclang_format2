@@ -1,12 +1,15 @@
 //! sclang, SuperCollider's own compiler, as the judge of what is SuperCollider.
 //!
 //! `tests/judge.scd` compiles files (it never runs them) and posts what sclang
-//! made of each; this file drives it. Both tests need sclang and skip, saying
-//! so, when it is not installed.
+//! made of each; tests/common/judge.rs drives it. The tests need sclang and
+//! skip, saying so, when it is not installed.
 //!
 //! - `formatting_keeps_meaning` runs with plain `cargo test`: every corpus
 //!   file sclang accepts must, once formatted, be accepted again and compile
 //!   to the same thing.
+//! - `test_suite_scripts_keep_their_meaning` requires the same of the
+//!   scripts of SuperCollider's own test suite, and skips when its source
+//!   is not there.
 //! - `corpus_design` needs python3 and the SuperCollider help sources as
 //!   well, so it runs only when asked for:
 //!
@@ -37,6 +40,81 @@ use std::process::Command;
 ///     cargo test --test sclang_judge formatting_keeps_meaning -- --test-threads=8
 const KNOWN_MEANING_CHANGES: &[&str] = &[];
 
+/// What formatting does to every .scd file under a directory, as sclang
+/// sees it. Paths are given from the directory.
+struct Formatted {
+    verdicts: BTreeMap<PathBuf, Verdict>,
+    /// How many files sclang compiled both as they stand and formatted.
+    compared: usize,
+    /// Files that compile to something else once formatted, or no longer
+    /// compile, each with both compilations or sclang's error.
+    differing: BTreeMap<PathBuf, String>,
+    /// Files sclang accepts and the formatter refuses.
+    unformatted: Vec<PathBuf>,
+    /// Files sclang refuses as they stand and accepts once formatted.
+    revived: Vec<PathBuf>,
+}
+
+/// Has sclang judge every .scd file under `corpus`, formats each, and has
+/// sclang judge what came out. sclang's own files go under `work`.
+fn format_and_judge(corpus: &Path, work: &Path) -> Formatted {
+    let verdicts = judge(corpus, work);
+
+    // Each file formatted, with the names sclang needed declared in front.
+    let formatted_dir = fresh_dir(&work.join("formatted"));
+    let paths: Vec<&PathBuf> = verdicts.keys().collect();
+    let written = par_map(&paths, |path| {
+        let text = fs::read_to_string(corpus.join(path)).unwrap();
+        let formatted = sclang_format::format_source(&text, "all").ok()?;
+        let out = formatted_dir.join(path);
+        fs::create_dir_all(out.parent().unwrap()).unwrap();
+        let formatted = match &verdicts[*path] {
+            Verdict::Accepted { declared, .. } if !declared.is_empty() => {
+                declare(declared, &formatted)
+            }
+            _ => formatted,
+        };
+        fs::write(out, formatted).unwrap();
+        Some(())
+    });
+    let mut compiled = compile_all(&formatted_dir, work);
+
+    let mut result = Formatted {
+        verdicts: BTreeMap::new(),
+        compared: 0,
+        differing: BTreeMap::new(),
+        unformatted: Vec::new(),
+        revived: Vec::new(),
+    };
+    for (path, written) in paths.into_iter().zip(written) {
+        let after = written.map(|()| compiled.remove(path).unwrap());
+        match (&verdicts[path], after) {
+            (Verdict::Accepted { .. }, None) => result.unformatted.push(path.clone()),
+            (Verdict::Accepted { dump, .. }, Some(after)) => {
+                result.compared += 1;
+                match after.dump {
+                    Some(formatted) if formatted == *dump => {}
+                    Some(formatted) => {
+                        let how = format!("original:  {dump}\nformatted: {formatted}");
+                        result.differing.insert(path.clone(), how);
+                    }
+                    None => {
+                        let how =
+                            format!("refused once formatted: {}", after.errors.join(" | "));
+                        result.differing.insert(path.clone(), how);
+                    }
+                }
+            }
+            (Verdict::Refused { .. }, Some(after)) if after.dump.is_some() => {
+                result.revived.push(path.clone());
+            }
+            (Verdict::Refused { .. }, _) => {}
+        }
+    }
+    result.verdicts = verdicts;
+    result
+}
+
 #[test]
 fn formatting_keeps_meaning() {
     if !sclang_installed() {
@@ -45,55 +123,14 @@ fn formatting_keeps_meaning() {
     }
     let corpus = manifest_dir().join("tests/sc_help");
     let work = fresh_dir(&manifest_dir().join("target/judge/meaning"));
-    let verdicts = judge(&corpus, &work);
+    // A file the formatter refuses is the corpus test's business.
+    let formatted = format_and_judge(&corpus, &work);
 
-    // Each accepted file, formatted, with the same names declared in front.
-    let formatted_dir = fresh_dir(&work.join("formatted"));
-    let accepted: Vec<(&PathBuf, &String, &Vec<String>)> = verdicts
+    let differing: BTreeMap<String, &String> = formatted
+        .differing
         .iter()
-        .filter_map(|(path, verdict)| match verdict {
-            Verdict::Accepted { dump, declared } => Some((path, dump, declared)),
-            Verdict::Refused { .. } => None,
-        })
+        .map(|(path, how)| (format!("tests/sc_help/{}", path.display()), how))
         .collect();
-    let written = par_map(&accepted, |(path, _, declared)| {
-        let text = fs::read_to_string(corpus.join(path)).unwrap();
-        // A file the formatter refuses is the corpus test's business.
-        let formatted = sclang_format::format_source(&text, "all").ok()?;
-        let out = formatted_dir.join(path);
-        fs::create_dir_all(out.parent().unwrap()).unwrap();
-        let formatted = if declared.is_empty() {
-            formatted
-        } else {
-            declare(declared, &formatted)
-        };
-        fs::write(out, formatted).unwrap();
-        Some(())
-    });
-    let originals: BTreeMap<&PathBuf, &String> = accepted
-        .iter()
-        .zip(written)
-        .filter_map(|((path, dump, _), written)| written.map(|()| (*path, *dump)))
-        .collect();
-    let mut formatted = compile_all(&formatted_dir, &work);
-
-    let mut differing = BTreeMap::new();
-    for (path, original) in &originals {
-        let name = format!("tests/sc_help/{}", path.display());
-        let compiled = formatted.remove(*path).unwrap();
-        match compiled.dump {
-            Some(dump) if dump == **original => {}
-            Some(dump) => {
-                differing.insert(name, format!("original:  {original}\nformatted: {dump}"));
-            }
-            None => {
-                differing.insert(
-                    name,
-                    format!("refused once formatted: {}", compiled.errors.join(" | ")),
-                );
-            }
-        }
-    }
     let report: String = differing
         .iter()
         .map(|(name, how)| format!("{name}\n{how}\n\n"))
@@ -110,8 +147,8 @@ fn formatting_keeps_meaning() {
         .collect();
 
     eprintln!("\n=== Formatting keeps meaning ===");
-    eprintln!("Corpus: {}", tally(&verdicts));
-    eprintln!("Compared: {}", originals.len());
+    eprintln!("Corpus: {}", tally(&formatted.verdicts));
+    eprintln!("Compared: {}", formatted.compared);
     eprintln!(
         "Differing: {} ({} known)",
         differing.len(),
@@ -133,6 +170,47 @@ fn formatting_keeps_meaning() {
             .iter()
             .map(|s| format!("  {s}\n"))
             .collect::<String>()
+    );
+}
+
+/// The scripts of SuperCollider's own test suite. Ten are code, and the
+/// formatter must take each of those and keep what it means. Two sclang
+/// refuses: a log of failures kept under the name of a script
+/// (classlibrary/current-failures.scd), and blocks written to be run one at
+/// a time (sclang/lpc/test_script.scd). None is there to be refused, so the
+/// rule for what sclang refuses is the plain one: the formatter must not
+/// make of it something sclang accepts. It may refuse it too.
+#[test]
+fn test_suite_scripts_keep_their_meaning() {
+    if !sclang_installed() {
+        eprintln!("Skipping test_suite_scripts_keep_their_meaning: sclang is not installed");
+        return;
+    }
+    let scripts = manifest_dir().join("target/sc-source/testsuite");
+    if !scripts.is_dir() {
+        eprintln!(
+            "Skipping test_suite_scripts_keep_their_meaning: no SuperCollider source at {} \
+             (the top of tests/class_library.rs says how to fetch it)",
+            scripts.display()
+        );
+        return;
+    }
+    let work = fresh_dir(&manifest_dir().join("target/judge/test_suite"));
+    let formatted = format_and_judge(&scripts, &work);
+
+    eprintln!("\n=== The test suite's scripts ===");
+    eprintln!("Scripts: {}", tally(&formatted.verdicts));
+    eprintln!("Compared: {}", formatted.compared);
+    assert!(
+        formatted.differing.is_empty()
+            && formatted.unformatted.is_empty()
+            && formatted.revived.is_empty(),
+        "Mean something else once formatted: {:?}\n\
+         sclang accepts them and the formatter refuses them: {:?}\n\
+         sclang refuses them, and accepts them once formatted: {:?}",
+        formatted.differing,
+        formatted.unformatted,
+        formatted.revived
     );
 }
 

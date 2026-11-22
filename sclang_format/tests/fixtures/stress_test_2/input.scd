@@ -3,7 +3,7 @@
 
 // 1. SynthDef with arg, missing comma, non-literal defaults, events, arrays
 SynthDef(\stress, {
-    arg freq = 440 amp = 0.1, pan = 4.dbamp;
+    arg freq = 440, amp = 0.1, pan = 4.dbamp;
     var sig,outBus;
     outBus=0;
     sig = SinOsc.ar(freq,0,amp);
@@ -12,7 +12,7 @@ SynthDef(\stress, {
 
 // 2. arg → pipe params, missing commas, non-literal defaults
 g = {
-    arg foo = 3 bar = (4.dbamp), sum = 1 + 2;
+    arg foo = 3, bar = (4.dbamp), sum = 1 + 2;
     var local1,local2;
     local1=foo+bar;
     local2 = [1 ,2 ,
@@ -22,7 +22,7 @@ g = {
 };
 
 // 3. already pipe style, but missing commas and non-literal defaults
-f = { |freq = 440 amp = 4.dbamp, env = Env.perc(0.01, 1.0)|
+f = { |freq = 440 amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
     var x,y;
     x = freq*2 + 1;
     y = x - 3 ;

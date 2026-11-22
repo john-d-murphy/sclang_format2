@@ -38,7 +38,7 @@ Voice : Object {
         prState.clear;
     }
 
-    onDone { |action={}| prState[\done]=action }
+    onDone { |action=({})| prState[\done]=action }
 
     printOn { |stream| stream << "Voice(" << name << ")"; }
 }

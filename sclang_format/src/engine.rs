@@ -37,7 +37,6 @@ impl fmt::Display for Ctx {
     }
 }
 
-// --- STANDALONE HELPER FUNCTION ---
 pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
     let indent = "  ".repeat(depth);
     let start = node.start_byte();
@@ -87,7 +86,7 @@ impl Ctx {
             tree,
             indent_style,
             current_rule_name: None,
-            debug_edits: std::env::var("DEBUG_EDITS").is_ok(), // ADD THIS
+            debug_edits: std::env::var("DEBUG_EDITS").is_ok(),
         })
     }
 
@@ -107,19 +106,13 @@ impl Ctx {
     /// symbol or the words of a comment are dropped.
     ///
     /// # Errors
-    /// When two edits overlap, or when the text parsed before the edits and
-    /// does not parse after them: a rule has broken it.
+    /// When two edits overlap, or when the text does not parse after them:
+    /// a rule has broken it.
     pub fn apply_edits(&mut self, mut edits: Vec<TextEdit>) -> Result<()> {
         if edits.is_empty() {
             return Ok(());
         }
 
-        // Track whether the tree already had errors before this edit batch.
-        // If it did, we tolerate errors after — the semantic transform rules
-        // (like PipeParamAddMissingCommas) need to run on broken trees to fix them.
-        let had_errors_before = self.tree.root_node().has_error();
-
-        // ADD THIS DEBUG BLOCK
         if self.debug_edits {
             let rule_name = self.current_rule_name.unwrap_or("unknown");
             eprintln!("\n=== {} edits ({}) ===", rule_name, edits.len());
@@ -155,7 +148,6 @@ impl Ctx {
                 eprintln!("  After:  '{line_after}'");
             }
         }
-        // END DEBUG BLOCK
 
         // === CENTRALIZED EDIT PROTECTION ===
         // Drop any edits that are entirely INSIDE a comment or string node.
@@ -207,11 +199,10 @@ impl Ctx {
             .parse(source_string, None)
             .context("reparse failed")?;
 
-        // === CRITICAL ERROR CHECK ===
-        // Only bail if this rule INTRODUCED errors into a previously clean tree.
-        // If the tree already had errors (e.g. missing commas in arg lists),
-        // semantic transforms need to run to fix them.
-        if new_tree.root_node().has_error() && !had_errors_before {
+        // A rule that leaves text that does not parse has broken it. No
+        // rule is given text that does not parse to begin with (parse_check
+        // is the first), so there is nothing here to forgive.
+        if new_tree.root_node().has_error() {
             eprintln!("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             eprintln!("FATAL: AST is broken after applying edits.");
             eprintln!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
@@ -230,7 +221,6 @@ impl Ctx {
             eprintln!("{source_string}");
             eprintln!("--------------------------\n");
 
-            // FIX: Use the standalone function with the correct variables
             eprintln!("--- AST DUMP ---");
             print_ast_with_source(new_tree.root_node(), source_string.as_bytes(), 0);
 

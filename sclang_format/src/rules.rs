@@ -39,7 +39,6 @@ mod parse_check;
 mod pipe_body;
 mod pipe_heads;
 mod pipe_param_commas;
-mod pipe_param_default_parens;
 mod pipe_param_layout;
 mod semicolon;
 mod trailing_closures;
@@ -73,7 +72,6 @@ pub use parse_check::ParseCheck;
 pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
 pub use pipe_param_commas::PipeParamAddMissingCommas;
-pub use pipe_param_default_parens::PipeParamDefaultParens;
 pub use pipe_param_layout::PipeParamOnBraceLine;
 pub use semicolon::NoSpaceBeforeSemicolon;
 pub use trailing_closures::TrailingClosures;
@@ -87,17 +85,16 @@ pub use var_arg::VarAndArgSpacing;
 /// rule.
 pub fn run(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
-        // 1. Semantic / AST-level transforms (may fix parse errors)
+        // 0. Text that does not parse is refused before any rule reads it.
+        Box::new(ParseCheck),
+        // 1. The same code written another way
         Box::new(PipeParamAddMissingCommas),
         Box::new(ArgToPipeParams),
         Box::new(TrailingClosures),
         Box::new(CuddleElse),
-        // 1b. Now bail if the source STILL has parse errors
-        Box::new(ParseCheck),
         // 2. Structural layout (braces, dots, multi-line collection shape)
         Box::new(BlockLayoutKAndR),
         Box::new(PipeParamOnBraceLine),
-        Box::new(PipeParamDefaultParens),
         Box::new(BraceAndPipesSingleLine),
         Box::new(DotChainLayout),
         // 3. Width-aware 80-col logic (single-line vs multi-line decisions)

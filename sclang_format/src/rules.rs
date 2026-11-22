@@ -99,7 +99,6 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(MultiLineEventsOnePerLine),
         Box::new(MultiLineArrayElementsPerLine),
         // 3. Width-aware 80-col logic (single-line vs multi-line decisions)
-        Box::new(ExpandLongIfTrailingClosures),
         Box::new(CompactShortIfTrailingClosures),
         Box::new(CompactShortCollections),
         // 4. Local spacing & punctuation
@@ -117,6 +116,9 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpacesAroundDot),
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(InlineCommentSpacing),
+        // 4b. An if is measured for width once spacing has made it as wide as it
+        //     will stand; measured before, it fits, and a second pass expands it.
+        Box::new(ExpandLongIfTrailingClosures),
         // 5. Indentation / global whitespace
         Box::new(IndentByAstLevel),
         Box::new(InlineWhitespaceFormat),

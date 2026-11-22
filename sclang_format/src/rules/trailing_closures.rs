@@ -30,6 +30,18 @@ fn rewrite_if_call(buf: &[u8], start_if: usize) -> Option<(usize, usize, String)
     if start_if + 2 < len && is_ident_char(buf[start_if + 2]) {
         return None;
     }
+    // Reject the method-call form `recv.if(...)` (including `recv. if(...)`).
+    // There the first argument is the then-block, not a condition, so the
+    // keyword-if rewrite `if (cond) { ... }` would be semantically wrong.
+    {
+        let mut p = start_if;
+        while p > 0 && is_space(buf[p - 1]) {
+            p -= 1;
+        }
+        if p > 0 && buf[p - 1] == b'.' {
+            return None;
+        }
+    }
 
     // Find '(' after "if".
     let mut i = start_if + 2;

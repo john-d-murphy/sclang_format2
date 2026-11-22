@@ -19,7 +19,8 @@ pub struct LineCursor<'a> {
 }
 
 impl<'a> LineCursor<'a> {
-    pub fn new(src: &'a [u8]) -> Self {
+    #[must_use]
+    pub const fn new(src: &'a [u8]) -> Self {
         Self { src, pos: 0 }
     }
 }
@@ -67,6 +68,7 @@ impl<'a> Iterator for LineCursor<'a> {
 }
 
 /// Build an indent string for a given logical depth.
+#[must_use]
 pub fn make_indent(style: IndentStyle, depth: usize) -> String {
     match style {
         IndentStyle::Tabs => "\t".repeat(depth),

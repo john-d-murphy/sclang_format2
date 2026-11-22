@@ -108,7 +108,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();
@@ -159,8 +159,7 @@ mod tests {
         // Should NOT become "(// comment" - preserve space before comment
         assert!(
             result.contains("(  //"),
-            "Should preserve space before comment, got: {}",
-            result
+            "Should preserve space before comment, got: {result}"
         );
     }
 
@@ -172,8 +171,7 @@ mod tests {
         // Should preserve the whitespace before comment
         assert!(
             !result.contains("(//"),
-            "Should not remove all space before comment, got: {}",
-            result
+            "Should not remove all space before comment, got: {result}"
         );
     }
 
@@ -184,8 +182,7 @@ mod tests {
         // Should preserve space before block comment
         assert!(
             result.contains("(  /*"),
-            "Should preserve space before block comment, got: {}",
-            result
+            "Should preserve space before block comment, got: {result}"
         );
     }
 

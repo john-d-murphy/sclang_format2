@@ -22,7 +22,7 @@ impl Rule for CuddleElse {
             let root = cx.tree.root_node();
             let mut cursor = root.walk();
             // Pass 'cx' as an immutable reference here
-            self.visit_node(&mut cursor, cx, &mut edits);
+            Self::visit_node(&mut cursor, cx, &mut edits);
         } // <--- Cursor dies here, releasing the borrow on cx
 
         // BLOCK 2: WRITE PHASE
@@ -36,18 +36,18 @@ impl Rule for CuddleElse {
 }
 
 impl CuddleElse {
-    fn visit_node(&self, cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn visit_node(cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let node = cursor.node();
         let buf = cx.bytes(); // This likely returns Vec<u8> or &Vec<u8>
 
         if node.kind() == "if" {
             // FIX 1: Pass '&buf' instead of 'buf' to convert Vec to slice
-            self.cuddle_if_branches(node, &buf, edits);
+            Self::cuddle_if_branches(node, buf, edits);
         }
 
         if cursor.goto_first_child() {
             loop {
-                self.visit_node(cursor, cx, edits);
+                Self::visit_node(cursor, cx, edits);
                 if !cursor.goto_next_sibling() {
                     break;
                 }
@@ -56,7 +56,7 @@ impl CuddleElse {
         }
     }
 
-    fn cuddle_if_branches(&self, node: Node, buf: &[u8], edits: &mut Vec<TextEdit>) {
+    fn cuddle_if_branches(node: Node, buf: &[u8], edits: &mut Vec<TextEdit>) {
         let true_branch = node.child_by_field_name("true");
         let false_branch = node.child_by_field_name("false");
 

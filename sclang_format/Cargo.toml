@@ -2,6 +2,8 @@
 name = "sclang_format"
 version = "0.1.0"
 edition = "2024"
+# Not for crates.io: its license and repository are not stated here.
+publish = false
 
 [dependencies]
 anyhow = "1"

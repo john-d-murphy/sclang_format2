@@ -20,7 +20,7 @@ impl Rule for PipeHeadSpacing {
             let root = tree.root_node();
 
             let mut cursor = root.walk();
-            visit_pipe_params(&mut cursor, &src, &mut edits);
+            visit_pipe_params(&mut cursor, src, &mut edits);
         }
 
         let n = edits.len();
@@ -56,8 +56,8 @@ fn is_valid_context(pipe_list_node: tree_sitter::Node) -> bool {
     let mut current = pipe_list_node.parent();
     while let Some(node) = current {
         if node.kind() == "function_block" {
-            if let Some(parent) = node.parent() {
-                if parent.kind() == "function_call" {
+            if let Some(parent) = node.parent()
+                && parent.kind() == "function_call" {
                     let mut has_receiver = false;
                     let mut cursor = parent.walk();
                     if cursor.goto_first_child() {
@@ -76,7 +76,6 @@ fn is_valid_context(pipe_list_node: tree_sitter::Node) -> bool {
                         return false;
                     }
                 }
-            }
             break;
         }
         current = node.parent();
@@ -201,7 +200,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

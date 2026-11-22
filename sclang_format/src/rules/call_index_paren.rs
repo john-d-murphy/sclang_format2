@@ -30,9 +30,8 @@ fn fix_before_delim(bytes: &[u8], delim: usize, edits: &mut Vec<TextEdit>) {
         return;
     }
 
-    let prev_index = match ws_start.checked_sub(1) {
-        Some(i) => i,
-        None => return,
+    let Some(prev_index) = ws_start.checked_sub(1) else {
+        return;
     };
 
     let prev = bytes[prev_index];
@@ -83,7 +82,7 @@ impl Rule for CallIndexParenSpacing {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
-        let bytes: &[u8] = &src;
+        let bytes: &[u8] = src;
         let len = bytes.len();
 
         let mut edits = Vec::new();

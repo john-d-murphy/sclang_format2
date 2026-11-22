@@ -82,7 +82,7 @@ impl Rule for VarAndArgSpacing {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
-        let bytes: &[u8] = &src;
+        let bytes: &[u8] = src;
         let len = bytes.len();
 
         let mut edits = Vec::new();

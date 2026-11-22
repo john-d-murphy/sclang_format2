@@ -3,6 +3,11 @@ use anyhow::Result;
 
 pub trait Rule {
     fn name(&self) -> &'static str;
+
+    /// Applies the rule to the text of `cx`; how many edits it made.
+    ///
+    /// # Errors
+    /// When its edits break the text (see `Ctx::apply_edits`).
     fn run(&self, cx: &mut Ctx) -> Result<usize>;
 }
 
@@ -75,10 +80,19 @@ pub use trailing_closures::TrailingClosures;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
 pub use var_arg::VarAndArgSpacing;
 
+/// The rules that run before the others: none yet.
+///
+/// # Errors
+/// Never.
 pub const fn run_pre(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }
 
+/// Every rule, in order.
+///
+/// # Errors
+/// When the text does not parse, or a rule breaks it; the error names the
+/// rule.
 pub fn run_inline(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
         // 1. Semantic / AST-level transforms (may fix parse errors)
@@ -131,7 +145,7 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         eprintln!("\n{}", "=".repeat(60));
         eprintln!("INITIAL SOURCE");
         eprintln!("{}", "=".repeat(60));
-        eprintln!("{}", String::from_utf8_lossy(&cx.bytes()));
+        eprintln!("{}", String::from_utf8_lossy(cx.bytes()));
         eprintln!("{}\n", "=".repeat(60));
     }
 
@@ -148,7 +162,7 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
                     eprintln!("\n{}", "=".repeat(60));
                     eprintln!("After: {} ({} edits)", r.name(), edits);
                     eprintln!("{}", "=".repeat(60));
-                    eprintln!("{}", String::from_utf8_lossy(&cx.bytes()));
+                    eprintln!("{}", String::from_utf8_lossy(cx.bytes()));
                     eprintln!("{}\n", "=".repeat(60));
                 }
                 Err(e) => {
@@ -156,17 +170,19 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
                     return Err(e.context(format!("rule {}", r.name())));
                 }
             }
-        } else {
-            if let Err(e) = r.run(cx) {
-                eprintln!("Triggered by Rule: {}", r.name());
-                return Err(e.context(format!("rule {}", r.name())));
-            }
+        } else if let Err(e) = r.run(cx) {
+            eprintln!("Triggered by Rule: {}", r.name());
+            return Err(e.context(format!("rule {}", r.name())));
         }
     }
 
     Ok(())
 }
 
+/// The rules that run after the others: none yet.
+///
+/// # Errors
+/// Never.
 pub const fn run_post(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }

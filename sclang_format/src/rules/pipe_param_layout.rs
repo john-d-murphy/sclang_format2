@@ -17,7 +17,7 @@ impl Rule for PipeParamOnBraceLine {
         let src = cx.bytes();
 
         let mut edits = Vec::new();
-        walk_tree(root, &src, &mut edits);
+        walk_tree(root, src, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -87,7 +87,7 @@ fn fix_pipe_param_position(func_block: Node, src: &[u8], edits: &mut Vec<TextEdi
     let between = &src[brace_end..pipes_start];
 
     // Check if there's a newline in the gap
-    let has_newline = between.iter().any(|&b| b == b'\n');
+    let has_newline = between.contains(&b'\n');
 
     if !has_newline {
         return; // Already on same line, nothing to do

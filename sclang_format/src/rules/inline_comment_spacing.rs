@@ -27,7 +27,7 @@ impl Rule for InlineCommentSpacing {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
-        let bytes: &[u8] = &src;
+        let bytes: &[u8] = src;
         let len = bytes.len();
         let root = cx.tree.root_node();
         let mut edits: Vec<TextEdit> = Vec::new();
@@ -125,7 +125,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

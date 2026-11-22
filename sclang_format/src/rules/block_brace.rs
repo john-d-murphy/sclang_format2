@@ -112,7 +112,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

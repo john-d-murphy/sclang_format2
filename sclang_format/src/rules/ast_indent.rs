@@ -20,14 +20,14 @@ impl Rule for IndentByAstLevel {
         let tree = &cx.tree;
         let root = tree.root_node();
         let bytes_vec = cx.bytes();
-        let bytes: &[u8] = &bytes_vec;
+        let bytes: &[u8] = bytes_vec;
 
 
         let mut edits: Vec<TextEdit> = Vec::new();
-        let mut lines = LineCursor::new(bytes);
+        let lines = LineCursor::new(bytes);
 
 
-        while let Some(line) = lines.next() {
+        for line in lines {
             if line.first_non_ws == line.end {
                 continue;
             }
@@ -37,9 +37,8 @@ impl Rule for IndentByAstLevel {
 
 
             // Get the node at the start of the line
-            let node = match root.descendant_for_byte_range(byte, byte + 1) {
-                Some(n) => n,
-                None => continue,
+            let Some(node) = root.descendant_for_byte_range(byte, byte + 1) else {
+                continue;
             };
 
 
@@ -103,14 +102,16 @@ pub(super) fn line_depth(root: Node, bytes: &[u8], first: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::ast_utils::block_depth_at;
     use crate::engine::{Ctx, IndentStyle};
     use crate::grammar;
+    use tree_sitter::Parser;
 
 
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();
@@ -136,67 +137,65 @@ mod tests {
             "SynthDef(\\a, {\n    Out.ar(0,\n        SinOsc.ar(\n            440\n        )\n    )\n}).add;",
             "f = {\n    if(\n        a\n    ) { b };\n};",
         ] {
-            let flat: String = src.lines().map(|line| format!("{}\n", line.trim_start())).collect();
-            assert_eq!(format(flat.trim_end()), src);
+            let flat: Vec<&str> = src.lines().map(str::trim_start).collect();
+            assert_eq!(format(&flat.join("\n")), src);
         }
     }
 
     #[test]
     fn test_simple_if_block() {
-        let src = r#"if (x > 0) {
+        let src = r"if (x > 0) {
 body;
-};"#;
+};";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    body;"), "body should have 4 spaces indent");
     }
 
 
     #[test]
     fn test_while_block() {
-        let src = r#"while (x > 0) {
+        let src = r"while (x > 0) {
 body;
-};"#;
+};";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    body;"), "while body should have 4 spaces indent");
     }
 
 
     #[test]
     fn test_trailing_closure_do() {
-        let src = r#"[1, 2, 3].do { |x|
+        let src = r"[1, 2, 3].do { |x|
 body;
-};"#;
+};";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    body;"), ".do body should have 4 spaces indent");
     }
 
 
     #[test]
     fn test_receiver_block_value() {
-        let src = r#"{
+        let src = r"{
 body;
-}.value;"#;
+}.value;";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    body;"), "receiver block body should have 4 spaces indent");
     }
 
 
     #[test]
     fn test_nested_trailing_closures() {
-        let src = r#"[1, 2, 3].do { |x|
+        let src = r"[1, 2, 3].do { |x|
 [x, x * 2].do { |y|
 y.postln;
 };
-};"#;
+};";
 
 
         // Debug: check what block_depth_at and visual_block_depth_at return
-        use crate::engine::ast_utils::{block_depth_at, visual_block_depth_at};
-        use tree_sitter::Parser;
         let mut parser = Parser::new();
         parser.set_language(&crate::grammar::language()).unwrap();
         let bytes = src.as_bytes();
@@ -208,8 +207,7 @@ y.postln;
         let inner_bracket_pos = src.find("[x,").unwrap();
         let inner_block_depth = block_depth_at(root, inner_bracket_pos, bytes);
         let inner_visual_depth = visual_block_depth_at(root, inner_bracket_pos, bytes);
-        eprintln!("Inner bracket '[x,' at byte {}: block_depth = {}, visual_depth = {}",
-                  inner_bracket_pos, inner_block_depth, inner_visual_depth);
+        eprintln!("Inner bracket '[x,' at byte {inner_bracket_pos}: block_depth = {inner_block_depth}, visual_depth = {inner_visual_depth}");
 
 
         // Debug: dump node ancestry
@@ -230,12 +228,11 @@ y.postln;
         let y_pos = src.find("y.postln").unwrap();
         let y_block_depth = block_depth_at(root, y_pos, bytes);
         let y_visual_depth = visual_block_depth_at(root, y_pos, bytes);
-        eprintln!("'y.postln' at byte {}: block_depth = {}, visual_depth = {}",
-                  y_pos, y_block_depth, y_visual_depth);
+        eprintln!("'y.postln' at byte {y_pos}: block_depth = {y_block_depth}, visual_depth = {y_visual_depth}");
 
 
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    [x, x * 2]"), "inner .do should have 4 spaces");
         assert!(result.contains("\n        y.postln"), "innermost body should have 8 spaces");
     }
@@ -243,16 +240,14 @@ y.postln;
 
     #[test]
     fn test_class_methods() {
-        let src = r#"MyClass {
+        let src = r"MyClass {
 *new {
 ^super.new
 }
-}"#;
+}";
 
 
         // Debug: check depths for class members
-        use crate::engine::ast_utils::{block_depth_at, visual_block_depth_at};
-        use tree_sitter::Parser;
         let mut parser = Parser::new();
         parser.set_language(&crate::grammar::language()).unwrap();
         let bytes = src.as_bytes();
@@ -267,16 +262,14 @@ y.postln;
         // Check depth for "MyClass" at byte 0
         let myclass_block_depth = block_depth_at(root, 0, bytes);
         let myclass_visual_depth = visual_block_depth_at(root, 0, bytes);
-        eprintln!("'MyClass' at byte 0: block_depth = {}, visual_depth = {}",
-                  myclass_block_depth, myclass_visual_depth);
+        eprintln!("'MyClass' at byte 0: block_depth = {myclass_block_depth}, visual_depth = {myclass_visual_depth}");
 
 
         // Find position of "*new"
         let star_pos = src.find("*new").unwrap();
         let star_block_depth = block_depth_at(root, star_pos, bytes);
         let star_visual_depth = visual_block_depth_at(root, star_pos, bytes);
-        eprintln!("'*new' at byte {}: block_depth = {}, visual_depth = {}",
-                  star_pos, star_block_depth, star_visual_depth);
+        eprintln!("'*new' at byte {star_pos}: block_depth = {star_block_depth}, visual_depth = {star_visual_depth}");
 
 
         // Debug: dump node ancestry
@@ -294,7 +287,7 @@ y.postln;
 
 
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    *new"), "*new should have 4 spaces");
         assert!(result.contains("\n        ^super"), "method body should have 8 spaces");
     }
@@ -302,25 +295,25 @@ y.postln;
 
     #[test]
     fn test_synthdef_body() {
-        let src = r#"SynthDef(\test, { |freq|
+        let src = r"SynthDef(\test, { |freq|
 var sig;
 sig = SinOsc.ar(freq);
-});"#;
+});";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(result.contains("\n    var sig"), "SynthDef body should have 4 spaces");
     }
 
 
     #[test]
     fn debug_ast_indent_rule_execution() {
-        let src = r#"// comment
+        let src = r"// comment
 (
 var a = 1;
 )
-"#;
+";
         let result = format(src);
-        eprintln!("RESULT:\n'{}'", result);
+        eprintln!("RESULT:\n'{result}'");
         assert!(
             result.contains("\nvar a = 1;"),
             "var a should have 0 indent"
@@ -331,12 +324,12 @@ var a = 1;
     #[test]
     fn test_multiline_function_call_pbind() {
         // This is the Pbind pattern that was failing
-        let src = r#"e.stream = Pbind(
+        let src = r"e.stream = Pbind(
 \degree, Pseq([0, 1, 2], inf),
 \dur, 0.5
-).asStream;"#;
+).asStream;";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         assert!(
             result.contains("\n    \\degree"),
             "Pbind arguments should be indented 4 spaces"
@@ -351,13 +344,13 @@ var a = 1;
     #[test]
     fn test_multiline_function_call_synthdef() {
         // When function block is on its own line (as an argument), it gets indented by param list
-        let src = r#"SynthDef(\test,
+        let src = r"SynthDef(\test,
 { |freq|
 var sig;
 sig = SinOsc.ar(freq);
-});"#;
+});";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // The { is on a new line, so it's indented by the param list
         // var sig is inside function block, so it gets another level
         assert!(
@@ -374,9 +367,9 @@ sig = SinOsc.ar(freq);
     #[test]
     fn test_single_line_function_call_no_indent() {
         // Single-line calls should NOT add depth
-        let src = r#"SinOsc.ar(440, 0, 0.1);"#;
+        let src = r"SinOsc.ar(440, 0, 0.1);";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // Should remain on one line, no indent changes
         assert_eq!(result.trim(), src.trim());
     }
@@ -391,7 +384,7 @@ sig = SinOsc.ar(freq);
     }
 */"#;
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // The content inside the comment should be unchanged
         assert!(
             result.contains("    if(x>0){"),
@@ -406,14 +399,14 @@ sig = SinOsc.ar(freq);
 
     #[test]
     fn test_nested_multiline_calls() {
-        let src = r#"Pdef(\test,
+        let src = r"Pdef(\test,
 Pbind(
 \degree, Pseq([0, 1, 2], inf),
 \dur, 0.5
 )
-);"#;
+);";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // Pbind should be indented once (inside Pdef's param list)
         assert!(
             result.contains("\n    Pbind"),
@@ -435,7 +428,7 @@ Pbind(
 { "other".postln }
 );"#;
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // Switch cases should only be indented once
         assert!(
             result.contains("\n    0, {"),
@@ -446,12 +439,12 @@ Pbind(
 
     #[test]
     fn test_array_in_function_call() {
-        let src = r#"Synth(\test, [
+        let src = r"Synth(\test, [
 freq, 440,
 amp, 0.1
-]);"#;
+]);";
         let result = format(src);
-        eprintln!("Result:\n{}", result);
+        eprintln!("Result:\n{result}");
         // Array contents should be indented once (inside the [...])
         // The param list shouldn't add another level because we're inside a collection
         assert!(

@@ -3,7 +3,7 @@ use crate::rules::Rule;
 use anyhow::Result;
 use crate::engine::text::{is_space, is_newline};
 
-fn is_line_comment(line: &[u8]) -> bool {
+const fn is_line_comment(line: &[u8]) -> bool {
     let mut i = 0;
     while i < line.len() && is_space(line[i]) {
         i += 1;
@@ -39,7 +39,7 @@ fn line_slice(bytes: &[u8], start: usize, len: usize) -> (usize, &[u8]) {
     (end, &bytes[start..end])
 }
 
-fn leading_ws_len(line: &[u8]) -> usize {
+const fn leading_ws_len(line: &[u8]) -> usize {
     let mut i = 0;
     while i < line.len() && is_space(line[i]) {
         i += 1;
@@ -64,7 +64,7 @@ pub struct BlockLayoutKAndR;
 
 impl BlockLayoutKAndR {
     /// Pass 1: attach open braces to headers: `if (...) \n {` -> `if (...) {`
-    fn attach_open_braces(&self, cx: &mut Ctx) -> Result<usize> {
+    fn attach_open_braces(cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let len = bytes.len();
         let mut edits = Vec::<TextEdit>::new();
@@ -153,8 +153,8 @@ impl BlockLayoutKAndR {
     }
 
     /// Pass 2: Join consecutive blocks `} \n {` -> `} {`
-    /// This supports SuperCollider's `if(c) {true} {false}` syntax.
-    fn join_chained_blocks(&self, cx: &mut Ctx) -> Result<usize> {
+    /// This supports `SuperCollider`'s `if(c) {true} {false}` syntax.
+    fn join_chained_blocks(cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
         let len = bytes.len();
         let mut edits = Vec::<TextEdit>::new();
@@ -173,8 +173,8 @@ impl BlockLayoutKAndR {
             let l1_start = win[0]; // line with '}'
             let l2_start = win[1]; // line with '{'
 
-            let (_, l1_line) = line_slice(&bytes, l1_start, len);
-            let (l2_nl, l2_line) = line_slice(&bytes, l2_start, len);
+            let (_, l1_line) = line_slice(bytes, l1_start, len);
+            let (l2_nl, l2_line) = line_slice(bytes, l2_start, len);
 
             if is_line_comment(l1_line) || is_line_comment(l2_line) {
                 continue;
@@ -229,8 +229,8 @@ impl Rule for BlockLayoutKAndR {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let n1 = self.attach_open_braces(cx)?;
-        let n2 = self.join_chained_blocks(cx)?;
+        let n1 = Self::attach_open_braces(cx)?;
+        let n2 = Self::join_chained_blocks(cx)?;
         Ok(n1 + n2)
     }
 }

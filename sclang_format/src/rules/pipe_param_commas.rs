@@ -20,7 +20,7 @@ impl Rule for PipeParamAddMissingCommas {
         let mut edits = Vec::new();
 
         // Handle pipe-style with AST (works when commas are missing)
-        walk_tree_for_pipes(root, &src, &mut edits);
+        walk_tree_for_pipes(root, src, &mut edits);
 
         // Handle arg-style with byte scanning (AST is broken when commas are
         // missing). Only then: text that parsed has every comma it needs.
@@ -68,18 +68,17 @@ fn fix_missing_commas_in_pipe_list(pipe_list: Node, src: &[u8], edits: &mut Vec<
     }
 
     for window in args.windows(2) {
-        let arg1 = window[0];
-        let arg2 = window[1];
+        let (before, after) = (window[0], window[1]);
 
-        let between_start = arg1.end_byte();
-        let between_end = arg2.start_byte();
+        let between_start = before.end_byte();
+        let between_end = after.start_byte();
 
         if between_start >= between_end {
             continue;
         }
 
         let between = &src[between_start..between_end];
-        let has_comma = between.iter().any(|&b| b == b',');
+        let has_comma = between.contains(&b',');
 
         if !has_comma {
             edits.push(TextEdit {
@@ -174,8 +173,7 @@ fn fix_arg_list_segment(src: &[u8], start: usize, end: usize, edits: &mut Vec<Te
         let mut bracket = 0i32;
         let mut has_comma = false;
 
-        for k in (e1 + 1)..name2_start {
-            let c = seg[k];
+        for &c in &seg[e1 + 1..name2_start] {
             match c {
                 b'(' => paren += 1,
                 b')' => paren -= 1,
@@ -229,7 +227,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

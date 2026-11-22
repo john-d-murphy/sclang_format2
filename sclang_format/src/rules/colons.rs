@@ -6,23 +6,25 @@ use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::{Node, TreeCursor};
 
-/// One space after the colon of a key. A colon that stands apart from its
-/// key stays apart, and one that is joined to it stays joined: `(a: 1)` is
-/// keyed by the symbol \a and `(a : 1)` by the value of the variable a.
+/// One space after the colon of a key.
+///
+/// A colon that stands apart from its key stays apart, and one that is
+/// joined to it stays joined: `(a: 1)` is keyed by the symbol \a and
+/// `(a : 1)` by the value of the variable a.
 pub struct AddSpacesAroundColons;
 
 impl AddSpacesAroundColons {
-    fn visit_node(&self, cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn visit_node(cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let node = cursor.node();
 
         // Only process colons in associative items (event key:value pairs)
         if node.kind() == "associative_item" {
-            self.process_associative_item(node, cx, edits);
+            Self::process_associative_item(node, cx, edits);
         }
 
         if cursor.goto_first_child() {
             loop {
-                self.visit_node(cursor, cx, edits);
+                Self::visit_node(cursor, cx, edits);
                 if !cursor.goto_next_sibling() {
                     break;
                 }
@@ -31,7 +33,7 @@ impl AddSpacesAroundColons {
         }
     }
 
-    fn process_associative_item(&self, node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn process_associative_item(node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let Some(value_node) = node.child_by_field_name("value") else {
             return;
         };
@@ -56,21 +58,21 @@ impl AddSpacesAroundColons {
                 replacement: " ".to_string(),
             });
         }
-        self.fix_space_after_colon(src, colon.end_byte(), value_node.start_byte(), edits);
+        Self::fix_space_after_colon(src, colon.end_byte(), value_node.start_byte(), edits);
     }
 
     fn fix_space_after_colon(
-        &self,
         bytes: &[u8],
         start: usize,
         value_start: usize,
         edits: &mut Vec<TextEdit>,
     ) {
         // Check for newlines - if multiline, don't touch
-        for i in start..value_start {
-            if bytes[i] == b'\n' || bytes[i] == b'\r' {
-                return;
-            }
+        if bytes[start..value_start]
+            .iter()
+            .any(|&b| b == b'\n' || b == b'\r')
+        {
+            return;
         }
 
         let whitespace_count = value_start - start;
@@ -109,7 +111,7 @@ impl Rule for AddSpacesAroundColons {
         {
             let root = cx.tree.root_node();
             let mut cursor = root.walk();
-            self.visit_node(&mut cursor, cx, &mut edits);
+            Self::visit_node(&mut cursor, cx, &mut edits);
         }
 
         let n = edits.len();
@@ -129,7 +131,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

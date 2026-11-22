@@ -17,7 +17,7 @@ impl Rule for InlineWhitespaceFormat {
         {
             let root = cx.tree.root_node();
             let mut cursor = root.walk();
-            self.visit_node(&mut cursor, cx, &mut edits);
+            Self::visit_node(&mut cursor, cx, &mut edits);
         }
 
         let n = edits.len();
@@ -29,28 +29,25 @@ impl Rule for InlineWhitespaceFormat {
 }
 
 impl InlineWhitespaceFormat {
-    fn visit_node(&self, cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn visit_node(cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let node = cursor.node();
         let kind = node.kind();
 
         // 1. Binary Expressions (e.g., "a + b", "a = b", "a == b")
         if kind == "binary_expression" {
-            self.format_binary_op(node, cx, edits);
+            Self::format_binary_op(node, cx, edits);
         }
-        // 2. Variable Definitions (e.g., "var x = 10")
-        else if kind == "variable_definition" {
-            self.format_assignment(node, cx, edits);
-        }
-        // 3. Arguments (e.g., "arg x = 10")
+        // 2. Variable Definitions (e.g., "var x = 10") and Arguments (e.g.,
+        //    "arg x = 10")
         // Note: pipe_argument is handled by AddSpacesAroundAssignment
-        else if kind == "argument" {
-            self.format_assignment(node, cx, edits);
+        else if kind == "variable_definition" || kind == "argument" {
+            Self::format_assignment(node, cx, edits);
         }
 
         // Recurse
         if cursor.goto_first_child() {
             loop {
-                self.visit_node(cursor, cx, edits);
+                Self::visit_node(cursor, cx, edits);
                 if !cursor.goto_next_sibling() {
                     break;
                 }
@@ -60,7 +57,7 @@ impl InlineWhitespaceFormat {
     }
 
     /// Handles `left OP right`
-    fn format_binary_op(&self, node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn format_binary_op(node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let left = node.child_by_field_name("left");
         let right = node.child_by_field_name("right");
         let op = node.child_by_field_name("operator");
@@ -80,9 +77,9 @@ impl InlineWhitespaceFormat {
             }
 
             // Space between Left and Op
-            self.ensure_single_space(cx, l.end_byte(), o.start_byte(), edits);
+            Self::ensure_single_space(cx, l.end_byte(), o.start_byte(), edits);
             // Space between Op and Right
-            self.ensure_single_space(
+            Self::ensure_single_space(
                 cx,
                 crate::engine::ast::operator_end(o),
                 r.start_byte(),
@@ -93,7 +90,7 @@ impl InlineWhitespaceFormat {
 
     /// Handles `name = value` (for vars and args)
     /// Note: The "=" is often an anonymous node, not a named field.
-    fn format_assignment(&self, node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn format_assignment(node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let name = node.child_by_field_name("name");
         let value = node.child_by_field_name("value");
 
@@ -103,9 +100,9 @@ impl InlineWhitespaceFormat {
             for child in node.children(&mut cursor) {
                 if child.kind() == "=" {
                     // Space before =
-                    self.ensure_single_space(cx, n.end_byte(), child.start_byte(), edits);
+                    Self::ensure_single_space(cx, n.end_byte(), child.start_byte(), edits);
                     // Space after =
-                    self.ensure_single_space(cx, child.end_byte(), v.start_byte(), edits);
+                    Self::ensure_single_space(cx, child.end_byte(), v.start_byte(), edits);
                     break;
                 }
             }
@@ -116,7 +113,7 @@ impl InlineWhitespaceFormat {
     /// - If empty: insert " ".
     /// - If whitespace only (no newlines): replace with " ".
     /// - If it holds anything else (a newline, a comment, any text): DO NOTHING.
-    fn ensure_single_space(&self, cx: &Ctx, start: usize, end: usize, edits: &mut Vec<TextEdit>) {
+    fn ensure_single_space(cx: &Ctx, start: usize, end: usize, edits: &mut Vec<TextEdit>) {
         // SAFETY: If the nodes are out of order or overlap (start > end),
         // we cannot format the gap. This can happen with syntax error nodes.
         if start > end {
@@ -165,7 +162,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

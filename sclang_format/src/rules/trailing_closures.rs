@@ -85,16 +85,16 @@ fn rewrite_block_call(buf: &[u8], call: Node) -> Option<(usize, usize, String)> 
 fn rewrite_while_call(buf: &[u8], while_node: Node) -> Option<(usize, usize, String)> {
     let mut cursor = while_node.walk();
     let children: Vec<Node> = while_node.children(&mut cursor).collect();
-    let [keyword, open, test, comma, body, close] = children[..] else {
+    let [keyword, open, condition, comma, body, end] = children[..] else {
         return None;
     };
-    let kinds = [keyword, open, test, comma, body, close].map(|n| n.kind());
+    let kinds = [keyword, open, condition, comma, body, end].map(|n| n.kind());
     if kinds != ["while", "(", "function_block", ",", "function_block", ")"] {
         return None;
     }
     let text = |n: Node| String::from_utf8_lossy(&buf[n.byte_range()]).to_string();
-    let replacement = format!(" {} {}", text(test), text(body));
-    Some((open.start_byte(), close.end_byte(), replacement))
+    let replacement = format!(" {} {}", text(condition), text(body));
+    Some((open.start_byte(), end.end_byte(), replacement))
 }
 
 /// The rewrites under `node`, outermost first. What stands inside a call
@@ -133,7 +133,7 @@ impl Rule for TrailingClosures {
         // transformed on pass 2.
         let mut total_edits = 0;
         loop {
-            let n = self.run_pass(cx)?;
+            let n = Self::run_pass(cx)?;
             if n == 0 {
                 break;
             }
@@ -144,7 +144,7 @@ impl Rule for TrailingClosures {
 }
 
 impl TrailingClosures {
-    fn run_pass(&self, cx: &mut Ctx) -> Result<usize> {
+    fn run_pass(cx: &mut Ctx) -> Result<usize> {
         // Don't rewrite closures on broken trees — byte-level rewrites
         // will produce garbage if the AST doesn't match the source.
         if cx.tree.root_node().has_error() {
@@ -171,7 +171,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

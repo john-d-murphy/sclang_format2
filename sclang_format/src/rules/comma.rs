@@ -18,7 +18,7 @@ impl Rule for AddSpacesAfterCommas {
         let src = cx.bytes();
 
         let mut edits = Vec::new();
-        walk_for_commas(root, &src, &mut edits);
+        walk_for_commas(root, src, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -140,7 +140,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

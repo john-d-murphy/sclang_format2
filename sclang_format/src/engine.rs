@@ -52,7 +52,7 @@ pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
         if clean.len() > 50 {
             format!("{}...", &clean[..47])
         } else {
-            clean.to_string()
+            clean
         }
     };
 
@@ -72,9 +72,13 @@ pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
 }
 
 impl Ctx {
-    pub fn new(src: String, lang: Language, indent_style: IndentStyle) -> Result<Self> {
+    /// The text, parsed.
+    ///
+    /// # Errors
+    /// When the parser does not take the grammar, or gives no tree.
+    pub fn new(src: String, lang: &Language, indent_style: IndentStyle) -> Result<Self> {
         let mut parser = Parser::new();
-        parser.set_language(&lang).context("set_language failed")?;
+        parser.set_language(lang).context("set_language failed")?;
         let tree = parser.parse(src.as_str(), None).context("parse failed")?;
 
         Ok(Self {
@@ -95,10 +99,16 @@ impl Ctx {
     /// The text as it now stands. Borrowed, not copied: rules ask for it once
     /// a node, and a copy each time made the cost grow with the square of the file.
     #[must_use]
-    pub fn bytes(&self) -> &[u8] {
+    pub const fn bytes(&self) -> &[u8] {
         self.text.as_bytes()
     }
 
+    /// Makes the edits and parses the text again. Edits inside a string, a
+    /// symbol or the words of a comment are dropped.
+    ///
+    /// # Errors
+    /// When two edits overlap, or when the text parsed before the edits and
+    /// does not parse after them: a rule has broken it.
     pub fn apply_edits(&mut self, mut edits: Vec<TextEdit>) -> Result<()> {
         if edits.is_empty() {
             return Ok(());
@@ -141,8 +151,8 @@ impl Ctx {
                     "Edit {}: [{}..{}] '{}' -> '{}'",
                     i, edit.start_byte, edit.end_byte, before_text, edit.replacement
                 );
-                eprintln!("  Before: '{}'", line_before);
-                eprintln!("  After:  '{}'", line_after);
+                eprintln!("  Before: '{line_before}'");
+                eprintln!("  After:  '{line_after}'");
             }
         }
         // END DEBUG BLOCK
@@ -165,7 +175,7 @@ impl Ctx {
             });
             let dropped = before_count - edits.len();
             if dropped > 0 && self.debug_edits {
-                eprintln!("  Dropped {} edits inside comments/strings", dropped);
+                eprintln!("  Dropped {dropped} edits inside comments/strings");
             }
             if edits.is_empty() {
                 return Ok(());
@@ -207,7 +217,7 @@ impl Ctx {
             eprintln!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
             if let Some(name) = self.current_rule_name {
-                eprintln!("Triggered by Rule: {}\n", name);
+                eprintln!("Triggered by Rule: {name}\n");
             } else {
                 eprintln!("Triggered by: Unknown Rule\n");
             }
@@ -217,7 +227,7 @@ impl Ctx {
             eprintln!("--------------------------------------------\n");
 
             eprintln!("--- BROKEN SOURCE CODE ---");
-            eprintln!("{}", source_string);
+            eprintln!("{source_string}");
             eprintln!("--------------------------\n");
 
             // FIX: Use the standalone function with the correct variables

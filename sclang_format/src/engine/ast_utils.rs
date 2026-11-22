@@ -35,6 +35,7 @@ fn is_top_level_node(node: Node) -> bool {
 
 
 /// Count enclosing nodes that represent block-like scopes.
+#[must_use]
 pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
     let mut depth = 0usize;
 
@@ -68,33 +69,27 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
             "class_def" => {
                 // Find the opening brace
                 for i in 0..node.child_count() {
-                    if let Some(child) = node.child(i) {
-                        if child.kind() == "{" {
+                    if let Some(child) = node.child(i)
+                        && child.kind() == "{" {
                             // Only count if byte is after the opening brace
                             if byte > child.start_byte() {
                                 depth += 1;
                             }
                             break;
                         }
-                    }
                 }
             }
 
 
-            // Events indent their content (but not the opening paren itself)
-            "event" => {
+            // Events and indexed collections indent their content (but not
+            // the opening bracket itself)
+            "event" | "indexed_collection" => {
                 if byte > node.start_byte() {
                     depth += 1;
                 }
             }
 
 
-            // Indexed collections add structural depth
-            "indexed_collection" => {
-                if byte > node.start_byte() {
-                    depth += 1;
-                }
-            }
 
 
             // Grouping parens `( ... )`.
@@ -108,8 +103,8 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
 
             // Collections `[ ... ]` or `( ... )` add structural depth
             "collection" => {
-                if byte > node.start_byte() {
-                    if let Some(first) = src.get(node.start_byte()) {
+                if byte > node.start_byte()
+                    && let Some(first) = src.get(node.start_byte()) {
                         if *first == b'[' {
                             // Array literals
                             depth += 1;
@@ -123,7 +118,6 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
                             }
                         }
                     }
-                }
             }
 
 
@@ -185,6 +179,7 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
 
 
 /// Returns a visual indentation depth (AST block depth adjusted for layout rules).
+#[must_use]
 pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
     let depth = block_depth_at(root, byte, bytes);
     let mut visual_depth = depth;
@@ -196,82 +191,39 @@ pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
     };
 
 
-    let mut ancestors: Vec<Node> = Vec::new();
-    let mut cur = Some(node);
-    while let Some(n) = cur {
-        ancestors.push(n);
-        cur = n.parent();
-    }
+    // Its ancestors, innermost first.
+    let ancestors: Vec<Node> = std::iter::successors(Some(node), Node::parent).collect();
+    let nearest = |kind: &str| ancestors.iter().copied().find(|n| n.kind() == kind);
 
 
     // Flags for layout adjustments
-    let mut has_fn_block = false;
-    let mut has_collection = false;
-    let mut has_event = false;
-    let mut collection_ancestor: Option<Node> = None;
-    let mut event_ancestor: Option<Node> = None;
+    let has_fn_block = nearest("function_block").is_some();
+    let collection_ancestor = nearest("collection");
+    let event_ancestor = nearest("event");
+    let has_collection = collection_ancestor.is_some();
+    let has_event = event_ancestor.is_some();
 
 
-    for n in &ancestors {
-        match n.kind() {
-            "function_block" => has_fn_block = true,
-            "collection" => {
-                has_collection = true;
-                if collection_ancestor.is_none() {
-                    collection_ancestor = Some(*n);
-                }
-            }
-            "event" => {
-                has_event = true;
-                if event_ancestor.is_none() {
-                    event_ancestor = Some(*n);
-                }
-            }
-            _ => {}
-        }
-    }
+    let is_collection_receiver = collection_ancestor
+        .and_then(|collection| collection.parent())
+        .is_some_and(|parent| parent.kind() == "function_call");
 
 
-    let mut is_collection_receiver = false;
-    if let Some(collection) = collection_ancestor {
-        if let Some(parent) = collection.parent() {
-            if parent.kind() == "function_call" {
-                is_collection_receiver = true;
-            }
-        }
-    }
-
-
-    // 1. Check for multiline grouping parens that need flattening.
-    let mut inside_multiline_paren_group = false;
-    let mut paren_group_ancestor: Option<Node> = None;
-
-
-    for n in &ancestors {
-        let kind = n.kind();
-        if kind == "collection" || kind == "code_block" {
-            let start = n.start_byte() as usize;
-            if let Some(b'(') = bytes.get(start) {
-                // Ignore top-level parens (depth already 0 via block_depth_at)
-                if !is_top_level_node(*n) {
-                    let start_row = n.start_position().row;
-                    let end_row = n.end_position().row;
-                    if end_row > start_row {
-                        inside_multiline_paren_group = true;
-                        paren_group_ancestor = Some(*n);
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    // 1. Check for multiline grouping parens that need flattening: the
+    //    nearest one that is not at the top level (whose depth is already 0
+    //    via block_depth_at).
+    let paren_group_ancestor = ancestors.iter().copied().find(|n| {
+        matches!(n.kind(), "collection" | "code_block")
+            && bytes.get(n.start_byte()) == Some(&b'(')
+            && !is_top_level_node(*n)
+            && n.end_position().row > n.start_position().row
+    });
 
 
     let mut flattened_for_paren_group = false;
 
 
-    if inside_multiline_paren_group {
-        if let Some(paren_group) = paren_group_ancestor {
+    if let Some(paren_group) = paren_group_ancestor {
             let innermost = ancestors[0];
 
 
@@ -283,43 +235,37 @@ pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
             // Only flatten for events inside paren groups, not collections
             // Collections are handled separately by single-line flattening
             // IMPORTANT: Only flatten if we're actually inside the event (not at its opening paren)
-            if !is_the_wrapper_token && visual_depth > 0 {
-                if let Some(ev) = event_ancestor {
-                    if byte > ev.start_byte() {
+            if !is_the_wrapper_token && visual_depth > 0
+                && let Some(ev) = event_ancestor
+                    && byte > ev.start_byte() {
                         visual_depth -= 1;
                         flattened_for_paren_group = true;
                     }
-                }
-            }
         }
-    }
 
 
     // 2. Indent `switch` cases
     let innermost = ancestors[0];
-    if innermost.kind() != "switch" {
-        if ancestors
+    if innermost.kind() != "switch"
+        && ancestors
             .iter()
             .any(|n| n.kind() == "switch" && n.child_count() > 0)
         {
             visual_depth += 1;
         }
-    }
 
 
     // 3. Flatten inline arrays of events
     // Only flatten if we're inside the event (not at its opening paren)
-    if has_collection && has_event && !has_fn_block {
-        if let Some(ev) = event_ancestor {
-            if byte > ev.start_byte() {
+    if has_collection && has_event && !has_fn_block
+        && let Some(ev) = event_ancestor
+            && byte > ev.start_byte() {
                 let start_row = ev.start_position().row;
                 let end_row = ev.end_position().row;
                 if start_row == end_row && visual_depth > 0 {
                     visual_depth -= 1;
                 }
             }
-        }
-    }
 
 
     // 4. Flatten single-line collections and indexed_collections
@@ -330,8 +276,8 @@ pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
     let mut flattened_single_line = false;
 
 
-    if !flattened_for_paren_group {
-        if let Some(coll) = collection_ancestor {
+    if !flattened_for_paren_group
+        && let Some(coll) = collection_ancestor {
             // Only flatten if we're INSIDE the collection (not at the opening bracket)
             if byte > coll.start_byte() {
                 let start_row = coll.start_position().row;
@@ -342,7 +288,6 @@ pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
                 }
             }
         }
-    }
 
 
     if !flattened_single_line && !flattened_for_paren_group {
@@ -370,13 +315,10 @@ pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
         && !has_fn_block
         && !flattened_single_line
         && visual_depth > 0
-    {
-        if let Some(coll) = collection_ancestor {
-            if byte > coll.start_byte() {
+        && let Some(coll) = collection_ancestor
+            && byte > coll.start_byte() {
                 visual_depth -= 1;
             }
-        }
-    }
 
 
     visual_depth
@@ -423,6 +365,78 @@ mod tests {
         }
     }
 
+
+    fn dump_tree(node: Node, src: &[u8], indent: usize) {
+        let text = if node.child_count() == 0 {
+            let start = node.start_byte();
+            let end = node.end_byte();
+            if end <= src.len() {
+                format!(" {:?}", String::from_utf8_lossy(&src[start..end]))
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+
+        eprintln!(
+            "{:indent$}{} [{}-{}]{}",
+            "",
+            node.kind(),
+            node.start_byte(),
+            node.end_byte(),
+            text,
+            indent = indent
+        );
+
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            dump_tree(child, src, indent + 2);
+        }
+    }
+
+    // Whether a binary_expression under `node` holds a `!`.
+    fn find_binary_with_bang(node: Node, src: &[u8]) -> bool {
+        if node.kind() == "binary_expression" {
+            let text = &src[node.start_byte()..node.end_byte()];
+            if text.contains(&b'!') {
+                eprintln!("\nFound binary_expression with !:");
+                eprintln!("  Range: [{}-{}]", node.start_byte(), node.end_byte());
+                eprintln!("  Text: {:?}", String::from_utf8_lossy(text));
+
+
+                // Check for left/right fields
+                if let Some(left) = node.child_by_field_name("left") {
+                    let lt = &src[left.start_byte()..left.end_byte()];
+                    eprintln!("  Left: {} {:?}", left.kind(), String::from_utf8_lossy(lt));
+                } else {
+                    eprintln!("  Left: NONE");
+                }
+                if let Some(right) = node.child_by_field_name("right") {
+                    let rt = &src[right.start_byte()..right.end_byte()];
+                    eprintln!(
+                        "  Right: {} {:?}",
+                        right.kind(),
+                        String::from_utf8_lossy(rt)
+                    );
+                } else {
+                    eprintln!("  Right: NONE");
+                }
+                return true;
+            }
+        }
+
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if find_binary_with_bang(child, src) {
+                return true;
+            }
+        }
+        false
+    }
 
     #[test]
     fn depth_outside_any_block_is_zero() {
@@ -527,7 +541,7 @@ mod tests {
 
         // Debug: dump ancestry for [1, 2, 3]
         eprintln!("=== DEBUG section7 ===");
-        eprintln!("byte_array = {}", byte_array);
+        eprintln!("byte_array = {byte_array}");
         if let Some(mut node) = root.descendant_for_byte_range(byte_array, byte_array + 1) {
             eprintln!("Node ancestry for '[1, 2, 3]':");
             loop {
@@ -549,8 +563,7 @@ mod tests {
         let array_block = block_depth_at(root, byte_array, &bytes);
         let array_visual = visual_block_depth_at(root, byte_array, &bytes);
         eprintln!(
-            "Array: block_depth={}, visual_depth={}",
-            array_block, array_visual
+            "Array: block_depth={array_block}, visual_depth={array_visual}"
         );
 
 
@@ -592,13 +605,13 @@ mod tests {
 
     #[test]
     fn debug_exact_snapshot_case() {
-        let src = r#"// pipe param missing commas – ORIGINAL
+        let src = r"// pipe param missing commas – ORIGINAL
 
 
 // no comma between foo and bar
 x = { |foo = 3, bar = (4.dbamp)|
     foo + bar
-};"#;
+};";
 
 
         let (tree, bytes) = parse_source(src);
@@ -650,12 +663,12 @@ x = { |foo = 3, bar = (4.dbamp)|
         // This mirrors fixtures/add_missing_commas/input.scd EXACTLY
         // 1. Outer parens (Code Block) -> Should be Depth 0
         // 2. x = { ... } (Function Block) -> Should be Depth 1
-        let src = r#"(
+        let src = r"(
 // pipe param missing commas
 x = { |foo = 3, bar = (4.dbamp)|
     foo + bar;
 };
-)"#;
+)";
         let (tree, bytes) = parse_source(src);
         let root = tree.root_node();
 
@@ -675,11 +688,11 @@ x = { |foo = 3, bar = (4.dbamp)|
 
         // Check for ERROR nodes which would silently break indentation
         let has_error = root.has_error();
-        eprintln!("Tree has error: {}", has_error);
+        eprintln!("Tree has error: {has_error}");
 
 
         let v = visual_block_depth_at(root, body_pos, &bytes);
-        eprintln!("Visual Depth: {}", v);
+        eprintln!("Visual Depth: {v}");
 
 
         // We expect Depth 1:
@@ -703,95 +716,25 @@ x = { |foo = 3, bar = (4.dbamp)|
 
 
         eprintln!("\n=== DEBUG BANG OPERATOR AST ===");
-        eprintln!("Source: {}", src);
+        eprintln!("Source: {src}");
         eprintln!("Tree has error: {}", root.has_error());
 
 
         // Find the ! position
         let bang_pos = src.find('!').unwrap();
-        eprintln!("Bang position: {}", bang_pos);
+        eprintln!("Bang position: {bang_pos}");
 
 
         // Dump the full tree
-        fn dump_tree(node: Node, src: &[u8], indent: usize) {
-            let text = if node.child_count() == 0 {
-                let start = node.start_byte();
-                let end = node.end_byte();
-                if end <= src.len() {
-                    format!(" {:?}", String::from_utf8_lossy(&src[start..end]))
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            };
-
-
-            eprintln!(
-                "{:indent$}{} [{}-{}]{}",
-                "",
-                node.kind(),
-                node.start_byte(),
-                node.end_byte(),
-                text,
-                indent = indent
-            );
-
-
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                dump_tree(child, src, indent + 2);
-            }
-        }
 
 
         dump_tree(root, &bytes, 0);
 
 
-        // Check if there's a binary_expression containing !
-        fn find_binary_with_bang(node: Node, src: &[u8]) -> bool {
-            if node.kind() == "binary_expression" {
-                let text = &src[node.start_byte()..node.end_byte()];
-                if text.contains(&b'!') {
-                    eprintln!("\nFound binary_expression with !:");
-                    eprintln!("  Range: [{}-{}]", node.start_byte(), node.end_byte());
-                    eprintln!("  Text: {:?}", String::from_utf8_lossy(text));
-
-
-                    // Check for left/right fields
-                    if let Some(left) = node.child_by_field_name("left") {
-                        let lt = &src[left.start_byte()..left.end_byte()];
-                        eprintln!("  Left: {} {:?}", left.kind(), String::from_utf8_lossy(lt));
-                    } else {
-                        eprintln!("  Left: NONE");
-                    }
-                    if let Some(right) = node.child_by_field_name("right") {
-                        let rt = &src[right.start_byte()..right.end_byte()];
-                        eprintln!(
-                            "  Right: {} {:?}",
-                            right.kind(),
-                            String::from_utf8_lossy(rt)
-                        );
-                    } else {
-                        eprintln!("  Right: NONE");
-                    }
-                    return true;
-                }
-            }
-
-
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if find_binary_with_bang(child, src) {
-                    return true;
-                }
-            }
-            false
-        }
 
 
         let found = find_binary_with_bang(root, &bytes);
-        eprintln!("\nBinary expression with ! found: {}", found);
+        eprintln!("\nBinary expression with ! found: {found}");
 
 
         // Also test with proper spacing
@@ -799,11 +742,11 @@ x = { |foo = 3, bar = (4.dbamp)|
         let (tree2, bytes2) = parse_source(src2);
         let root2 = tree2.root_node();
         eprintln!("\n=== Comparison: properly spaced ===");
-        eprintln!("Source: {}", src2);
+        eprintln!("Source: {src2}");
         eprintln!("Tree has error: {}", root2.has_error());
         dump_tree(root2, &bytes2, 0);
         let found2 = find_binary_with_bang(root2, &bytes2);
-        eprintln!("\nBinary expression with ! found: {}", found2);
+        eprintln!("\nBinary expression with ! found: {found2}");
     }
 
 
@@ -824,41 +767,11 @@ x = { |foo = 3, bar = (4.dbamp)|
 
 
         for src in cases {
-            eprintln!("\n=== COLLECTION: {} ===", src);
+            eprintln!("\n=== COLLECTION: {src} ===");
             let (tree, bytes) = parse_source(src);
             let root = tree.root_node();
 
 
-            fn dump_tree(node: Node, src: &[u8], indent: usize) {
-                let text = if node.child_count() == 0 {
-                    let start = node.start_byte();
-                    let end = node.end_byte();
-                    if end <= src.len() {
-                        format!(" {:?}", String::from_utf8_lossy(&src[start..end]))
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                };
-
-
-                eprintln!(
-                    "{:indent$}{} [{}-{}]{}",
-                    "",
-                    node.kind(),
-                    node.start_byte(),
-                    node.end_byte(),
-                    text,
-                    indent = indent
-                );
-
-
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    dump_tree(child, src, indent + 2);
-                }
-            }
 
 
             dump_tree(root, &bytes, 0);
@@ -869,10 +782,10 @@ x = { |foo = 3, bar = (4.dbamp)|
     #[test]
     fn test_multiline_function_call_indent() {
         // This is the Pbind case - multi-line function call should indent its arguments
-        let src = r#"e.stream = Pbind(
+        let src = r"e.stream = Pbind(
     \degree, Pseq([0, 1, 2], inf),
     \dur, 0.5
-).asStream;"#;
+).asStream;";
 
 
         let (tree, bytes) = parse_source(src);
@@ -880,41 +793,11 @@ x = { |foo = 3, bar = (4.dbamp)|
 
 
         eprintln!("\n=== MULTILINE FUNCTION CALL ===");
-        eprintln!("Source:\n{}", src);
+        eprintln!("Source:\n{src}");
         eprintln!("Tree has error: {}", root.has_error());
 
 
         // Dump full tree
-        fn dump_tree(node: Node, src: &[u8], indent: usize) {
-            let text = if node.child_count() == 0 {
-                let start = node.start_byte();
-                let end = node.end_byte();
-                if end <= src.len() {
-                    format!(" {:?}", String::from_utf8_lossy(&src[start..end]))
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            };
-
-
-            eprintln!(
-                "{:indent$}{} [{}-{}]{}",
-                "",
-                node.kind(),
-                node.start_byte(),
-                node.end_byte(),
-                text,
-                indent = indent
-            );
-
-
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                dump_tree(child, src, indent + 2);
-            }
-        }
 
 
         dump_tree(root, &bytes, 0);
@@ -922,11 +805,11 @@ x = { |foo = 3, bar = (4.dbamp)|
 
         // Find the \degree position
         let degree_pos = src.find("\\degree").unwrap();
-        eprintln!("\n\\degree at byte {}", degree_pos);
+        eprintln!("\n\\degree at byte {degree_pos}");
 
 
         let v = visual_block_depth_at(root, degree_pos, &bytes);
-        eprintln!("Visual depth at \\degree: {}", v);
+        eprintln!("Visual depth at \\degree: {v}");
 
 
         // The \degree line should be indented 1 level (inside Pbind's multi-line param list)

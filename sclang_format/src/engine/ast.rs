@@ -18,8 +18,6 @@ pub fn in_string_or_comment(root: Node, byte: usize) -> bool {
 /// Collect all descendants of `root` whose `kind()` matches `kind`.
 /// Simple DFS that returns a Vec-backed iterator (no lifetime tricks).
 pub fn descendants_of_kind<'a>(root: Node<'a>, kind: &str) -> impl Iterator<Item = Node<'a>> {
-    let mut out = Vec::new();
-
     fn dfs<'a>(node: Node<'a>, kind: &str, out: &mut Vec<Node<'a>>) {
         if node.kind() == kind {
             out.push(node);
@@ -30,6 +28,7 @@ pub fn descendants_of_kind<'a>(root: Node<'a>, kind: &str) -> impl Iterator<Item
         }
     }
 
+    let mut out = Vec::new();
     dfs(root, kind, &mut out);
     out.into_iter()
 }
@@ -60,8 +59,10 @@ pub fn end_of_token_before(node: Node) -> usize {
 }
 
 /// Whether `node` is a default that sclang stores with the function as it
-/// stands: a number, negative or not, `inf`, `nil`, a boolean, a character, a
-/// string, a symbol or a literal array (`#[...]`). Any other default is an
+/// stands.
+///
+/// That is a number, negative or not, `inf`, `nil`, a boolean, a character,
+/// a string, a symbol or a literal array (`#[...]`). Any other default is an
 /// expression. Between pipes an expression must stand in parentheses, and a
 /// literal must not: a parenthesized default is compiled as code that fills
 /// the argument in when it is nil, so `{ |a = (1)| a }.value(nil)` is 1.

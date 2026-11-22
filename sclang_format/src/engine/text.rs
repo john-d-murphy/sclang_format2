@@ -2,7 +2,7 @@
 //! What a byte is, said once. The rules used to carry a copy each.
 
 /// A blank within a line. A rule that also counts a line break as space
-/// (pipe_param_commas, trailing_closures) keeps its own.
+/// (`pipe_param_commas`, `trailing_closures`) keeps its own.
 #[must_use]
 pub const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t'
@@ -15,7 +15,7 @@ pub const fn is_newline(b: u8) -> bool {
 
 /// Is the byte at `i` escaped, that is, preceded by an odd number of backslashes?
 #[must_use]
-pub fn is_escaped(bytes: &[u8], i: usize) -> bool {
+pub const fn is_escaped(bytes: &[u8], i: usize) -> bool {
     let mut count = 0;
     let mut j = i;
     while j > 0 {

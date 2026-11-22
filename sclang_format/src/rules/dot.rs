@@ -8,7 +8,7 @@ pub struct NoSpacesAroundDot;
 
 impl NoSpacesAroundDot {
     #[inline]
-    fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
+    const fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
         // Check if there's only whitespace (not newlines) before the dot since the last newline
         let mut i = dot_pos;
         while i > 0 && src[i - 1] != b'\n' && src[i - 1] != b'\r' {
@@ -100,7 +100,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

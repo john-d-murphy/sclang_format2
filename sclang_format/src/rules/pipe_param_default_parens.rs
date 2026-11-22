@@ -4,9 +4,11 @@ use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
 
+/// Parenthesizes a default between pipes that sclang would not take.
+///
 /// Between pipes sclang takes a default that is a literal, or an expression
-/// in parentheses, and nothing else. This parenthesizes a default that is
-/// neither, and leaves the two that sclang takes as they are.
+/// in parentheses, and nothing else. A default that is neither is put in
+/// parentheses, and the two that sclang takes are left as they are.
 pub struct PipeParamDefaultParens;
 
 impl Rule for PipeParamDefaultParens {
@@ -58,7 +60,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

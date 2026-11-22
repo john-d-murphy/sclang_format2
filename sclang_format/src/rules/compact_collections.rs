@@ -10,11 +10,9 @@ const MAX_LINE_WIDTH: usize = 80;
 /// Based on AST node kinds from tree-sitter-supercollider.
 fn is_literal_ish_node(node: Node) -> bool {
     match node.kind() {
-        // Direct literals: numbers, strings, symbols
-        "literal" => true,
-
-        // Simple variable references
-        "variable" => true,
+        // Direct literals (numbers, strings, symbols) and simple variable
+        // references
+        "literal" | "variable" => true,
 
         // Unary expression: allow only negative literals like -1, -3.14
         "unary_expression" => {
@@ -73,13 +71,12 @@ fn get_elements(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();
 
     for child in node.children(&mut cursor) {
-        match child.kind() {
-            // Skip punctuation
-            "[" | "]" | "," => continue,
-            // Skip comments
-            "line_comment" | "block_comment" => continue,
-            // Everything else is an element
-            _ => elements.push(child),
+        // Everything but punctuation and comments is an element
+        if !matches!(
+            child.kind(),
+            "[" | "]" | "," | "line_comment" | "block_comment"
+        ) {
+            elements.push(child);
         }
     }
 
@@ -95,8 +92,8 @@ fn has_trailing_comma(node: Node) -> bool {
     // If we hit a `,` before hitting an element, there's a trailing comma
     for child in children.iter().rev() {
         match child.kind() {
-            "]" | ")" => continue, // Skip closing delimiters
-            "line_comment" | "block_comment" => continue,
+            // Skip closing delimiters and comments
+            "]" | ")" | "line_comment" | "block_comment" => {}
             "," => return true,
             _ => return false, // Hit an element before a comma
         }
@@ -120,7 +117,7 @@ impl Rule for CompactShortCollections {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
-        let src: &[u8] = &bytes;
+        let src: &[u8] = bytes;
         let root = cx.tree.root_node();
 
         let mut edits: Vec<TextEdit> = Vec::new();
@@ -198,7 +195,7 @@ impl Rule for CompactShortCollections {
             }
 
             let inner_joined = parts.join(", ");
-            let replacement = format!("[{}]", inner_joined);
+            let replacement = format!("[{inner_joined}]");
 
             // Gate 3: Check line width
             let open = collection.start_byte();

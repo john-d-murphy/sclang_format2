@@ -33,7 +33,7 @@ impl Rule for AddSpacesAroundBinaryOps {
 
         let mut edits: Vec<TextEdit> = Vec::new();
 
-        walk_tree(root, &src, &mut edits);
+        walk_tree(root, src, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -59,16 +59,14 @@ fn walk_tree(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     }
 }
 
-/// Handle variable_definition and function_definition nodes (x = value)
+/// Handle `variable_definition` and `function_definition` nodes (x = value)
 fn process_variable_definition(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Find the = sign by looking for it between name and value
-    let name_node = match node.child_by_field_name("name") {
-        Some(n) => n,
-        None => return,
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return;
     };
-    let value_node = match node.child_by_field_name("value") {
-        Some(n) => n,
-        None => return,
+    let Some(value_node) = node.child_by_field_name("value") else {
+        return;
     };
 
     let name_end = name_node.end_byte();
@@ -85,9 +83,8 @@ fn process_variable_definition(node: Node, src: &[u8], edits: &mut Vec<TextEdit>
 
 fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Get the operator field from the AST
-    let op_node = match node.child_by_field_name("operator") {
-        Some(n) => n,
-        None => return,
+    let Some(op_node) = node.child_by_field_name("operator") else {
+        return;
     };
 
     let op_start = op_node.start_byte();
@@ -95,9 +92,8 @@ fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) 
     let op_end = crate::engine::ast::operator_end(op_node);
 
     // Check if this is an operator we should add spaces around
-    let op_str = match std::str::from_utf8(op_text) {
-        Ok(s) => s,
-        Err(_) => return,
+    let Ok(op_str) = std::str::from_utf8(op_text) else {
+        return;
     };
 
     // Skip if not in our list of spaced operators
@@ -130,7 +126,7 @@ fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) 
     fix_operator_spacing(src, op_start, op_end, edits);
 }
 
-/// Check if this node is inside a class_def
+/// Check if this node is inside a `class_def`
 fn is_inside_class_def(node: Node) -> bool {
     let mut cur = Some(node);
     while let Some(n) = cur {
@@ -142,7 +138,7 @@ fn is_inside_class_def(node: Node) -> bool {
     false
 }
 
-/// Handle duplicated_statement nodes (the ! duplication operator).
+/// Handle `duplicated_statement` nodes (the ! duplication operator).
 fn process_duplicated_statement(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Find the ! operator child
     let mut cursor = node.walk();
@@ -210,7 +206,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();

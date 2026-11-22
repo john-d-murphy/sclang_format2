@@ -13,7 +13,7 @@ impl Rule for MultiLineEventsOnePerLine {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
-        let bytes: &[u8] = &src;
+        let bytes: &[u8] = src;
         let root = cx.tree.root_node();
         let mut edits: Vec<TextEdit> = Vec::new();
 
@@ -54,7 +54,7 @@ fn node_has_child_kind(node: Node, kind: &str) -> bool {
     false
 }
 
-/// For an event or collection node containing associative_items,
+/// For an event or collection node containing `associative_items`,
 /// ensure each key:value pair is on its own line.
 fn process_associative_node(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Must span multiple lines (or have multiple items on one line)
@@ -104,9 +104,8 @@ fn process_associative_node(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
         let gap = &src[gap_start..gap_end];
 
         // Verify there's a comma in the gap.
-        let comma_offset = match gap.iter().position(|&b| b == b',') {
-            Some(pos) => pos,
-            None => continue,
+        let Some(comma_offset) = gap.iter().position(|&b| b == b',') else {
+            continue;
         };
 
         let comma_byte = gap_start + comma_offset;

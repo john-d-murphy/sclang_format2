@@ -92,34 +92,26 @@ fn process_associative_node(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
             continue;
         }
 
-        // Find the comma between item1 and item2.
-        // It's in the byte range [item1.end_byte .. item2.start_byte].
-        let gap_start = item1.end_byte();
-        let gap_end = item2.start_byte();
-
-        if gap_start >= gap_end {
+        // The comma between them is the token after item1. Only space
+        // between it and item2 is replaced: a comment there stays where
+        // it is, and the two items with it.
+        let Some(comma) = item1.next_sibling().filter(|n| n.kind() == ",") else {
+            continue;
+        };
+        let (comma_byte, gap_end) = (comma.start_byte(), item2.start_byte());
+        if !src[comma.end_byte()..gap_end]
+            .iter()
+            .all(u8::is_ascii_whitespace)
+        {
             continue;
         }
 
-        let gap = &src[gap_start..gap_end];
-
-        // Verify there's a comma in the gap.
-        let Some(comma_offset) = gap.iter().position(|&b| b == b',') else {
-            continue;
-        };
-
-        let comma_byte = gap_start + comma_offset;
-
         // Replace from comma through all trailing whitespace (up to item2)
         // with ",\n<indent>".
-        let replace_end = gap_end;
-
-        let replacement = format!(",\n{indent}");
-
         edits.push(TextEdit {
             start_byte: comma_byte,
-            end_byte: replace_end,
-            replacement,
+            end_byte: gap_end,
+            replacement: format!(",\n{indent}"),
         });
     }
 }
@@ -139,4 +131,36 @@ fn leading_whitespace_of_line(src: &[u8], byte_pos: usize) -> String {
     }
 
     String::from_utf8_lossy(&src[line_start..ws_end]).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        MultiLineEventsOnePerLine.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_each_pair_of_an_event_over_several_lines_gets_its_own() {
+        assert_eq!(
+            format("x = (\n    a: $,, b: 2,\n    c: \"x, y\", d: 4\n);"),
+            "x = (\n    a: $,,\n    b: 2,\n    c: \"x, y\",\n    d: 4\n);"
+        );
+    }
+
+    #[test]
+    fn test_a_comment_after_the_comma_is_kept() {
+        let src = "x = (\n    a: 1, /*c*/ b: 2,\n    c: 3\n);";
+        assert_eq!(format(src), src);
+    }
 }

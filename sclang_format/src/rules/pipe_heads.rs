@@ -1,5 +1,6 @@
 // src/rules/pipe_heads.rs
 use crate::engine::ast::end_of_token_before;
+use crate::engine::text::is_operator_char;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -144,10 +145,11 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
     let brace_end = brace.end_byte();
     let left_start = left.start_byte();
 
-    // Handle both adjacent {| and spaced { | cases
+    // Handle both adjacent {| and spaced { | cases. Whatever stands between
+    // them is replaced only when it is all space: a comment there stays.
     if brace_end <= left_start {
         let current_spacing = &src[brace_end..left_start];
-        if current_spacing != b" " {
+        if current_spacing != b" " && current_spacing.iter().all(u8::is_ascii_whitespace) {
             // Replace whatever spacing exists (including none) with exactly one space
             edits.push(TextEdit {
                 start_byte: brace_end,
@@ -164,11 +166,19 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
         space_end += 1;
     }
 
-    if space_end > inner_start {
+    // One blank stays where an operator character follows, which a comment
+    // begins with too: a pipe and an operator character with nothing between
+    // them are one operator to sclang (`|/*`, `|-`).
+    let wanted = if src.get(space_end).is_some_and(|&b| is_operator_char(b)) {
+        " "
+    } else {
+        ""
+    };
+    if space_end > inner_start && &src[inner_start..space_end] != wanted.as_bytes() {
         edits.push(TextEdit {
             start_byte: inner_start,
             end_byte: space_end,
-            replacement: String::new(),
+            replacement: wanted.to_string(),
         });
     }
 
@@ -206,6 +216,20 @@ mod tests {
         .unwrap();
         PipeHeadSpacing.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_a_comment_beside_a_pipe_is_kept_and_stays_a_comment() {
+        // Asked of sclang: `{ |/*c*/ a| a }` is a syntax error, `|/*` being
+        // one operator to its lexer.
+        for src in [
+            "f = { | /*c*/ a, b = 2| a + b };",
+            "f = { /*c*/ |a| a };",
+            "f = { // why a\n    |a| a };",
+        ] {
+            assert_eq!(format(src), src);
+        }
+        assert_eq!(format("f = { |   /*c*/ a| a };"), "f = { | /*c*/ a| a };");
     }
 
     #[test]

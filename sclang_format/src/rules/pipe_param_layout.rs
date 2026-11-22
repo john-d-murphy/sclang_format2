@@ -86,11 +86,10 @@ fn fix_pipe_param_position(func_block: Node, src: &[u8], edits: &mut Vec<TextEdi
 
     let between = &src[brace_end..pipes_start];
 
-    // Check if there's a newline in the gap
-    let has_newline = between.contains(&b'\n');
-
-    if !has_newline {
-        return; // Already on same line, nothing to do
+    // A line break in the gap, and nothing in it but space: a comment
+    // between the brace and the pipe stays where it is.
+    if !between.contains(&b'\n') || !between.iter().all(u8::is_ascii_whitespace) {
+        return;
     }
 
     // Replace the whitespace between { and | with a single space
@@ -99,4 +98,33 @@ fn fix_pipe_param_position(func_block: Node, src: &[u8], edits: &mut Vec<TextEdi
         end_byte: pipes_start,
         replacement: " ".to_string(),
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeParamOnBraceLine.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_pipes_on_the_line_after_the_brace_join_it() {
+        assert_eq!(format("f = {\n    |a|\n    a\n};"), "f = { |a|\n    a\n};");
+    }
+
+    #[test]
+    fn test_a_comment_between_the_brace_and_the_pipes_is_kept() {
+        let src = "f = {\n    // why a\n    |a|\n    a\n};";
+        assert_eq!(format(src), src);
+    }
 }

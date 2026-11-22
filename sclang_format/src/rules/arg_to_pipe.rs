@@ -1,6 +1,6 @@
 // src/rules/arg_to_pipe.rs
 
-use crate::engine::ast::{descendants_of_kind, is_literal_default};
+use crate::engine::ast::{contains_comment, descendants_of_kind, is_literal_default};
 use crate::engine::text::is_space;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -77,14 +77,13 @@ fn convert(block: Node, bytes: &[u8], edits: &mut Vec<TextEdit>) {
     };
     let mut cursor = param_list.walk();
     let children: Vec<Node> = param_list.children(&mut cursor).collect();
-    // Between pipes already; or with a comment in the list, which is deleted
-    // below and would take the comment with it.
-    if children.iter().any(|child| {
-        matches!(
-            child.kind(),
-            "pipe_parameter_list" | "line_comment" | "block_comment"
-        )
-    }) {
+    // Between pipes already; or with a comment anywhere in the list, which is
+    // deleted below and would take the comment with it.
+    if children
+        .iter()
+        .any(|child| child.kind() == "pipe_parameter_list")
+        || contains_comment(param_list)
+    {
         return;
     }
 
@@ -190,6 +189,15 @@ mod tests {
         assert_eq!(format(src), src);
         let src = "f = { arg freq /* Hz */, amp; freq * amp };";
         assert_eq!(format(src), src);
+        // Inside an argument too: beside its equals sign, or in its default.
+        for src in [
+            "f = { arg a, b /*c*/ = 2; a + b };",
+            "f = { arg a, b = /*c*/ 2; a + b };",
+            "f = { arg a, b = // c\n 2; a + b };",
+            "f = { arg a, b = (1 + /*c*/ 2); a + b };",
+        ] {
+            assert_eq!(format(src), src);
+        }
     }
 
     /// What sclang compiles each to was asked of sclang: `arg a = X;` is

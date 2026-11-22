@@ -20,6 +20,11 @@ fn rewrite_if_call(buf: &[u8], if_node: Node) -> Option<(usize, usize, String)> 
     if open.kind() != "(" || children.last()?.kind() != ")" {
         return None;
     }
+    // A line comment among the call's own tokens would take in whatever is
+    // written after it on its line: such a call is left as it is.
+    if rest.iter().any(|n| n.kind() == "line_comment") {
+        return None;
+    }
     let comma = rest.iter().position(|n| n.kind() == ",")?;
     let (cond, args) = rest.split_at(comma);
     let blocks: Vec<String> = match args.iter().map(Node::kind).collect::<Vec<_>>()[..] {
@@ -147,12 +152,6 @@ impl Rule for TrailingClosures {
 
 impl TrailingClosures {
     fn run_pass(cx: &mut Ctx) -> Result<usize> {
-        // Don't rewrite closures on broken trees — byte-level rewrites
-        // will produce garbage if the AST doesn't match the source.
-        if cx.tree.root_node().has_error() {
-            return Ok(0);
-        }
-
         let mut edits: Vec<TextEdit> = Vec::new();
         collect_rewrites(cx.bytes(), cx.tree.root_node(), &mut edits);
 
@@ -229,6 +228,16 @@ mod tests {
         ] {
             assert_eq!(format(src), src);
         }
+    }
+
+    #[test]
+    fn test_an_if_with_a_line_comment_in_its_parentheses_is_left_alone() {
+        let src = "if(a // why\n, { 1 }, { 2 });";
+        assert_eq!(format(src), src);
+        assert_eq!(
+            format("if(a /* why */, { 1 }, { 2 });"),
+            "if (a /* why */) { 1 } { 2 };"
+        );
     }
 
     #[test]

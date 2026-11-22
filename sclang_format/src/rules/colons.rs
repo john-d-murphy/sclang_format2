@@ -67,11 +67,9 @@ impl AddSpacesAroundColons {
         value_start: usize,
         edits: &mut Vec<TextEdit>,
     ) {
-        // Check for newlines - if multiline, don't touch
-        if bytes[start..value_start]
-            .iter()
-            .any(|&b| b == b'\n' || b == b'\r')
-        {
+        // Only blanks are space to put right: a line break is left as it
+        // is, and so is a comment that stands between the colon and the value.
+        if !bytes[start..value_start].iter().all(|&b| is_space(b)) {
             return;
         }
 
@@ -102,10 +100,6 @@ impl Rule for AddSpacesAroundColons {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        if cx.tree.root_node().has_error() {
-            return Ok(0);
-        }
-
         let mut edits = Vec::new();
 
         {
@@ -137,6 +131,17 @@ mod tests {
         .unwrap();
         AddSpacesAroundColons.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_a_comment_after_a_colon_is_kept() {
+        for src in [
+            "x = (a: /*c*/ 1);",
+            "x = (a:/*c*/1);",
+            "x = (\\a: // c\n 1);",
+        ] {
+            assert_eq!(format(src), src);
+        }
     }
 
     #[test]

@@ -108,8 +108,7 @@ fn convert(block: Node, bytes: &[u8], edits: &mut Vec<TextEdit>) {
         }
         params.push_str(&rest);
     }
-    // Safety check for strings (still want to avoid these)
-    if params.is_empty() || params.contains('"') || params.contains('\'') {
+    if params.is_empty() {
         return;
     }
 
@@ -175,6 +174,14 @@ mod tests {
     fn test_the_rest_argument_keeps_its_dots() {
         assert!(format("f = { arg a, b = 1 ... rest; a };").contains("{ |a, b = 1 ... rest|"));
         assert!(format("g = { arg ...all; all };").contains("{ |... all|"));
+    }
+
+    #[test]
+    fn test_a_string_a_symbol_or_a_character_is_a_default_like_any_other() {
+        assert!(
+            format("f = { arg a = \"x|y\", b = 'p q', c = $\", d = $|; a };")
+                .contains("{ |a = \"x|y\", b = 'p q', c = $\", d = $||")
+        );
     }
 
     #[test]

@@ -1598,3 +1598,7 @@ var karg, b; karg = b = 2; karg
 x = [${, $}]; f { 1 }
 
 x = [$\n, $\r, $\t, $\ ]
+
+{ arg a = "x|y", b = 'p q', c = $", d = $|, e = "}"; a }
+
+{ arg a = "x"; var b = "y"; a ++ b }

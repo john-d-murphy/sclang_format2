@@ -1,6 +1,7 @@
 // Each test crate uses only some of these helpers.
 #![allow(dead_code)]
 
+pub mod judge;
 pub mod tokens;
 
 use anyhow::Result;

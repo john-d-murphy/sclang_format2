@@ -1,24 +1,59 @@
 //! sclang, SuperCollider's own compiler, as the judge of what is SuperCollider.
 //!
 //! `tests/judge.scd` compiles files (it never runs them) and posts what sclang
-//! made of each; this file drives it. The test needs sclang and skips, saying
+//! made of each; this file drives it. Both tests need sclang and skip, saying
 //! so, when it is not installed.
 //!
-//! `corpus_design` lists rather than checks, and needs python3 and the
-//! SuperCollider help sources as well, so it runs only when asked for:
+//! - `formatting_keeps_meaning` runs with plain `cargo test`: every corpus
+//!   file sclang accepts must, once formatted, be accepted again and compile
+//!   to the same thing.
+//! - `corpus_design` lists rather than checks, and needs python3 and the
+//!   SuperCollider help sources as well, so it runs only when asked for:
 //!
-//!     cargo test --test sclang_judge -- --ignored --nocapture
+//!       cargo test --test sclang_judge -- --ignored --nocapture
 //!
-//! It cuts every form from the help with `candidates_from_docs.py`, the
-//! extraction script's splitting without its filter, and writes under
-//! `target/judge/` the corpus files sclang refuses as syntax errors and the
-//! valid forms the corpus does not have.
+//!   It cuts every form from the help with `candidates_from_docs.py`, the
+//!   extraction script's splitting without its filter, and writes under
+//!   `target/judge/` the corpus files sclang refuses as syntax errors and the
+//!   valid forms the corpus does not have.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::panic::catch_unwind;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+/// Corpus files whose formatted text sclang compiles to something else, or
+/// refuses. Each is a formatter bug or a difference not yet explained. The
+/// test tolerates exactly these; one that stops differing must be removed.
+const KNOWN_MEANING_CHANGES: &[&str] = &[
+    // PipeParamDefaultParens wraps a literal default in parentheses:
+    // `{ |a = #[1, 2]| a }` becomes `{ |a = (#[1, 2])| a }`. A parenthesized
+    // default is an expression, which sclang compiles to a test at the top of
+    // the function that puts the default in when the argument is nil, so
+    // `.value(nil)` returns [1, 2] where it returned nil.
+    "tests/sc_help/Classes/Event_15.scd",
+    "tests/sc_help/Classes/NdefParamGui_0p.scd",
+    "tests/sc_help/Classes/NodeProxy_17_35.scd",
+    "tests/sc_help/Classes/NodeProxy_17_37.scd",
+    "tests/sc_help/Classes/NodeProxy_17_38.scd",
+    "tests/sc_help/Classes/Node_4b.scd",
+    "tests/sc_help/Classes/Node_6g.scd",
+    "tests/sc_help/Classes/Synth_1e.scd",
+    "tests/sc_help/Classes/Synth_6a.scd",
+    "tests/sc_help/Guides/Multichannel-Expansion_15a.scd",
+    "tests/sc_help/Guides/NodeMessaging_9.scd",
+    "tests/sc_help/Guides/UserFAQ_23.scd",
+    "tests/sc_help/Guides/UserFAQ_26.scd",
+    "tests/sc_help/Reference/Functions_5c.scd",
+    "tests/sc_help/Tutorials/JITLib/jitlib_basic_concepts_03_18b.scd",
+    "tests/sc_help/Tutorials/JITLib/proxyspace_examples_7e.scd",
+    // A binary operator split in two, which sclang refuses:
+    // `a <-- b` becomes `a < -- b`, and `a -- b` becomes `a - - b`.
+    "tests/sc_help/Classes/NodeProxy_2d.scd",
+    "tests/sc_help/Classes/Set_8d.scd",
+    "tests/sc_help/Overviews/SymbolicNotations_4a.scd",
+];
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -151,6 +186,7 @@ fn reason(errors: &[String]) -> Reason {
 enum Verdict {
     /// Compiled, as it stands or with `declared` declared in front.
     Accepted {
+        dump: String,
         declared: Vec<String>,
     },
     Refused {
@@ -174,7 +210,8 @@ fn judge(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Verdict> {
     let retry_dir = fresh_dir(&work.join("declared"));
     for (path, compiled) in compile_all(dir, work) {
         let verdict = match (compiled.dump, reason(&compiled.errors)) {
-            (Some(_), _) => Verdict::Accepted {
+            (Some(dump), _) => Verdict::Accepted {
+                dump,
                 declared: Vec::new(),
             },
             (None, Reason::UndeclaredName) => {
@@ -198,7 +235,7 @@ fn judge(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Verdict> {
         for (path, declared) in retried {
             let compiled = second.remove(&path).unwrap();
             let verdict = match compiled.dump {
-                Some(_) => Verdict::Accepted { declared },
+                Some(dump) => Verdict::Accepted { dump, declared },
                 None => Verdict::Refused {
                     reason: reason(&compiled.errors),
                     error: compiled.errors.first().cloned().unwrap_or_default(),
@@ -262,6 +299,105 @@ fn tally(verdicts: &BTreeMap<PathBuf, Verdict>) -> String {
     }
     let parts: Vec<String> = counts.iter().map(|(k, n)| format!("{k}: {n}")).collect();
     format!("{} files; {}", verdicts.len(), parts.join("; "))
+}
+
+#[test]
+fn formatting_keeps_meaning() {
+    if !sclang_installed() {
+        eprintln!("Skipping formatting_keeps_meaning: sclang is not installed");
+        return;
+    }
+    let corpus = manifest_dir().join("tests/sc_help");
+    let work = fresh_dir(&manifest_dir().join("target/judge/meaning"));
+    let verdicts = judge(&corpus, &work);
+
+    // Each accepted file, formatted, with the same names declared in front.
+    let formatted_dir = fresh_dir(&work.join("formatted"));
+    let accepted: Vec<(&PathBuf, &String, &Vec<String>)> = verdicts
+        .iter()
+        .filter_map(|(path, verdict)| match verdict {
+            Verdict::Accepted { dump, declared } => Some((path, dump, declared)),
+            Verdict::Refused { .. } => None,
+        })
+        .collect();
+    let written = par_map(&accepted, |(path, _, declared)| {
+        let text = fs::read_to_string(corpus.join(path)).unwrap();
+        // A file the formatter refuses is the corpus test's business.
+        let formatted = sclang_format::format_source(&text, "all").ok()?;
+        let out = formatted_dir.join(path);
+        fs::create_dir_all(out.parent().unwrap()).unwrap();
+        let formatted = if declared.is_empty() {
+            formatted
+        } else {
+            declare(declared, &formatted)
+        };
+        fs::write(out, formatted).unwrap();
+        Some(())
+    });
+    let originals: BTreeMap<&PathBuf, &String> = accepted
+        .iter()
+        .zip(written)
+        .filter_map(|((path, dump, _), written)| written.map(|()| (*path, *dump)))
+        .collect();
+    let mut formatted = compile_all(&formatted_dir, &work);
+
+    let mut differing = BTreeMap::new();
+    for (path, original) in &originals {
+        let name = format!("tests/sc_help/{}", path.display());
+        let compiled = formatted.remove(*path).unwrap();
+        match compiled.dump {
+            Some(dump) if dump == **original => {}
+            Some(dump) => {
+                differing.insert(name, format!("original:  {original}\nformatted: {dump}"));
+            }
+            None => {
+                differing.insert(
+                    name,
+                    format!("refused once formatted: {}", compiled.errors.join(" | ")),
+                );
+            }
+        }
+    }
+    let report: String = differing
+        .iter()
+        .map(|(name, how)| format!("{name}\n{how}\n\n"))
+        .collect();
+    fs::write(work.join("differences.txt"), report).unwrap();
+
+    let unexpected: Vec<&String> = differing
+        .keys()
+        .filter(|name| !KNOWN_MEANING_CHANGES.contains(&name.as_str()))
+        .collect();
+    let stale: Vec<&&str> = KNOWN_MEANING_CHANGES
+        .iter()
+        .filter(|name| !differing.contains_key(**name))
+        .collect();
+
+    eprintln!("\n=== Formatting keeps meaning ===");
+    eprintln!("Corpus: {}", tally(&verdicts));
+    eprintln!("Compared: {}", originals.len());
+    eprintln!(
+        "Differing: {} ({} known)",
+        differing.len(),
+        differing.len() - unexpected.len()
+    );
+    eprintln!("Details: {}", work.join("differences.txt").display());
+
+    assert!(
+        stale.is_empty(),
+        "KNOWN_MEANING_CHANGES lists files that no longer differ; remove them:\n{}",
+        stale.iter().map(|s| format!("  {s}\n")).collect::<String>()
+    );
+    assert!(
+        unexpected.is_empty(),
+        "{} corpus files mean something else once formatted (see {}):\n{}",
+        unexpected.len(),
+        work.join("differences.txt").display(),
+        unexpected
+            .iter()
+            .map(|s| format!("  {s}\n"))
+            .collect::<String>()
+    );
 }
 
 /// What must survive formatting, counted. A copy of `essence` in

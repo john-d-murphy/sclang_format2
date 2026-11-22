@@ -296,6 +296,7 @@ impl CompactShortIfTrailingClosures {
         replacement.push('{');
         replacement.push(' ');
         replacement.push_str(b2_body);
+        replacement.push(' ');
         replacement.push('}');
         if has_semi {
             replacement.push(';');
@@ -359,5 +360,28 @@ impl Rule for CompactShortIfTrailingClosures {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        CompactShortIfTrailingClosures.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_both_blocks_get_a_space_inside_each_brace() {
+        assert_eq!(format("x = if (a)\n{ 1 }\n{ 2 };"), "x = if (a) { 1 } { 2 };");
     }
 }

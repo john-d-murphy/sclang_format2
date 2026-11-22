@@ -297,6 +297,7 @@ impl ExpandLongIfTrailingClosures {
         collapsed.push('{');
         collapsed.push(' ');
         collapsed.push_str(b2_body);
+        collapsed.push(' ');
         collapsed.push('}');
         if has_semi {
             collapsed.push(';');
@@ -430,6 +431,18 @@ mod tests {
         assert_eq!(
             format(src),
             "    x = if (condition) {\n        \"a long enough true branch to pass the width\"\n    } {\n        \"and the false one\"\n    };"
+        );
+    }
+
+    #[test]
+    fn test_the_width_is_measured_with_the_space_before_the_last_brace() {
+        // One line of 81 columns once written as the compactor writes it.
+        let (a, b) = ("a".repeat(40), "b".repeat(25));
+        let src = format!("if (c) {{ {a} }} {{ {b} }}");
+        assert_eq!(src.len(), 81);
+        assert_eq!(
+            format(&src),
+            format!("if (c) {{\n    {a}\n}} {{\n    {b}\n}}")
         );
     }
 }

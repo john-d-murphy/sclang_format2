@@ -236,8 +236,9 @@ fn sc_help_fixture() {
 /// extract_help_from_docs.py
 ///
 /// Corpus files the formatter refuses. Every corpus file is SuperCollider
-/// (sclang compiles it), so each is a grammar gap or a rule bug. The corpus
-/// test tolerates exactly these failures and no others; if one of these files
+/// (sclang compiles it), so each is a grammar gap, a rule bug, or text that
+/// sclang's lexer forgives and no grammar should. The corpus test tolerates
+/// exactly these failures and no others; if one of these files
 /// starts passing, the test fails with a stale-entry error so the list cannot
 /// rot. To list the refusals afresh, run the sharded tests and read the `PF`
 /// lines (path, pass, rule, status, message) of the files they write:
@@ -245,8 +246,15 @@ fn sc_help_fixture() {
 ///     cargo test --test fixtures_insta sc_help_corpus_shard -- --test-threads=8
 ///     cat target/sc_help_shards/shard_*.tsv | grep '^PF'
 const KNOWN_PARSE_FAILURES: &[&str] = &[
-    // Grammar gap: a quoted symbol left open to the end of the text, which
-    // sclang's lexer accepts (`'(sclang-eval-line-forward nil)`).
+    // No gap in the grammar, and nothing a grammar should take. The file is
+    // `'(sclang-eval-line-forward nil)`: Emacs Lisp from the help for the
+    // Emacs editor, with a quote that is never closed. sclang's lexer, when
+    // a quoted symbol is still open at the end of its line, says so ("Symbol
+    // open at end of line") and ends the text there, as if the file stopped
+    // before the quote. What is left to compile here is nothing, and sclang
+    // accepts nothing. A grammar that read an open quote as the end of the
+    // file would hide every quote left open by mistake, and those the
+    // formatter must refuse.
     "tests/sc_help/Reference/EmacsEditor_1.scd",
 ];
 

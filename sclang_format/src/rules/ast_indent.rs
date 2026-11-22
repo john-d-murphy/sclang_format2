@@ -182,6 +182,27 @@ mod tests {
     }
 
 
+    /// What stands between a call's parentheses is one level deeper than the
+    /// line the call begins on, and the closing parenthesis is level with
+    /// that line, at whatever depth the call stands.
+    #[test]
+    fn test_a_call_over_several_lines_indents_its_arguments_and_closes_level() {
+        for src in [
+            "x = foo(\n    1,\n    2\n);",
+            "x = foo(\n    1\n);",
+            "f = {\n    z = bar(\n        1\n    );\n};",
+            "f = {\n    z = bar(\n        1,\n        2\n    );\n};",
+            "f = {\n    a.b(\n        1\n    ).c(\n        2\n    );\n};",
+            "f = {\n    g.(\n        1\n    );\n};",
+            "f = {\n    z = bar(1,\n        2\n    );\n};",
+            "SynthDef(\\a, {\n    Out.ar(0,\n        SinOsc.ar(\n            440\n        )\n    )\n}).add;",
+            "f = {\n    if(\n        a\n    ) { b };\n};",
+        ] {
+            let flat: String = src.lines().map(|line| format!("{}\n", line.trim_start())).collect();
+            assert_eq!(format(flat.trim_end()), src);
+        }
+    }
+
     #[test]
     fn test_simple_if_block() {
         let src = r#"if (x > 0) {

@@ -7,8 +7,8 @@ expression: out
 // the first closure is the then-block, not a condition.
 x = b.value.booleanValue.if({
     (b.value > 1).if(
-    { m.reference = Array.fill(n, { 1.0.rand }) },
-    { m.reference = Array.fill(m.size, { 0.5 }) })
+        { m.reference = Array.fill(n, { 1.0.rand }) },
+        { m.reference = Array.fill(m.size, { 0.5 }) })
 }, { q = m.value; m.reference = [] });
 // keyword form still converts:
 if (freq > 0) { sig = 1 } { sig = 0 };

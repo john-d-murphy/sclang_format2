@@ -127,23 +127,39 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
             }
 
 
-            // Multi-line function calls: Pbind(\n    \degree, ...\n)
-            // Count parameter_call_list if it spans multiple lines
-            // BUT only if we're directly in the param list, not inside a nested block
-            // that started on the SAME line as the param list
-            "parameter_call_list" => {
-                if byte >= node.start_byte() {
-                    // Check if this is a multi-line call by comparing start/end rows
-                    let start_row = node.start_position().row;
-                    let end_row = node.end_position().row;
-                    if start_row != end_row {
-                        // Check if ANY inner block started on the SAME line as this param_list
-                        // If so, that block handles the indentation, skip param_list
-                        let block_on_same_line =
-                            function_block_start_rows.iter().any(|&r| r == start_row)
-                            || collection_start_rows.iter().any(|&r| r == start_row);
-
-
+            // The parentheses of a call, or of a control structure, that
+            // span lines: `Pbind(\n    \degree, ...\n)`. What stands between
+            // them is one level deeper, and so is the closing parenthesis,
+            // which the indent rule takes back out as it does every line that
+            // begins with a closing bracket. Not when a block or a collection
+            // that holds `byte` began on the line the arguments begin on:
+            // then that one does the indenting. (A switch indents what it
+            // holds by a rule of its own, in visual_block_depth_at.)
+            "function_call"
+            | "method_call"
+            | "apply_call"
+            | "instance_variable_setter_call"
+            | "if"
+            | "while"
+            | "for"
+            | "forby"
+            | "case"
+            | "protect"
+            | "try" => {
+                let mut cursor = node.walk();
+                let children: Vec<Node> = node.children(&mut cursor).collect();
+                for (i, open) in children.iter().enumerate() {
+                    let Some(close) = children[i..].iter().find(|c| c.kind() == ")") else {
+                        break;
+                    };
+                    if open.kind() == "("
+                        && byte > open.start_byte()
+                        && byte <= close.start_byte()
+                        && open.start_position().row != close.start_position().row
+                    {
+                        let start_row = children[i + 1].start_position().row;
+                        let block_on_same_line = function_block_start_rows.contains(&start_row)
+                            || collection_start_rows.contains(&start_row);
                         if !block_on_same_line {
                             depth += 1;
                         }

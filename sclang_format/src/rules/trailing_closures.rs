@@ -1,12 +1,7 @@
-use crate::engine::ast::in_string_or_comment;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t' || b == b'\r' || b == b'\n'
-}
 
 /// Try to rewrite an `if(cond, { ... }, { ... })` or `if(cond, { ... })` call,
 /// given its `if` node. The tree, not the bytes, says where the condition and
@@ -46,107 +41,59 @@ fn rewrite_if_call(buf: &[u8], if_node: Node) -> Option<(usize, usize, String)> 
     Some((if_node.start_byte(), if_node.end_byte(), repl))
 }
 
-/// Try to rewrite `.do({ ... })` at the given `dot` index (where buf[dot] == '.').
+/// The one child of `node`, when it has one and no more: no comma, no
+/// semicolon, no comment beside it.
+fn only_child(node: Node) -> Option<Node> {
+    (node.child_count() == 1).then(|| node.child(0)).flatten()
+}
+
+/// Try to rewrite `.do({ ... })`, given its `method_call` node, as
+/// `.do { ... }`: the one argument a block, and nothing else in the
+/// parentheses. The tree says so, as it does for `if` above.
 /// Returns (`start_byte`, `end_byte`, replacement) for the `( ... )` part.
-fn rewrite_do_call(buf: &[u8], dot: usize) -> Option<(usize, usize, String)> {
-    let len = buf.len();
-    if dot + 3 >= len {
+fn rewrite_do_call(buf: &[u8], call: Node) -> Option<(usize, usize, String)> {
+    let name = call.child_by_field_name("name")?;
+    if &buf[name.byte_range()] != b"do" {
         return None;
     }
-    if &buf[dot..dot + 3] != b".do" {
+    let mut cursor = call.walk();
+    let children: Vec<Node> = call.children(&mut cursor).collect();
+    // `.`, `do`, `(`, the arguments, `)`
+    let [_, _, open, arguments, close, ..] = children[..] else {
+        return None;
+    };
+    if open.kind() != "(" || arguments.kind() != "parameter_call_list" || close.kind() != ")" {
         return None;
     }
-
-    // Skip whitespace after "do"
-    let mut i = dot + 3;
-    while i < len && is_space(buf[i]) {
-        i += 1;
-    }
-    if i >= len || buf[i] != b'(' {
+    // parameter_call_list, argument_calls, unnamed_argument, the block
+    let block = only_child(only_child(only_child(arguments)?)?)?;
+    if block.kind() != "function_block" {
         return None;
     }
-    let open = i;
+    let block = String::from_utf8_lossy(&buf[block.byte_range()]);
+    Some((open.start_byte(), close.end_byte(), format!(" {block}")))
+}
 
-    // Find matching ')', track nesting and commas.
-    let mut paren = 1i32;
-    let mut brace = 0i32;
-    let mut bracket = 0i32;
-    let mut commas = 0usize;
-    let mut j = open + 1;
-    let mut close_opt = None;
-
-    while j < len {
-        let c = buf[j];
-        match c {
-            b'(' => paren += 1,
-            b')' => {
-                paren -= 1;
-                if paren == 0 {
-                    close_opt = Some(j);
-                    break;
-                }
-            }
-            b'{' => brace += 1,
-            b'}' => brace -= 1,
-            b'[' => bracket += 1,
-            b']' => bracket -= 1,
-            b',' if paren == 1 && brace == 0 && bracket == 0 => {
-                commas += 1;
-            }
-            _ => {}
-        }
-        j += 1;
+/// The rewrites under `node`, outermost first. What stands inside a call
+/// that is rewritten waits for the next pass: its edit would overlap.
+fn collect_rewrites(buf: &[u8], node: Node, edits: &mut Vec<TextEdit>) {
+    let rewrite = match node.kind() {
+        "if" => rewrite_if_call(buf, node),
+        "method_call" => rewrite_do_call(buf, node),
+        _ => None,
+    };
+    if let Some((start_byte, end_byte, replacement)) = rewrite {
+        edits.push(TextEdit {
+            start_byte,
+            end_byte,
+            replacement,
+        });
+        return;
     }
-
-    let close = close_opt?;
-    if commas > 0 {
-        // more than one arg, don't touch
-        return None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_rewrites(buf, child, edits);
     }
-
-    // Inside the parentheses, expect exactly one block argument: { ... }
-    let mut k = open + 1;
-    while k < close && is_space(buf[k]) {
-        k += 1;
-    }
-    if k >= close || buf[k] != b'{' {
-        return None;
-    }
-
-    let block_start = k;
-    let mut brace_depth = 1i32;
-    k += 1;
-    let mut block_end_opt = None;
-    while k < close {
-        let c = buf[k];
-        match c {
-            b'{' => brace_depth += 1,
-            b'}' => {
-                brace_depth -= 1;
-                if brace_depth == 0 {
-                    block_end_opt = Some(k);
-                    break;
-                }
-            }
-            _ => {}
-        }
-        k += 1;
-    }
-
-    let block_end = block_end_opt?;
-    // After the block and before the closing ')', only whitespace is allowed.
-    let mut t = block_end + 1;
-    while t < close {
-        if !is_space(buf[t]) {
-            return None;
-        }
-        t += 1;
-    }
-
-    let block_str = String::from_utf8_lossy(&buf[block_start..=block_end]).to_string();
-    let replacement = format!(" {block_str}");
-
-    Some((open, close + 1, replacement))
 }
 
 pub struct TrailingClosures;
@@ -180,49 +127,8 @@ impl TrailingClosures {
             return Ok(0);
         }
 
-        let bytes = cx.bytes();
-        let buf: &[u8] = &bytes;
-        let root = cx.tree.root_node();
-        let len = buf.len();
-
         let mut edits: Vec<TextEdit> = Vec::new();
-        let mut i = 0;
-
-        while i < len {
-            // First, try `if(...)` form: an `if` token that begins an `if` node.
-            if i + 2 <= len
-                && &buf[i..i + 2] == b"if"
-                && let Some(token) = root.descendant_for_byte_range(i, i + 2)
-                && token.kind() == "if"
-                && let Some(if_node) = token.parent().filter(|n| n.kind() == "if")
-                && let Some((start, end, repl)) = rewrite_if_call(buf, if_node)
-            {
-                edits.push(TextEdit {
-                    start_byte: start,
-                    end_byte: end,
-                    replacement: repl,
-                });
-                // Skip past this call to avoid overlapping edits.
-                i = end;
-                continue;
-            }
-
-            // Then, try `.do({ ... })` form.
-            if buf[i] == b'.'
-                && !in_string_or_comment(root, i)
-                && let Some((start, end, repl)) = rewrite_do_call(buf, i)
-            {
-                edits.push(TextEdit {
-                    start_byte: start,
-                    end_byte: end,
-                    replacement: repl,
-                });
-                i = end;
-                continue;
-            }
-
-            i += 1;
-        }
+        collect_rewrites(cx.bytes(), cx.tree.root_node(), &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -247,6 +153,35 @@ mod tests {
         .unwrap();
         TrailingClosures.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_do_with_one_block_in_parentheses_takes_it_as_a_trailing_block() {
+        assert_eq!(format("3.do({ |i| i.postln });"), "3.do { |i| i.postln };");
+        assert_eq!(format("a.do ( {1} );"), "a.do  {1};");
+        assert_eq!(
+            format("2.do({ 5.do({ 1 }) });"),
+            "2.do { 5.do { 1 } };"
+        );
+    }
+
+    #[test]
+    fn test_do_is_read_from_the_tree_not_the_bytes() {
+        // A bracket or a comma in a character or a string is not the call's.
+        assert_eq!(format("a.do({ $) });"), "a.do { $) };");
+        assert_eq!(format("a.do({ \"}\" });"), "a.do { \"}\" };");
+        assert_eq!(format("a.do({ $} });"), "a.do { $} };");
+        // More than the one block, or anything beside it, is left alone.
+        for src in [
+            "a.do({ 1 }, 2);",
+            "a.do({ 1 } /* why */);",
+            "a.do(f);",
+            "a.doIt({ 1 });",
+            "a.do({ 1 };);",
+            "\".do({ 1 })\";",
+        ] {
+            assert_eq!(format(src), src);
+        }
     }
 
     #[test]

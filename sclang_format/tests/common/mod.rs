@@ -1,3 +1,8 @@
+// Each test crate uses only some of these helpers.
+#![allow(dead_code)]
+
+pub mod tokens;
+
 use anyhow::Result;
 use std::io::Write;
 use std::process::{Command, Stdio};

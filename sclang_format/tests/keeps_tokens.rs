@@ -3,32 +3,10 @@
 //! comment, an operator's adverb. The idempotence tests cannot see such a
 //! loss, because a rule that deletes something deletes it the same way twice.
 
-use glob::glob;
-use std::collections::BTreeMap;
+mod common;
 
-/// What must survive formatting, counted: every word, and every other
-/// character that is not a blank. Left out are the marks the rules add or
-/// remove (`(` `)` `,` `;` `|`) and the word `arg`, which becomes a pair of
-/// pipes. Counted and not kept in order, because that same rule moves the
-/// parameters ahead of a comment that stood before them.
-fn essence(src: &str) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    let mut word = String::new();
-    for c in src.chars().chain(std::iter::once(' ')) {
-        if c.is_alphanumeric() || c == '_' {
-            word.push(c);
-            continue;
-        }
-        if !word.is_empty() && word != "arg" {
-            *counts.entry(std::mem::take(&mut word)).or_insert(0) += 1;
-        }
-        word.clear();
-        if !c.is_whitespace() && !"(),;|".contains(c) {
-            *counts.entry(c.to_string()).or_insert(0) += 1;
-        }
-    }
-    counts
-}
+use common::tokens::changed_tokens;
+use glob::glob;
 
 #[test]
 fn formatting_keeps_every_token() {
@@ -42,23 +20,9 @@ fn formatting_keeps_every_token() {
                 continue;
             };
             checked += 1;
-            let (before, after) = (essence(&input), essence(&output));
-            if before != after {
-                let differing: Vec<String> = before
-                    .keys()
-                    .chain(after.keys())
-                    .filter(|k| before.get(*k) != after.get(*k))
-                    .map(|k| {
-                        format!(
-                            "{k:?} {}->{}",
-                            before.get(k).unwrap_or(&0),
-                            after.get(k).unwrap_or(&0)
-                        )
-                    })
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect();
-                lost.push(format!("{}: {}", path.display(), differing.join(", ")));
+            let changed = changed_tokens(&input, &output);
+            if !changed.is_empty() {
+                lost.push(format!("{}: {}", path.display(), changed.join(", ")));
             }
         }
     }

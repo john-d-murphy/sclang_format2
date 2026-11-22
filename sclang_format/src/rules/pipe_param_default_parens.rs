@@ -252,6 +252,15 @@ impl Rule for PipeParamDefaultParens {
                             delim = j;
                             break;
                         }
+                        // The rest argument (`... name`) follows a default with no comma.
+                        b'.' if paren == 0
+                            && brace == 0
+                            && bracket == 0
+                            && seg[j..].starts_with(b"...") =>
+                        {
+                            delim = j;
+                            break;
+                        }
                         _ => {}
                     }
                 }
@@ -303,5 +312,33 @@ impl Rule for PipeParamDefaultParens {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeParamDefaultParens.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_rest_argument_is_not_part_of_the_default_before_it() {
+        let src = "f = { |freq = 440, dur = 1 ... more| dur };";
+        assert_eq!(format(src), src);
+        assert_eq!(
+            format("f = { |dur = 1.neg ... more| dur };"),
+            "f = { |dur = (1.neg) ... more| dur };"
+        );
     }
 }

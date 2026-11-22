@@ -1,12 +1,12 @@
 """
-Tests of extract_help_from_docs.py's splitting. Run from sclang_format/:
+Tests of extract_help_from_docs.py. Run from sclang_format/:
 
     python3 -B -m unittest test_extract_help_from_docs
 """
 
 import unittest
 
-from extract_help_from_docs import extract_forms
+from extract_help_from_docs import extract_forms, non_ascii_in_code, undeclared_names
 
 
 class ExtractForms(unittest.TestCase):
@@ -46,6 +46,22 @@ class ExtractForms(unittest.TestCase):
         form = "s.sendMsg(\\s_new, \\a, $[, 0.95, $], \\freq, 220);"
         self.assertEqual(extract_forms(form + "\nx.free;"), [form, "x.free;"])
         self.assertEqual(extract_forms("[$', $\"];\n1;"), ["[$', $\"];", "1;"])
+
+
+class Judging(unittest.TestCase):
+    def test_bytes_outside_ascii_count_only_in_code(self):
+        for text in ['"π";', "'é';", "x; // ± 1", "/* /* 日本 */ é */ 1", '$"; "é"']:
+            with self.subTest(text=text):
+                self.assertFalse(non_ascii_in_code(text))
+        for text in ["z = ±1", "これは", "x = 1\u00a0+ 2", "$é", "$\\é", '"a" ++ é']:
+            with self.subTest(text=text):
+                self.assertTrue(non_ascii_in_code(text))
+
+    def test_names_are_declared_only_when_nothing_else_is_wrong(self):
+        undeclared = ["Variable 'b' not defined.", "Variable 'a' not defined.", "Variable 'a' not defined."]
+        self.assertEqual(undeclared_names(undeclared), ["a", "b"])
+        self.assertEqual(undeclared_names(undeclared + ["Class not defined."]), [])
+        self.assertEqual(undeclared_names(["syntax error, unexpected '!'"] + undeclared), [])
 
 
 if __name__ == "__main__":

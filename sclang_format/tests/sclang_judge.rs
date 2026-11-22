@@ -12,8 +12,8 @@
 //!
 //!       cargo test --test sclang_judge -- --ignored --nocapture
 //!
-//!   It cuts every form from the help with `candidates_from_docs.py`, the
-//!   extraction script's splitting without its filter, and writes under
+//!   It cuts every form from the help with `extract_help_from_docs.py
+//!   --candidates`, and writes under
 //!   `target/judge/` the corpus files sclang refuses as syntax errors and the
 //!   valid forms the corpus does not have.
 
@@ -462,14 +462,15 @@ fn corpus_design() {
     let candidates = work.join("candidates");
     let cut = Command::new("python3")
         .arg("-B")
-        .arg("candidates_from_docs.py")
+        .arg("extract_help_from_docs.py")
+        .arg("--candidates")
         .arg(&candidates)
         .current_dir(&root)
         .output();
     let cut = match cut {
         Ok(out) if out.status.success() => out,
         Ok(out) => panic!(
-            "candidates_from_docs.py failed:\n{}",
+            "extract_help_from_docs.py --candidates failed:\n{}",
             String::from_utf8_lossy(&out.stderr)
         ),
         Err(e) => {

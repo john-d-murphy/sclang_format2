@@ -245,16 +245,6 @@ fn sc_help_fixture() {
 ///     cargo test --test fixtures_insta sc_help_corpus_shard -- --test-threads=8
 ///     cat target/sc_help_shards/shard_*.tsv | grep '^PF'
 const KNOWN_PARSE_FAILURES: &[&str] = &[
-    // Grammar gap: `<<>` followed by an adverb selector (`a <<>.in1 b`).
-    "tests/sc_help/Classes/Ndef_12f.scd",
-    "tests/sc_help/Classes/Ndef_12g.scd",
-    "tests/sc_help/Classes/Ndef_12h.scd",
-    "tests/sc_help/Classes/Ndef_12i.scd",
-    "tests/sc_help/Classes/Ndef_12j.scd",
-    // Grammar gap: sclang reads any run of operator characters as one binary
-    // operator, the grammar only a fixed set: `x --> 3` (the help's
-    // `(f <> g).value(1)` and, on the next line, its printed result `--> 3`).
-    "tests/sc_help/Tutorials/A-Practical-Guide/PG_06c_Composition_of_Patterns_1g.scd",
     // Grammar gap: a quoted symbol left open to the end of the text, which
     // sclang's lexer accepts (`'(sclang-eval-line-forward nil)`).
     "tests/sc_help/Reference/EmacsEditor_1.scd",

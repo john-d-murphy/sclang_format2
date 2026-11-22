@@ -30,27 +30,7 @@ use std::process::{Command, Stdio};
 /// which gives each differing file with both compilations or sclang's error:
 ///
 ///     cargo test --test sclang_judge formatting_keeps_meaning -- --test-threads=8
-const KNOWN_MEANING_CHANGES: &[&str] = &[
-    // Grammar gap: sclang reads any run of operator characters as one binary
-    // operator; the grammar knows a fixed set and reads `<--`, `--`, `--->`,
-    // `<!` or `<<*` as two, which spaces_around_binary_ops then parts:
-    // `a <-- b` becomes `a < -- b`, which sclang refuses.
-    "tests/sc_help/Classes/NodeProxy_2d.scd",
-    "tests/sc_help/Classes/Set_8d.scd",
-    "tests/sc_help/Guides/Order-of-execution_1.scd",
-    "tests/sc_help/Guides/Order-of-execution_2.scd",
-    "tests/sc_help/Other/JITLibChanges3.7_2_553.scd",
-    "tests/sc_help/Overviews/Operators_18.scd",
-    "tests/sc_help/Overviews/SymbolicNotations_18c.scd",
-    "tests/sc_help/Overviews/SymbolicNotations_4.scd",
-    "tests/sc_help/Overviews/SymbolicNotations_5i.scd",
-    "tests/sc_help/Overviews/SymbolicNotations_9c.scd",
-    // spaces_around_colons drops the space before an event key's colon, and
-    // `(a : 10)` keys the event by the value of the variable `a`, where
-    // `(a: 10)` keys it by the symbol `\a`.
-    "tests/sc_help/Classes/Event_11c.scd",
-    "tests/sc_help/Classes/Event_11e.scd",
-];
+const KNOWN_MEANING_CHANGES: &[&str] = &[];
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

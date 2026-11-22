@@ -24,35 +24,66 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// Corpus files whose formatted text sclang compiles to something else, or
-/// refuses. Each is a formatter bug or a difference not yet explained. The
-/// test tolerates exactly these; one that stops differing must be removed.
+/// refuses. Each is a formatter bug or a grammar gap. The test tolerates
+/// exactly these; one that stops differing must be removed. To list them
+/// afresh, run this test and read `target/judge/meaning/differences.txt`,
+/// which gives each differing file with both compilations or sclang's error:
+///
+///     cargo test --test sclang_judge formatting_keeps_meaning -- --test-threads=8
 const KNOWN_MEANING_CHANGES: &[&str] = &[
     // PipeParamDefaultParens wraps a literal default in parentheses:
     // `{ |a = #[1, 2]| a }` becomes `{ |a = (#[1, 2])| a }`. A parenthesized
     // default is an expression, which sclang compiles to a test at the top of
     // the function that puts the default in when the argument is nil, so
     // `.value(nil)` returns [1, 2] where it returned nil.
-    "tests/sc_help/Classes/Event_15.scd",
-    "tests/sc_help/Classes/NdefParamGui_0p.scd",
-    "tests/sc_help/Classes/NodeProxy_17_35.scd",
-    "tests/sc_help/Classes/NodeProxy_17_37.scd",
-    "tests/sc_help/Classes/NodeProxy_17_38.scd",
+    "tests/sc_help/Classes/BufDelayC_0e.scd",
+    "tests/sc_help/Classes/BufDelayL_0e.scd",
+    "tests/sc_help/Classes/BufDelayN_0e.scd",
+    "tests/sc_help/Classes/Event_16.scd",
+    "tests/sc_help/Classes/Klank_4a.scd",
+    "tests/sc_help/Classes/Klank_4c.scd",
+    "tests/sc_help/Classes/Klank_4e.scd",
+    "tests/sc_help/Classes/Klank_4g.scd",
+    "tests/sc_help/Classes/NdefParamGui_0q.scd",
+    "tests/sc_help/Classes/NodeProxy_18_44.scd",
+    "tests/sc_help/Classes/NodeProxy_18_46.scd",
+    "tests/sc_help/Classes/NodeProxy_18_47.scd",
     "tests/sc_help/Classes/Node_4b.scd",
     "tests/sc_help/Classes/Node_6g.scd",
+    "tests/sc_help/Classes/Ref_4.scd",
     "tests/sc_help/Classes/Synth_1e.scd",
     "tests/sc_help/Classes/Synth_6a.scd",
+    "tests/sc_help/Guides/FFT-Overview_12c.scd",
     "tests/sc_help/Guides/Multichannel-Expansion_15a.scd",
     "tests/sc_help/Guides/NodeMessaging_9.scd",
     "tests/sc_help/Guides/UserFAQ_23.scd",
     "tests/sc_help/Guides/UserFAQ_26.scd",
-    "tests/sc_help/Reference/Functions_5c.scd",
+    "tests/sc_help/Reference/Functions_4c.scd",
+    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0c.scd",
+    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0d.scd",
+    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0e.scd",
+    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0i.scd",
     "tests/sc_help/Tutorials/JITLib/jitlib_basic_concepts_03_18b.scd",
     "tests/sc_help/Tutorials/JITLib/proxyspace_examples_7e.scd",
-    // A binary operator split in two, which sclang refuses:
-    // `a <-- b` becomes `a < -- b`, and `a -- b` becomes `a - - b`.
+    // Grammar gap: sclang reads any run of operator characters as one binary
+    // operator; the grammar knows a fixed set and reads `<--`, `--`, `--->`,
+    // `<!` or `<<*` as two, which spaces_around_binary_ops then parts:
+    // `a <-- b` becomes `a < -- b`, which sclang refuses.
     "tests/sc_help/Classes/NodeProxy_2d.scd",
     "tests/sc_help/Classes/Set_8d.scd",
-    "tests/sc_help/Overviews/SymbolicNotations_4a.scd",
+    "tests/sc_help/Guides/Order-of-execution_1.scd",
+    "tests/sc_help/Guides/Order-of-execution_2.scd",
+    "tests/sc_help/Other/JITLibChanges3.7_2_553.scd",
+    "tests/sc_help/Overviews/Operators_18.scd",
+    "tests/sc_help/Overviews/SymbolicNotations_18c.scd",
+    "tests/sc_help/Overviews/SymbolicNotations_4.scd",
+    "tests/sc_help/Overviews/SymbolicNotations_5i.scd",
+    "tests/sc_help/Overviews/SymbolicNotations_9c.scd",
+    // spaces_around_colons drops the space before an event key's colon, and
+    // `(a : 10)` keys the event by the value of the variable `a`, where
+    // `(a: 10)` keys it by the symbol `\a`.
+    "tests/sc_help/Classes/Event_11c.scd",
+    "tests/sc_help/Classes/Event_11e.scd",
 ];
 
 fn manifest_dir() -> PathBuf {

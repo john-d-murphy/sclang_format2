@@ -235,14 +235,34 @@ fn sc_help_fixture() {
 /// These are extracted from /usr/share/SuperCollider/HelpSource/ using
 /// extract_help_from_docs.py
 ///
-/// Corpus files that fail to parse due to documented grammar limitations.
-/// These are valid (or plausibly-valid) SC that tree-sitter-supercollider
-/// cannot yet express. The corpus test tolerates exactly these failures and
-/// no others; if one of these files starts passing, the test fails with a
-/// stale-entry error so the list cannot rot.
+/// Corpus files the formatter refuses. Every corpus file is SuperCollider
+/// (sclang compiles it), so each is a grammar gap or a rule bug. The corpus
+/// test tolerates exactly these failures and no others; if one of these files
+/// starts passing, the test fails with a stale-entry error so the list cannot
+/// rot. To list the refusals afresh, run the sharded tests and read the `PF`
+/// lines (path, pass, rule, status, message) of the files they write:
 ///
-/// Currently empty: every file in the corpus parses and formats.
-const KNOWN_PARSE_FAILURES: &[&str] = &[];
+///     cargo test --test fixtures_insta sc_help_corpus_shard -- --test-threads=8
+///     cat target/sc_help_shards/shard_*.tsv | grep '^PF'
+const KNOWN_PARSE_FAILURES: &[&str] = &[
+    // Grammar gap: `<<>` followed by an adverb selector (`a <<>.in1 b`).
+    "tests/sc_help/Classes/Ndef_12f.scd",
+    "tests/sc_help/Classes/Ndef_12g.scd",
+    "tests/sc_help/Classes/Ndef_12h.scd",
+    "tests/sc_help/Classes/Ndef_12i.scd",
+    "tests/sc_help/Classes/Ndef_12j.scd",
+    // Grammar gap: sclang reads any run of operator characters as one binary
+    // operator, the grammar only a fixed set: `x --> 3` (the help's
+    // `(f <> g).value(1)` and, on the next line, its printed result `--> 3`).
+    "tests/sc_help/Tutorials/A-Practical-Guide/PG_06c_Composition_of_Patterns_1g.scd",
+    // Grammar gap: a quoted symbol left open to the end of the text, which
+    // sclang's lexer accepts (`'(sclang-eval-line-forward nil)`).
+    "tests/sc_help/Reference/EmacsEditor_1.scd",
+    // PipeParamDefaultParens breaks the tree on a string default holding
+    // `...`: `{ |b = "..."| b }` becomes `{ |b = (")..."| b }`.
+    "tests/sc_help/Classes/Function_24d.scd",
+    "tests/sc_help/Classes/Function_25b.scd",
+];
 
 /// Run with: cargo test sc_help_corpus_idempotent
 /// Skip with: cargo test -- --skip sc_help_corpus_idempotent

@@ -1,6 +1,9 @@
 // src/engine/layout.rs
 use crate::engine::IndentStyle;
 
+/// The widest a line may be for a rule to join something into it.
+pub const MAX_LINE_WIDTH: usize = 80;
+
 /// Info about a single line in the source.
 #[derive(Debug, Clone)]
 pub struct LineInfo<'a> {

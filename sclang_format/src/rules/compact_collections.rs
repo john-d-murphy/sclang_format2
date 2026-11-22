@@ -1,10 +1,9 @@
-use crate::engine::ast::descendants_of_kind;
+use crate::engine::ast::{contains_comment, descendants_of_kind};
+use crate::engine::layout::MAX_LINE_WIDTH;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const MAX_LINE_WIDTH: usize = 80;
 
 /// Check if a node is "literal-ish" (safe to compact).
 /// Based on AST node kinds from tree-sitter-supercollider.
@@ -48,21 +47,6 @@ fn is_multiline(node: Node) -> bool {
     let start_row = node.start_position().row;
     let end_row = node.end_position().row;
     start_row != end_row
-}
-
-/// Check if a collection contains any comments
-fn contains_comment(node: Node) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == "line_comment" || child.kind() == "block_comment" {
-            return true;
-        }
-        // Recurse into children
-        if contains_comment(child) {
-            return true;
-        }
-    }
-    false
 }
 
 /// Get the element nodes from a collection (skip punctuation)
@@ -188,10 +172,9 @@ impl Rule for CompactShortCollections {
             // Build the compacted form
             let mut parts = Vec::new();
             for elem in &elements {
-                let text = std::str::from_utf8(&src[elem.start_byte()..elem.end_byte()])
-                    .unwrap_or("")
-                    .trim();
-                parts.push(text.to_string());
+                // The element as it stands: its last byte may be the blank
+                // of the character `$ `.
+                parts.push(String::from_utf8_lossy(&src[elem.byte_range()]).to_string());
             }
 
             let inner_joined = parts.join(", ");
@@ -321,70 +304,29 @@ mod tests {
 
     // ========== Full compaction tests ==========
 
+    /// What the rule makes of `input`, when it changes it.
     fn run_compact(input: &str) -> Option<String> {
-        let tree = parse_source(input);
-        let root = tree.root_node();
-        let bytes = input.as_bytes();
+        let mut cx = Ctx::new(
+            input.to_string(),
+            &crate::grammar::language(),
+            crate::engine::IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        CompactShortCollections.run(&mut cx).unwrap();
+        let output = cx.to_string();
+        (output != input).then_some(output)
+    }
 
-        for collection in descendants_of_kind(root, "collection") {
-            // Check it's a [ ] array
-            if bytes.get(collection.start_byte()) != Some(&b'[') {
-                continue;
-            }
-
-            // Must be multiline
-            if !is_multiline(collection) {
-                continue;
-            }
-
-            // Skip if has trailing comma (user wants multiline)
-            if has_trailing_comma(collection) {
-                continue;
-            }
-
-            // Skip if contains comments
-            if contains_comment(collection) {
-                continue;
-            }
-
-            // Get elements
-            let elements = get_elements(collection);
-
-            // Need at least 2 elements
-            if elements.len() < 2 {
-                continue;
-            }
-
-            // All elements must be single-line
-            if elements.iter().any(|e| element_is_multiline(*e)) {
-                continue;
-            }
-
-            // All elements must be literal-ish
-            if !elements.iter().all(|e| is_literal_ish_node(*e)) {
-                continue;
-            }
-
-            // Build the compacted form
-            let mut parts = Vec::new();
-            for elem in &elements {
-                let text = std::str::from_utf8(&bytes[elem.start_byte()..elem.end_byte()])
-                    .unwrap_or("")
-                    .trim();
-                parts.push(text.to_string());
-            }
-
-            let replacement = format!("[{}]", parts.join(", "));
-
-            // Apply
-            let mut result = String::new();
-            result.push_str(&input[..collection.start_byte()]);
-            result.push_str(&replacement);
-            result.push_str(&input[collection.end_byte()..]);
-            return Some(result);
-        }
-
-        None
+    #[test]
+    fn compact_keeps_the_blank_of_the_space_character() {
+        assert_eq!(
+            run_compact("x = [1, 2,   $ \n];"),
+            Some("x = [1, 2, $ ];".to_string())
+        );
+        assert_eq!(
+            run_compact("x = [$\t,\n    $ ,\n    3\n];"),
+            Some("x = [$\t, $ , 3];".to_string())
+        );
     }
 
     #[test]

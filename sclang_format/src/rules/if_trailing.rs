@@ -3,13 +3,10 @@
 //! parts one over lines both need to know, read from the tree and said once.
 
 use crate::engine::Ctx;
-use crate::engine::layout::make_indent;
+use crate::engine::layout::{MAX_LINE_WIDTH, make_indent};
 use crate::engine::text::{is_newline, is_space};
 use crate::rules::ast_indent::line_depth;
 use tree_sitter::Node;
-
-/// The widest a line may be with an `if` written on it whole.
-const MAX_LINE_WIDTH: usize = 80;
 
 pub struct IfWithBlocks<'a> {
     /// Where the `if` begins.
@@ -48,17 +45,25 @@ impl<'a> IfWithBlocks<'a> {
         {
             return None;
         }
+        // What stands between two brackets, from its first token to its
+        // last, when it is all on one line. The tokens say where it begins
+        // and ends: its last byte may be the blank of the character `$ `,
+        // which is no space to trim.
         let on_one_line = |from: usize, to: usize| !bytes[from..to].iter().any(|&b| is_newline(b));
-        let text = |from: usize, to: usize| {
-            on_one_line(from, to)
-                .then(|| std::str::from_utf8(&bytes[from..to]).ok())
-                .flatten()
-                .map(str::trim)
+        let between = |open: Node, close: Node| -> Option<&'a str> {
+            if !on_one_line(open.end_byte(), close.start_byte()) {
+                return None;
+            }
+            let (first, last) = (open.next_sibling()?, close.prev_sibling()?);
+            if first.start_byte() >= close.start_byte() {
+                return Some("");
+            }
+            std::str::from_utf8(&bytes[first.start_byte()..last.end_byte()]).ok()
         };
         if !on_one_line(keyword.end_byte(), open.start_byte()) {
             return None;
         }
-        let body = |block: Node| text(block.start_byte() + 1, block.end_byte() - 1);
+        let body = |block: Node| between(block.child(0)?, block.child(block.child_count() - 1)?);
 
         let mut end = else_block.end_byte();
         while end < bytes.len() && is_space(bytes[end]) {
@@ -72,7 +77,7 @@ impl<'a> IfWithBlocks<'a> {
             } else {
                 else_block.end_byte()
             },
-            condition: text(open.end_byte(), close.start_byte())?,
+            condition: between(open, close)?,
             then_body: body(then_block)?,
             else_body: body(else_block)?,
             semicolon,

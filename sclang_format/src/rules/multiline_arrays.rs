@@ -1,12 +1,9 @@
 use crate::engine::ast::descendants_of_kind;
+use crate::engine::text::is_space;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_space_or_tab(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
 
 /// Ensure that multi-line array literals (`[ ... ]`) have exactly
 /// one element per line, but *only* for real collection literals,
@@ -23,10 +20,6 @@ impl Rule for MultiLineArrayElementsPerLine {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        if cx.tree.root_node().has_error() {
-            return Ok(0);
-        }
-
         let bytes = cx.bytes();
         let buf: &[u8] = bytes;
         let root = cx.tree.root_node();
@@ -66,83 +59,93 @@ fn one_element_per_line(buf: &[u8], bracket: Node, edits: &mut Vec<TextEdit>) {
         return;
     };
     let (open, close) = (bracket.start_byte(), end.start_byte());
+    let Some(array) = bracket.parent() else {
+        return;
+    };
 
     // Only bother with arrays that are already multi-line.
     if !buf[open + 1..close].contains(&b'\n') {
         return;
     }
 
-    let seg_lo = open + 1;
-    let seg_hi = close;
-    let seg = &buf[seg_lo..seg_hi];
-
-    let mut paren = 0i32;
-    let mut brace = 0i32;
-    let mut bracket = 0i32;
-
-    for (idx, &b) in seg.iter().enumerate() {
-        match b {
-            b'(' => paren += 1,
-            b')' => paren -= 1,
-            b'{' => brace += 1,
-            b'}' => brace -= 1,
-            b'[' => bracket += 1,
-            b']' => bracket -= 1,
-            b',' if paren == 0 && brace == 0 && bracket == 0 => {
-                let mut k = idx + 1;
-
-                // Skip spaces/tabs (but *not* newlines).
-                while k < seg.len() && is_space_or_tab(seg[k]) {
-                    k += 1;
-                }
-                if k >= seg.len() {
-                    continue;
-                }
-
-                // If the next thing is a newline, we already have an
-                // element-per-line layout.
-                if seg[k] == b'\n' {
-                    continue;
-                }
-
-                // If the next token starts a comment, we treat it as
-                // “same element with trailing comment”, also fine.
-                if seg[k] == b'/' && k + 1 < seg.len() {
-                    let c2 = seg[k + 1];
-                    if c2 == b'/' || c2 == b'*' {
-                        continue;
-                    }
-                }
-
-                // Otherwise, we have another element starting on the
-                // same line. Insert a newline + indent before it.
-                let insert_global = seg_lo + k;
-
-                // Compute indent from start of this line.
-                let mut line_start = insert_global;
-                while line_start > 0 && buf[line_start - 1] != b'\n' {
-                    line_start -= 1;
-                }
-                let mut indent_end = line_start;
-                while indent_end < insert_global && is_space_or_tab(buf[indent_end]) {
-                    indent_end += 1;
-                }
-
-                let indent = String::from_utf8_lossy(&buf[line_start..indent_end]).to_string();
-
-                let replacement = if indent.is_empty() {
-                    "\n".to_string()
-                } else {
-                    format!("\n{indent}")
-                };
-
-                edits.push(TextEdit {
-                    start_byte: insert_global,
-                    end_byte: insert_global,
-                    replacement,
-                });
-            }
-            _ => {}
+    // The array's own commas, from the tree: a comma in a character, a
+    // string or an element's own brackets is none of them.
+    let mut cursor = array.walk();
+    for comma in array.children(&mut cursor).filter(|n| n.kind() == ",") {
+        // What follows the comma: on a later line already, or a comment (it
+        // stays with the element before it), or the closing bracket.
+        let Some(next) = comma.next_sibling() else {
+            continue;
+        };
+        if next.start_position().row != comma.start_position().row
+            || matches!(next.kind(), "line_comment" | "block_comment" | "]")
+        {
+            continue;
         }
+
+        // Otherwise, we have another element starting on the same line.
+        // Insert a newline + this line's indent before it.
+        let at = next.start_byte();
+        let line_start = buf[..at]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(0, |i| i + 1);
+        let indent = buf[line_start..at]
+            .iter()
+            .take_while(|&&b| is_space(b))
+            .count();
+        let indent = String::from_utf8_lossy(&buf[line_start..line_start + indent]);
+        edits.push(TextEdit {
+            start_byte: at,
+            end_byte: at,
+            replacement: format!("\n{indent}"),
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        MultiLineArrayElementsPerLine.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_each_element_of_an_array_over_several_lines_gets_its_own() {
+        assert_eq!(
+            format("x = [\n    1, 2,\n    3\n];"),
+            "x = [\n    1, \n    2,\n    3\n];"
+        );
+        assert_eq!(format("x = [1, 2, 3];"), "x = [1, 2, 3];");
+    }
+
+    #[test]
+    fn test_a_comma_or_a_bracket_in_a_character_or_a_string_is_not_the_arrays() {
+        assert_eq!(
+            format("x = [\n    $,, 2,\n    3\n];"),
+            "x = [\n    $,, \n    2,\n    3\n];"
+        );
+        assert_eq!(
+            format("x = [\n    $(, 1, 2,\n    3\n];"),
+            "x = [\n    $(, \n    1, \n    2,\n    3\n];"
+        );
+        assert_eq!(
+            format("x = [\n    \"a, (b\", 2, $], 4,\n    3\n];"),
+            "x = [\n    \"a, (b\", \n    2, \n    $], \n    4,\n    3\n];"
+        );
+        assert_eq!(
+            format("x = [\n    f(1, 2), [3, 4], 5\n];"),
+            "x = [\n    f(1, 2), \n    [3, 4], \n    5\n];"
+        );
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
 
-use crate::engine::ast::in_string_or_comment;
+use crate::engine::ast::blanks_before;
 use crate::engine::{Ctx, TextEdit};
 
 pub struct BraceAndPipesSingleLine;
@@ -13,7 +13,7 @@ impl BraceAndPipesSingleLine {
 
     /// One space inside each brace of a block that stands on one line:
     /// `{a}` is `{ a }`.
-    fn space_block(src: &[u8], root: Node, blk: Node, edits: &mut Vec<TextEdit>) {
+    fn space_block(src: &[u8], blk: Node, edits: &mut Vec<TextEdit>) {
         let range = blk.byte_range();
         let open = range.start;
         let close = range.end - 1; // assuming '}' is last byte of the block
@@ -22,9 +22,6 @@ impl BraceAndPipesSingleLine {
             return;
         }
         if !Self::same_line(src, open, close) {
-            return;
-        }
-        if in_string_or_comment(root, open) {
             return;
         }
         if Ctx::subtree_has_error(blk) {
@@ -63,11 +60,11 @@ impl BraceAndPipesSingleLine {
         }
 
         // Before '}' -> exactly one space (unless previous is '{', then "{ }" still okay)
-        let mut before_r = close;
-        while before_r > 0 && src[before_r - 1].is_ascii_whitespace() && src[before_r - 1] != b'\n'
-        {
-            before_r -= 1;
-        }
+        // As far back as the token before the brace: the second byte of a
+        // character (`$ `, a `$` and a tab) is no space.
+        let before_r = blk
+            .child(blk.child_count() - 1)
+            .map_or(close, |brace| blanks_before(src, brace));
         if before_r == close {
             edits.push(TextEdit {
                 start_byte: before_r,
@@ -103,7 +100,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
         let mut caps = cur.captures(&q, root, src);
 
         while let Some((m, idx)) = caps.next() {
-            Self::space_block(src, root, m.captures[*idx].node, &mut edits);
+            Self::space_block(src, m.captures[*idx].node, &mut edits);
         }
 
         let n = edits.len();
@@ -130,6 +127,14 @@ mod tests {
         .unwrap();
         BraceAndPipesSingleLine.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_the_tab_or_blank_of_a_character_before_the_closing_brace_is_kept() {
+        assert_eq!(format("x = { $\t };"), "x = { $\t };");
+        assert_eq!(format("x = { |a| $\t  };"), "x = { |a| $\t };");
+        assert_eq!(format("x = { $ };"), "x = { $  };");
+        assert_eq!(format("x = { $\t};"), "x = { $\t };");
     }
 
     #[test]

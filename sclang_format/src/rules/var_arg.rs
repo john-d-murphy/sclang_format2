@@ -1,48 +1,14 @@
 // src/rules/var_arg.rs
-
-use crate::engine::text::{is_escaped, is_newline, is_space};
+use crate::engine::ast::tokens_of_kinds;
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-const fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-}
-
-fn is_keyword_start(bytes: &[u8], i: usize, kw: &[u8]) -> bool {
-    let len = bytes.len();
-    let klen = kw.len();
-    if i + klen > len {
-        return false;
-    }
-    if &bytes[i..i + klen] != kw {
-        return false;
-    }
-
-    // preceding boundary: start-of-file or non-identifier
-    if i > 0 {
-        let prev = bytes[i - 1];
-        if is_ident_char(prev) {
-            return false;
-        }
-    }
-
-    // following boundary: end-of-file or non-identifier
-    if i + klen < len {
-        let next = bytes[i + klen];
-        if is_ident_char(next) {
-            return false;
-        }
-    }
-
-    true
-}
-
 /// Ensure exactly one ASCII space after a keyword (`var` or `arg`),
 /// unless the next non-space is a newline/EOF.
-fn fix_after_keyword(bytes: &[u8], start: usize, kw_len: usize, edits: &mut Vec<TextEdit>) {
+fn fix_after_keyword(bytes: &[u8], l: usize, edits: &mut Vec<TextEdit>) {
     let len = bytes.len();
-    let l = start + kw_len;
     if l >= len {
         return;
     }
@@ -73,6 +39,7 @@ fn fix_after_keyword(bytes: &[u8], start: usize, kw_len: usize, edits: &mut Vec<
     }
 }
 
+/// One space after `var` and after `arg`.
 pub struct VarAndArgSpacing;
 
 impl Rule for VarAndArgSpacing {
@@ -81,96 +48,10 @@ impl Rule for VarAndArgSpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = src;
-        let len = bytes.len();
-
+        let bytes = cx.bytes();
         let mut edits = Vec::new();
-
-        // tiny lexer just to skip comments/strings
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
-
-        let mut i = 0usize;
-        while i < len {
-            let b = bytes[i];
-
-            // inside comments/strings
-            if in_line_comment {
-                if b == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_block_comment {
-                if b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
-            }
-
-            if in_single_str {
-                if b == b'\'' && !is_escaped(bytes, i) {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_double_str {
-                if b == b'"' && !is_escaped(bytes, i) {
-                    in_double_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            // entering comments/strings
-            if b == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if b == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-
-            if b == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // actual rule: `var` / `arg` keywords
-            if is_keyword_start(bytes, i, b"var") {
-                fix_after_keyword(bytes, i, 3, &mut edits);
-                i += 3;
-                continue;
-            }
-
-            if is_keyword_start(bytes, i, b"arg") {
-                fix_after_keyword(bytes, i, 3, &mut edits);
-                i += 3;
-                continue;
-            }
-
-            i += 1;
+        for keyword in tokens_of_kinds(cx.tree.root_node(), &["var", "arg"]) {
+            fix_after_keyword(bytes, keyword.end_byte(), &mut edits);
         }
 
         let n = edits.len();
@@ -178,5 +59,37 @@ impl Rule for VarAndArgSpacing {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        VarAndArgSpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    /// A rule that counts quotes or brackets is lost after a character that
+    /// is one. The tokens of the tree are what they are wherever they stand.
+    #[test]
+    fn test_a_quote_or_bracket_character_before_it_hides_nothing() {
+        assert_eq!(
+            format("x = $\"; f = { var  c, d; c };"),
+            "x = $\"; f = { var c, d; c };"
+        );
+        assert_eq!(
+            format("x = $'; f = { arg  c; c };"),
+            "x = $'; f = { arg c; c };"
+        );
     }
 }

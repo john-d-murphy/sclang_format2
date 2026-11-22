@@ -2,6 +2,7 @@ use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
+use tree_sitter::Node;
 
 const fn is_line_comment(line: &[u8]) -> bool {
     let mut i = 0;
@@ -13,7 +14,11 @@ const fn is_line_comment(line: &[u8]) -> bool {
 
 /// Only allow K&R brace attach on lines that look like "x =" or "if (...)"
 /// and *do not* already contain a '{' or '}' or already have K&R-style attachment.
-fn line_can_take_brace(line: &[u8]) -> bool {
+///
+/// The character the line ends with must be that token: `=`, `)` or `]` as
+/// the last character of a comment, a string or a character (`$=`) is not a
+/// place for a brace. `line` begins at byte `start` of the text.
+fn line_can_take_brace(root: Node, line: &[u8], start: usize) -> bool {
     if is_line_comment(line) {
         return false;
     }
@@ -27,8 +32,9 @@ fn line_can_take_brace(line: &[u8]) -> bool {
     if end == 0 {
         return false;
     }
-    let last = line[end - 1];
-    matches!(last, b'=' | b')' | b']' | b'}')
+    let last = start + end - 1;
+    root.descendant_for_byte_range(last, last + 1)
+        .is_some_and(|token| matches!(token.kind(), "=" | ")" | "]" | "}"))
 }
 
 fn line_slice(bytes: &[u8], start: usize, len: usize) -> (usize, &[u8]) {
@@ -66,6 +72,7 @@ impl BlockLayoutKAndR {
     /// Pass 1: attach open braces to headers: `if (...) \n {` -> `if (...) {`
     fn attach_open_braces(cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
+        let root = cx.tree.root_node();
         let len = bytes.len();
         let mut edits = Vec::<TextEdit>::new();
 
@@ -89,7 +96,7 @@ impl BlockLayoutKAndR {
             }
             let line = &bytes[start..line_end];
 
-            if !line_can_take_brace(line) {
+            if !line_can_take_brace(root, line, start) {
                 continue;
             }
 
@@ -232,5 +239,45 @@ impl Rule for BlockLayoutKAndR {
         let n1 = Self::attach_open_braces(cx)?;
         let n2 = Self::join_chained_blocks(cx)?;
         Ok(n1 + n2)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        BlockLayoutKAndR.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_brace_on_its_own_line_joins_the_line_before() {
+        assert_eq!(format("f =\n{\n    1\n};"), "f = {\n    1\n};");
+        assert_eq!(
+            format("if (a)\n{\n    1\n}\n{\n    2\n};"),
+            "if (a) {\n    1\n} {\n    2\n};"
+        );
+    }
+
+    #[test]
+    fn test_a_brace_does_not_join_a_comment_or_a_character() {
+        // The line ends with `)`, `=` or `]`, but as the last character of a
+        // comment or of a character: joined, the brace would be in the
+        // comment, or would follow a value with nothing between.
+        for src in [
+            "a.value; // call it (now)\n{\n    1\n}.value;",
+            "a.value; /* x = */\n{\n    1\n}.value;",
+        ] {
+            assert_eq!(format(src), src);
+        }
     }
 }

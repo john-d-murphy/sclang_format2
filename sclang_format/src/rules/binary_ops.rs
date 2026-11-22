@@ -1,5 +1,6 @@
 // src/rules/binary_ops.rs
 
+use crate::engine::ast::blanks_before;
 use crate::engine::text::is_newline;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -69,15 +70,15 @@ fn process_variable_definition(node: Node, src: &[u8], edits: &mut Vec<TextEdit>
         return;
     };
 
-    let name_end = name_node.end_byte();
-    let value_start = value_node.start_byte();
-
-    // Find the = in between
-    for i in name_end..value_start {
-        if src[i] == b'=' {
-            fix_operator_spacing(src, i, i + 1, edits);
-            break;
-        }
+    // The = between them: the token, not a `=` byte that a comment may hold.
+    let mut cursor = node.walk();
+    let equals = node.children(&mut cursor).find(|child| {
+        child.kind() == "="
+            && child.start_byte() >= name_node.end_byte()
+            && child.end_byte() <= value_node.start_byte()
+    });
+    if let Some(equals) = equals {
+        fix_operator_spacing(src, equals, equals.end_byte(), edits);
     }
 }
 
@@ -123,7 +124,7 @@ fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) 
     }
 
     // Now fix spacing around the operator
-    fix_operator_spacing(src, op_start, op_end, edits);
+    fix_operator_spacing(src, op_node, op_end, edits);
 }
 
 /// Check if this node is inside a `class_def`
@@ -144,21 +145,23 @@ fn process_duplicated_statement(node: Node, src: &[u8], edits: &mut Vec<TextEdit
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "!" {
-            fix_operator_spacing(src, child.start_byte(), child.end_byte(), edits);
+            fix_operator_spacing(src, child, child.end_byte(), edits);
             break;
         }
     }
 }
 
 /// Normalize spaces around an operator: exactly one space before and after.
-fn fix_operator_spacing(bytes: &[u8], op_start: usize, op_end: usize, edits: &mut Vec<TextEdit>) {
+/// `op` is the operator's token and `op_end` where it ends, its adverb
+/// included.
+fn fix_operator_spacing(bytes: &[u8], op: Node, op_end: usize, edits: &mut Vec<TextEdit>) {
     let len = bytes.len();
+    let op_start = op.start_byte();
 
     // ----- left side -----
-    let mut l = op_start;
-    while l > 0 && bytes[l - 1].is_ascii_whitespace() && !is_newline(bytes[l - 1]) {
-        l -= 1;
-    }
+    // The blanks before it, no further back than the token before: the
+    // second byte of a character (`$ `, a `$` and a tab) is no space.
+    let l = blanks_before(bytes, op);
     if l == op_start {
         // No space before op - insert one
         edits.push(TextEdit {
@@ -219,7 +222,21 @@ mod tests {
     fn test_keeps_an_adverb_with_its_operator() {
         assert_eq!(format("a +.t b"), "a +.t b");
         assert_eq!(format("a+.t b"), "a +.t b");
-        assert_eq!(format("a+.2b"), "a +.2 b");
+        assert_eq!(format("a+.2 b"), "a +.2 b");
+    }
+
+    /// A character is the dollar sign and whatever follows it: a tab too.
+    #[test]
+    fn test_the_tab_or_blank_of_a_character_before_an_operator_is_kept() {
+        assert_eq!(format("x = $\t + 1;"), "x = $\t + 1;");
+        assert_eq!(format("x = $\t  ! 2;"), "x = $\t ! 2;");
+        assert_eq!(format("x = $ + 1;"), "x = $  + 1;");
+        assert_eq!(format("x = $\t+ 1;"), "x = $\t + 1;");
+    }
+
+    #[test]
+    fn test_an_equals_sign_in_a_comment_is_not_the_assignment() {
+        assert_eq!(format("x /* = */=1;"), "x /* = */ = 1;");
     }
 
     #[test]

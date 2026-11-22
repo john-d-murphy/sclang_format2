@@ -171,22 +171,40 @@ impl ArgToPipeParams {
 
         // 3. Process each argument and build the pipe parameter string
         let mut params = Vec::new();
+        // The rest argument (`... name`) follows the others after a space, not a comma.
+        let mut rest = String::new();
         let mut cursor = param_list.walk();
 
         for child in param_list.children(&mut cursor) {
-            if child.kind() == "argument" {
-                let param_str = self.process_argument(child, cx);
-                if !param_str.is_empty() {
-                    params.push(param_str);
+            match child.kind() {
+                // The whole list is deleted below, and a comment in it would go
+                // with it: leave such a list as it is.
+                "line_comment" | "block_comment" => return,
+                "argument" => {
+                    let param_str = self.process_argument(child, cx);
+                    if param_str.is_empty() {
+                        continue;
+                    }
+                    if child.child(0).is_some_and(|n| n.kind() == "...") {
+                        rest = format!("... {param_str}");
+                    } else {
+                        params.push(param_str);
+                    }
                 }
+                _ => {}
             }
         }
 
-        if params.is_empty() {
+        let mut params_str = params.join(", ");
+        if !rest.is_empty() {
+            if !params_str.is_empty() {
+                params_str.push(' ');
+            }
+            params_str.push_str(&rest);
+        }
+        if params_str.is_empty() {
             return;
         }
-
-        let params_str = params.join(", ");
 
         // 4. Safety check for strings (still want to avoid these)
         if params_str.contains('"') || params_str.contains('\'') {
@@ -248,5 +266,37 @@ impl ArgToPipeParams {
             end_byte: end_byte,
             replacement: String::new(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        ArgToPipeParams.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_rest_argument_keeps_its_dots() {
+        assert!(format("f = { arg a, b = 1 ... rest; a };").contains("{ |a, b = 1 ... rest|"));
+        assert!(format("g = { arg ...all; all };").contains("{ |... all|"));
+    }
+
+    #[test]
+    fn test_an_arg_list_with_a_comment_in_it_is_left_alone() {
+        let src = "f = {\n    arg freq = 440, // the pitch\n        amp = 0.1;\n    freq * amp\n};";
+        assert_eq!(format(src), src);
+        let src = "f = { arg freq /* Hz */, amp; freq * amp };";
+        assert_eq!(format(src), src);
     }
 }

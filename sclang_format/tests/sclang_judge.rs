@@ -7,19 +7,19 @@
 //! - `formatting_keeps_meaning` runs with plain `cargo test`: every corpus
 //!   file sclang accepts must, once formatted, be accepted again and compile
 //!   to the same thing.
-//! - `corpus_design` lists rather than checks, and needs python3 and the
-//!   SuperCollider help sources as well, so it runs only when asked for:
+//! - `corpus_design` needs python3 and the SuperCollider help sources as
+//!   well, so it runs only when asked for:
 //!
 //!       cargo test --test sclang_judge -- --ignored --nocapture
 //!
 //!   It cuts every form from the help with `extract_help_from_docs.py
-//!   --candidates`, and writes under
-//!   `target/judge/` the corpus files sclang refuses as syntax errors and the
-//!   valid forms the corpus does not have.
+//!   --candidates`, has sclang judge them, and requires `tests/sc_help` to be
+//!   exactly the forms sclang accepts, less those with characters outside
+//!   ASCII in their code: the same files, the same text. What differs is
+//!   listed under `target/judge/design/`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::panic::catch_unwind;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -400,57 +400,81 @@ fn formatting_keeps_meaning() {
     );
 }
 
-/// What must survive formatting, counted. A copy of `essence` in
-/// tests/keeps_tokens.rs, which tests/common does not yet offer.
-fn essence(src: &str) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    let mut word = String::new();
-    for c in src.chars().chain(std::iter::once(' ')) {
-        if c.is_alphanumeric() || c == '_' {
-            word.push(c);
-            continue;
-        }
-        if !word.is_empty() && word != "arg" {
-            *counts.entry(std::mem::take(&mut word)).or_insert(0) += 1;
-        }
-        word.clear();
-        if !c.is_whitespace() && !"(),;|".contains(c) {
-            *counts.entry(c.to_string()).or_insert(0) += 1;
+/// Whether `text` holds a character outside ASCII anywhere but in a string,
+/// a quoted symbol or a comment. sclang's lexer skips such bytes, so it
+/// accepts prose in Japanese or `z = ±1`; the corpus leaves those forms out.
+/// The same reading as `non_ascii_in_code` in extract_help_from_docs.py.
+fn non_ascii_in_code(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let at = |i: usize, s: &str| s.chars().enumerate().all(|(k, c)| chars.get(i + k) == Some(&c));
+    let (mut i, n) = (0, chars.len());
+    while i < n {
+        if at(i, "//") {
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+        } else if at(i, "/*") {
+            // Block comments nest in SuperCollider.
+            let mut depth = 1;
+            i += 2;
+            while i < n && depth > 0 {
+                if at(i, "/*") {
+                    depth += 1;
+                    i += 2;
+                } else if at(i, "*/") {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        } else if chars[i] == '"' || chars[i] == '\'' {
+            let quote = chars[i];
+            i += 1;
+            while i < n && chars[i] != quote {
+                i += if chars[i] == '\\' { 2 } else { 1 };
+            }
+            i += 1;
+        } else if !chars[i].is_ascii() {
+            return true;
+        } else if chars[i] == '$' {
+            // A character literal: `$"` opens no string, and `$é` is code.
+            i += if at(i, "$\\") { 2 } else { 1 };
+            if i < n && !chars[i].is_ascii() {
+                return true;
+            }
+            i += 1;
+        } else {
+            i += 1;
         }
     }
-    counts
-}
-
-/// Whether the formatter can format `text` today: it parses, a second pass
-/// changes nothing, and every token is kept.
-fn formatter_status(text: &str) -> &'static str {
-    let format = |s: &str| catch_unwind(|| sclang_format::format_source(s, "all"));
-    match format(text) {
-        Err(_) => "formatter panics",
-        Ok(Err(_)) => "formatter refuses",
-        Ok(Ok(once)) => match format(&once) {
-            Err(_) | Ok(Err(_)) => "second pass fails",
-            Ok(Ok(twice)) if twice != once => "not idempotent",
-            Ok(Ok(_)) if essence(text) != essence(&once) => "loses tokens",
-            Ok(Ok(_)) => "formats",
-        },
-    }
-}
-
-/// A form's text with the extraction header and every blank dropped, so that
-/// a form is found in the corpus whatever its file is called there and however
-/// it is spaced: the help has been respaced since the corpus was cut from it
-/// (`|x=0|` is now `|x = 0|`), and the corpus mended by hand.
-fn form_text(text: &str) -> String {
-    let body = match text.split_once('\n') {
-        Some((first, rest)) if first.starts_with("// Source:") => rest,
-        _ => text,
-    };
-    body.split_whitespace().collect()
+    false
 }
 
 #[test]
-#[ignore = "lists what the corpus should become; needs sclang, python3 and the help sources"]
+fn non_ascii_counts_only_in_code() {
+    for text in ["\"π\";", "'é';", "x; // ± 1", "/* /* 日本 */ é */ 1", "$\"; \"é\""] {
+        assert!(!non_ascii_in_code(text), "{text}");
+    }
+    for text in ["z = ±1", "これは", "x = 1\u{a0}+ 2", "$é", "$\\é", "\"a\" ++ é"] {
+        assert!(non_ascii_in_code(text), "{text}");
+    }
+}
+
+/// Every .scd file under `dir`, by path relative to it, with its text.
+fn texts(dir: &Path) -> BTreeMap<PathBuf, String> {
+    glob::glob(&format!("{}/**/*.scd", dir.display()))
+        .unwrap()
+        .map(|entry| {
+            let path = entry.unwrap();
+            let text = fs::read_to_string(&path).unwrap();
+            (path.strip_prefix(dir).unwrap().to_path_buf(), text)
+        })
+        .collect()
+}
+
+#[test]
+#[ignore = "checks the corpus against the help; needs sclang, python3 and the help sources"]
 fn corpus_design() {
     if !sclang_installed() {
         eprintln!("Skipping corpus_design: sclang is not installed");
@@ -480,71 +504,52 @@ fn corpus_design() {
     };
     eprint!("{}", String::from_utf8_lossy(&cut.stdout));
 
-    let corpus = root.join("tests/sc_help");
-    let candidate_verdicts = judge(&candidates, &fresh_dir(&work.join("judge-candidates")));
-    let corpus_verdicts = judge(&corpus, &fresh_dir(&work.join("judge-corpus")));
-
-    // In the corpus, refused by sclang as a syntax error.
-    let not_code: String = corpus_verdicts
+    // What the corpus should be: every form sclang accepts, less those with
+    // characters outside ASCII in their code.
+    let verdicts = judge(&candidates, &fresh_dir(&work.join("judge")));
+    let mut candidate_texts = texts(&candidates);
+    let mut non_ascii = 0;
+    let expected: BTreeMap<PathBuf, String> = verdicts
         .iter()
-        .filter_map(|(path, verdict)| match verdict {
-            Verdict::Refused {
-                reason: Reason::SyntaxError,
-                error,
-            } => Some(format!("tests/sc_help/{}\t{error}\n", path.display())),
-            _ => None,
-        })
-        .collect();
-    fs::write(work.join("corpus-syntax-errors.txt"), &not_code).unwrap();
-
-    // Accepted by sclang, not in the corpus, with what the formatter makes of it.
-    let in_corpus: BTreeSet<String> = corpus_verdicts
-        .keys()
-        .map(|path| form_text(&fs::read_to_string(corpus.join(path)).unwrap()))
-        .collect();
-    let not_in_corpus: Vec<(&PathBuf, String, &Vec<String>)> = candidate_verdicts
-        .iter()
-        .filter_map(|(path, verdict)| match verdict {
-            Verdict::Accepted { declared, .. } => {
-                let text = fs::read_to_string(candidates.join(path)).unwrap();
-                (!in_corpus.contains(&form_text(&text))).then_some((path, text, declared))
-            }
-            Verdict::Refused { .. } => None,
-        })
-        .collect();
-    let mut statuses: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut missing: Vec<String> = not_in_corpus
-        .iter()
-        .zip(par_map(&not_in_corpus, |(_, text, _)| {
-            formatter_status(text)
-        }))
-        .map(|((path, _, declared), status)| {
-            *statuses.entry(status).or_default() += 1;
-            let route = if declared.is_empty() {
-                "as it stands".to_string()
+        .filter(|(_, verdict)| matches!(verdict, Verdict::Accepted { .. }))
+        .filter_map(|(path, _)| {
+            let text = candidate_texts.remove(path).unwrap();
+            let body = text.split_once('\n').map_or("", |(_, body)| body);
+            if non_ascii_in_code(body) {
+                non_ascii += 1;
+                None
             } else {
-                format!("with var {}", declared.join(", "))
-            };
-            format!("{status}\t{}\t{route}\n", path.display())
+                Some((path.clone(), text))
+            }
         })
         .collect();
-    missing.sort();
-    fs::write(work.join("valid-not-in-corpus.txt"), missing.concat()).unwrap();
+    let corpus = texts(&root.join("tests/sc_help"));
+
+    let missing: String = expected
+        .iter()
+        .filter(|(path, text)| corpus.get(*path) != Some(text))
+        .map(|(path, _)| format!("{}\n", path.display()))
+        .collect();
+    let extra: String = corpus
+        .iter()
+        .filter(|(path, text)| expected.get(*path) != Some(text))
+        .map(|(path, _)| format!("{}\n", path.display()))
+        .collect();
+    fs::write(work.join("missing-from-corpus.txt"), &missing).unwrap();
+    fs::write(work.join("not-to-be-in-corpus.txt"), &extra).unwrap();
 
     eprintln!("\n=== The corpus, by sclang ===");
-    eprintln!("Candidates: {}", tally(&candidate_verdicts));
-    eprintln!("Corpus: {}", tally(&corpus_verdicts));
-    eprintln!(
-        "In the corpus, refused as a syntax error: {} ({})",
-        not_code.lines().count(),
-        work.join("corpus-syntax-errors.txt").display()
+    eprintln!("Candidates: {}", tally(&verdicts));
+    eprintln!("Accepted, but with characters outside ASCII in code: {non_ascii}");
+    eprintln!("Corpus: {} files, {} expected", corpus.len(), expected.len());
+    assert!(
+        missing.is_empty() && extra.is_empty(),
+        "tests/sc_help is not what sclang makes of the help: {} accepted forms are \
+         missing or differ ({}), {} files should not be there or differ ({}). \
+         Regenerate it with `python3 extract_help_from_docs.py`.",
+        missing.lines().count(),
+        work.join("missing-from-corpus.txt").display(),
+        extra.lines().count(),
+        work.join("not-to-be-in-corpus.txt").display(),
     );
-    eprintln!(
-        "Accepted by sclang, not in the corpus: {} ({})",
-        missing.len(),
-        work.join("valid-not-in-corpus.txt").display()
-    );
-    for (status, n) in &statuses {
-        eprintln!("  {status}: {n}");
-    }
 }

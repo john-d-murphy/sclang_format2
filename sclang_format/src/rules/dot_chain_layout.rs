@@ -1,12 +1,11 @@
+use crate::engine::ast::descendants_of_kind;
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use crate::engine::text::{is_space, is_newline};
 
-const fn is_ident_start(byte: u8) -> bool {
-    byte.is_ascii_lowercase() || byte.is_ascii_uppercase() || byte == b'_' || byte == b'\\'
-}
-
+/// A dot that ends a line moves to the start of the next, before the name
+/// it sends: `foo.` and `bar` on two lines are `foo` and `.bar`.
 pub struct DotChainLayout;
 
 impl Rule for DotChainLayout {
@@ -16,155 +15,49 @@ impl Rule for DotChainLayout {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
-        let len = bytes.len();
+        let root = cx.tree.root_node();
         let mut edits = Vec::new();
 
-        // very simple comment/string tracking
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
-
-        let mut i = 0usize;
-        while i < len {
-            let byte = bytes[i];
-
-            // handle being inside comment/string
-            if in_line_comment {
-                if byte == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
+        let calls = descendants_of_kind(root, "method_call")
+            .chain(descendants_of_kind(root, "instance_variable_setter_call"));
+        for call in calls {
+            // The dot, and the name straight after it.
+            let (Some(dot), Some(name)) = (call.child(0), call.child(1)) else {
+                continue;
+            };
+            let at = dot.start_byte();
+            // A dot straight after a digit is left where it is (`1.` and
+            // `neg` on two lines), as it always was.
+            if dot.kind() != "." || (at > 0 && bytes[at - 1].is_ascii_digit()) {
                 continue;
             }
-            if in_block_comment {
-                if byte == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
+            // A dot that begins its line is where it should be.
+            let before = bytes[..at].iter().rposition(|&b| !is_space(b));
+            if before.is_none_or(|i| is_newline(bytes[i])) {
                 continue;
             }
-            if in_single_str {
-                if byte == b'\'' {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-            if in_double_str {
-                if byte == b'"' {
-                    in_double_str = false;
-                }
-                i += 1;
+            // Between the dot and the name: blanks, one line break, blanks.
+            let gap = &bytes[dot.end_byte()..name.start_byte()];
+            let blanks = gap.iter().take_while(|&&b| is_space(b)).count();
+            let line_break = match &gap[blanks..] {
+                [b'\r', b'\n', ..] => 2,
+                [b'\r' | b'\n', ..] => 1,
+                _ => continue,
+            };
+            if !gap[blanks + line_break..].iter().all(|&b| is_space(b)) {
                 continue;
             }
 
-            // entering comment / string
-            if byte == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-            if byte == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-            if byte == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // main dot logic
-            if byte == b'.' {
-                let dot_idx = i;
-
-                // don't touch decimal numbers like 1.5
-                if dot_idx > 0 && bytes[dot_idx - 1].is_ascii_digit() {
-                    i += 1;
-                    continue;
-                }
-
-                // Check if dot is already at line start (after indent).
-                // If so, it's already in good style—skip it.
-                {
-                    let mut check_idx = dot_idx;
-                    while check_idx > 0 && is_space(bytes[check_idx - 1]) {
-                        check_idx -= 1;
-                    }
-                    if check_idx == 0
-                        || bytes[check_idx - 1] == b'\n'
-                        || bytes[check_idx - 1] == b'\r'
-                    {
-                        // dot is at start of line (after indent), already good
-                        i += 1;
-                        continue;
-                    }
-                }
-
-                // look ahead: dots we care about are ". [spaces]* <newline>"
-                let mut j = dot_idx + 1;
-                while j < len && is_space(bytes[j]) {
-                    j += 1;
-                }
-
-                if j < len && is_newline(bytes[j]) {
-                    // we have ". [ws]* <newline>"
-                    let mut line_break_end = j + 1;
-                    // handle CRLF
-                    if bytes[j] == b'\r' && line_break_end < len && bytes[line_break_end] == b'\n' {
-                        line_break_end += 1;
-                    }
-
-                    // find first non-WS on next line
-                    let mut k = line_break_end;
-                    while k < len && is_space(bytes[k]) {
-                        k += 1;
-                    }
-
-                    if k < len {
-                        let c = bytes[k];
-
-                        // if the next line already starts with '.', it's already in good style
-                        if c == b'.' {
-                            i += 1;
-                            continue;
-                        }
-
-                        // only move the dot if next token looks like an identifier/symbol
-                        if is_ident_start(c) {
-                            // 1) remove '.' and any spaces after it up to the newline
-                            edits.push(TextEdit {
-                                start_byte: dot_idx,
-                                end_byte: j,
-                                replacement: String::new(),
-                            });
-
-                            // 2) insert '.' before the identifier on the next line
-                            edits.push(TextEdit {
-                                start_byte: k,
-                                end_byte: k,
-                                replacement: ".".to_string(),
-                            });
-
-                            // we've handled this pair of lines; skip past the insertion
-                            i = k + 1;
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            i += 1;
+            edits.push(TextEdit {
+                start_byte: at,
+                end_byte: dot.end_byte() + blanks,
+                replacement: String::new(),
+            });
+            edits.push(TextEdit {
+                start_byte: name.start_byte(),
+                end_byte: name.start_byte(),
+                replacement: ".".to_string(),
+            });
         }
 
         let n = edits.len();
@@ -172,5 +65,49 @@ impl Rule for DotChainLayout {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        DotChainLayout.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_dot_that_ends_a_line_begins_the_next() {
+        assert_eq!(format("a.\n    b.  \n    c(1);"), "a\n    .b\n    .c(1);");
+        assert_eq!(format("a.\r\n    b;"), "a\r\n    .b;");
+    }
+
+    #[test]
+    fn test_other_dots_stay() {
+        for src in [
+            "a\n    .b\n    .c;",
+            "a.b.c;",
+            "x = 1.5;\ny = (1..\n    3);",
+            "a. // why\n    b;",
+            "a.\n\n    b;",
+            "x = \"a.\n    b\";",
+            "x = $\"; a.b; y = $\";",
+        ] {
+            assert_eq!(format(src), src);
+        }
+    }
+
+    #[test]
+    fn test_a_quote_character_before_it_does_not_hide_a_dot() {
+        assert_eq!(format("x = $\";\na.\n    b;"), "x = $\";\na\n    .b;");
     }
 }

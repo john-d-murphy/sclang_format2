@@ -155,13 +155,13 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
                 }
                 Err(e) => {
                     eprintln!("Triggered by Rule: {}", r.name());
-                    return Err(e);
+                    return Err(e.context(format!("rule {}", r.name())));
                 }
             }
         } else {
             if let Err(e) = r.run(cx) {
                 eprintln!("Triggered by Rule: {}", r.name());
-                return Err(e);
+                return Err(e.context(format!("rule {}", r.name())));
             }
         }
     }

@@ -55,6 +55,18 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
             {
                 after_l += 1;
             }
+            if after_l == close {
+                // An empty block: the space after '{' and the space before '}'
+                // are the same gap, so it gets one edit, not the two below.
+                if close != open + 2 {
+                    edits.push(TextEdit {
+                        start_byte: open + 1,
+                        end_byte: close,
+                        replacement: " ".into(),
+                    });
+                }
+                continue;
+            }
             if after_l == open + 1 {
                 edits.push(TextEdit {
                     start_byte: after_l,
@@ -154,5 +166,32 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+    use crate::rules::Rule;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        BraceAndPipesSingleLine.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_an_empty_block_gets_one_space_however_it_came() {
+        assert_eq!(format("x = {};"), "x = { };");
+        assert_eq!(format("x = { };"), "x = { };");
+        assert_eq!(format("x = {  };"), "x = { };");
+        assert_eq!(format("foo(bar, {});"), "foo(bar, { });");
     }
 }

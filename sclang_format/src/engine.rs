@@ -181,6 +181,18 @@ impl Ctx {
         }
 
         edits.sort_by_key(|e| e.start_byte);
+        // Two edits over the same bytes would each be applied to text the other
+        // has already changed. Refuse them, rather than write whatever results.
+        if let Some(pair) = edits.windows(2).find(|w| w[0].end_byte > w[1].start_byte) {
+            return Err(anyhow!(
+                "rule {} made overlapping edits at bytes {}..{} and {}..{}",
+                self.current_rule_name.unwrap_or("unknown"),
+                pair[0].start_byte,
+                pair[0].end_byte,
+                pair[1].start_byte,
+                pair[1].end_byte
+            ));
+        }
         for e in edits.into_iter().rev() {
             let start_char = self.rope.byte_to_char(e.start_byte);
             let end_char = self.rope.byte_to_char(e.end_byte);

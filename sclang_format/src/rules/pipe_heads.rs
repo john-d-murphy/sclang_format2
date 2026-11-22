@@ -1,4 +1,5 @@
 // src/rules/pipe_heads.rs
+use crate::engine::ast::end_of_token_before;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -171,10 +172,12 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
         });
     }
 
-    // 3) Remove spaces immediately before right pipe
+    // 3) Remove spaces immediately before right pipe, as far back as the
+    //    token before it: the blank of the character `$ ` is that token's.
     let inner_end = right.start_byte();
+    let token_end = end_of_token_before(right).max(left.end_byte());
     let mut space_start = inner_end;
-    while space_start > left.end_byte()
+    while space_start > token_end
         && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
     {
         space_start -= 1;
@@ -186,5 +189,34 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
             end_byte: inner_end,
             replacement: String::new(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeHeadSpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_no_blanks_inside_the_pipes() {
+        assert_eq!(format("f = {| a, b |a };"), "f = { |a, b|a };");
+    }
+
+    #[test]
+    fn test_the_character_space_before_the_closing_pipe_is_kept() {
+        assert_eq!(format("f = { |c = $ | c };"), "f = { |c = $ | c };");
+        assert_eq!(format("f = { |c = $   | c };"), "f = { |c = $ | c };");
     }
 }

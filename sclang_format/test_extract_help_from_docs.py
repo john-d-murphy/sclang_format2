@@ -38,9 +38,18 @@ class ExtractForms(unittest.TestCase):
             ["{ 1 }.value;", '"a".postln', "Synth(\\a)", '"b".postln'],
         )
         self.assertEqual(
-            extract_forms("{ 1 }.play\n\n{ 2 }.play // two\nx = 5\ny = x +\n6\n-1"),
-            ["{ 1 }.play", "{ 2 }.play // two", "x = 5", "y = x +\n6\n-1"],
+            extract_forms("{ 1 }.play\n\n{ 2 }.play // two\nx = 5\ny = x +\n6\n* 2"),
+            ["{ 1 }.play", "{ 2 }.play // two", "x = 5", "y = x +\n6\n* 2"],
         )
+
+    def test_a_negative_literal_starts_a_new_statement(self):
+        self.assertEqual(extract_forms("0xa    // 10\n-0xd   // -13"), ["0xa    // 10", "-0xd   // -13"])
+        self.assertEqual(extract_forms("inf\n-inf"), ["inf", "-inf"])
+        self.assertEqual(extract_forms("x = 5 -\n-1"), ["x = 5 -\n-1"])
+        self.assertEqual(extract_forms("y = x\n- 1"), ["y = x\n- 1"])
+
+    def test_a_stray_closing_bracket_does_not_swallow_the_next_form(self):
+        self.assertEqual(extract_forms("x = 1;\n)\n\n(\n2\n)"), ["x = 1;", ")", "(\n2\n)"])
 
     def test_a_character_literal_is_not_a_bracket_or_a_quote(self):
         form = "s.sendMsg(\\s_new, \\a, $[, 0.95, $], \\freq, 220);"

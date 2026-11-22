@@ -106,7 +106,13 @@ def extract_forms(code: str) -> list[str]:
                 i += 1
             elif not skip_comment():
                 break
-        boundary = i >= n or code[i].isalnum() or code[i] in "_~\\([{\"'$#"
+        boundary = (
+            i >= n
+            or code[i].isalnum()
+            or code[i] in "_~\\([{\"'$#"
+            # A negative literal such as `-0.5` or `-inf`; `- x` goes on.
+            or code.startswith("-", i) and code[i + 1 : i + 2].isalnum()
+        )
         i = saved_i
         return boundary
 
@@ -136,7 +142,9 @@ def extract_forms(code: str) -> list[str]:
                 complete = True
             else:
                 if not c.isspace():
-                    complete = c.isalnum() or c == "_"
+                    # A stray closing bracket, where the help itself is
+                    # unbalanced, ends the form so as not to swallow the next.
+                    complete = c.isalnum() or c in "_)]}"
                 i += 1
         forms.append(code[start:i].strip())
 

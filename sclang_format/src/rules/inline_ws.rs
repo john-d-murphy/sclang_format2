@@ -82,7 +82,12 @@ impl InlineWhitespaceFormat {
             // Space between Left and Op
             self.ensure_single_space(cx, l.end_byte(), o.start_byte(), edits);
             // Space between Op and Right
-            self.ensure_single_space(cx, o.end_byte(), r.start_byte(), edits);
+            self.ensure_single_space(
+                cx,
+                crate::engine::ast::operator_end(o),
+                r.start_byte(),
+                edits,
+            );
         }
     }
 
@@ -110,7 +115,7 @@ impl InlineWhitespaceFormat {
     /// Checks the gap between two byte offsets.
     /// - If empty: insert " ".
     /// - If whitespace only (no newlines): replace with " ".
-    /// - If contains newline or comments: DO NOTHING (safety).
+    /// - If it holds anything else (a newline, a comment, any text): DO NOTHING.
     fn ensure_single_space(&self, cx: &Ctx, start: usize, end: usize, edits: &mut Vec<TextEdit>) {
         // SAFETY: If the nodes are out of order or overlap (start > end),
         // we cannot format the gap. This can happen with syntax error nodes.
@@ -131,9 +136,9 @@ impl InlineWhitespaceFormat {
         // Check the text inside the gap
         let gap_text = cx.slice_bytes(start, end);
 
-        // SAFETY: If the gap contains comments or newlines, leave it alone.
-        // This rule is "Inline" whitespace only. Line breaking rules handles newlines.
-        if gap_text.contains('\n') || gap_text.contains("//") || gap_text.contains("/*") {
+        // Anything but blanks in the gap is source text (a comment, a newline,
+        // something the grammar gives no node): replacing it would delete it.
+        if !gap_text.chars().all(|c| c == ' ' || c == '\t') {
             return;
         }
 
@@ -148,5 +153,34 @@ impl InlineWhitespaceFormat {
             end_byte: end,
             replacement: " ".to_string(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        InlineWhitespaceFormat.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_gap_that_is_not_blank_is_left_alone() {
+        assert_eq!(format("x = a + .t b;"), "x = a + .t b;");
+    }
+
+    #[test]
+    fn test_keeps_an_adverb_with_its_operator() {
+        assert_eq!(format("x = a +.t  b;"), "x = a +.t b;");
+        assert_eq!(format("x = a  +.t b;"), "x = a +.t b;");
     }
 }

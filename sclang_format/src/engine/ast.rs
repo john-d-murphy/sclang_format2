@@ -33,3 +33,12 @@ pub fn descendants_of_kind<'a>(root: Node<'a>, kind: &str) -> impl Iterator<Item
     dfs(root, kind, &mut out);
     out.into_iter()
 }
+
+/// Where a binary operator ends, its adverb (`+.t`) included: the two are one
+/// token to sclang, so nothing may come between them.
+#[must_use]
+pub fn operator_end(op: Node) -> usize {
+    op.next_sibling()
+        .filter(|n| n.kind() == "adverb")
+        .map_or_else(|| op.end_byte(), |adverb| adverb.end_byte())
+}

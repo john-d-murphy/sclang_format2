@@ -94,8 +94,8 @@ fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) 
     };
 
     let op_start = op_node.start_byte();
-    let op_end = op_node.end_byte();
-    let op_text = &src[op_start..op_end];
+    let op_text = &src[op_start..op_node.end_byte()];
+    let op_end = crate::engine::ast::operator_end(op_node);
 
     // Check if this is an operator we should add spaces around
     let op_str = match std::str::from_utf8(op_text) {
@@ -220,6 +220,13 @@ mod tests {
         let rule = AddSpacesAroundBinaryOps;
         rule.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_keeps_an_adverb_with_its_operator() {
+        assert_eq!(format("a +.t b"), "a +.t b");
+        assert_eq!(format("a+.t b"), "a +.t b");
+        assert_eq!(format("a+.2b"), "a +.2 b");
     }
 
     #[test]

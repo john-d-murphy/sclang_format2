@@ -23,7 +23,6 @@ mod dot;
 mod dot_chain_layout;
 mod events_multiline;
 mod expand_if_trailing;
-mod extra_trailing_closures;
 mod if_trailing;
 mod inline_comment_spacing;
 mod inline_ws;
@@ -59,7 +58,6 @@ pub use dot::NoSpacesAroundDot;
 pub use dot_chain_layout::DotChainLayout;
 pub use events_multiline::MultiLineEventsOnePerLine;
 pub use expand_if_trailing::ExpandLongIfTrailingClosures;
-pub use extra_trailing_closures::ExtraTrailingClosures;
 pub use inline_comment_spacing::InlineCommentSpacing;
 pub use inline_ws::InlineWhitespaceFormat;
 pub use keyword_paren::KeywordParenSpacing;
@@ -87,7 +85,6 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         Box::new(PipeParamAddMissingCommas),
         Box::new(ArgToPipeParams),
         Box::new(TrailingClosures),
-        Box::new(ExtraTrailingClosures),
         Box::new(CuddleElse),
         // 1b. Now bail if the source STILL has parse errors
         Box::new(ParseCheck),

@@ -47,18 +47,23 @@ fn only_child(node: Node) -> Option<Node> {
     (node.child_count() == 1).then(|| node.child(0)).flatten()
 }
 
+/// The methods whose one argument, when it is a block, is written after
+/// the call and not in its parentheses.
+const BLOCK_METHODS: [&[u8]; 6] = [b"do", b"collect", b"select", b"reject", b"inject", b"detect"];
+
 /// Try to rewrite `.do({ ... })`, given its `method_call` node, as
 /// `.do { ... }`: the one argument a block, and nothing else in the
-/// parentheses. The tree says so, as it does for `if` above.
+/// parentheses. The same for the other methods above. The tree says so, as
+/// it does for `if`.
 /// Returns (`start_byte`, `end_byte`, replacement) for the `( ... )` part.
-fn rewrite_do_call(buf: &[u8], call: Node) -> Option<(usize, usize, String)> {
+fn rewrite_block_call(buf: &[u8], call: Node) -> Option<(usize, usize, String)> {
     let name = call.child_by_field_name("name")?;
-    if &buf[name.byte_range()] != b"do" {
+    if !BLOCK_METHODS.contains(&&buf[name.byte_range()]) {
         return None;
     }
     let mut cursor = call.walk();
     let children: Vec<Node> = call.children(&mut cursor).collect();
-    // `.`, `do`, `(`, the arguments, `)`
+    // `.`, the name, `(`, the arguments, `)`
     let [_, _, open, arguments, close, ..] = children[..] else {
         return None;
     };
@@ -74,12 +79,31 @@ fn rewrite_do_call(buf: &[u8], call: Node) -> Option<(usize, usize, String)> {
     Some((open.start_byte(), close.end_byte(), format!(" {block}")))
 }
 
+/// Try to rewrite `while({ test }, { body })`, given its `while` node, as
+/// `while { test } { body }`.
+/// Returns (`start_byte`, `end_byte`, replacement) for the `( ... )` part.
+fn rewrite_while_call(buf: &[u8], while_node: Node) -> Option<(usize, usize, String)> {
+    let mut cursor = while_node.walk();
+    let children: Vec<Node> = while_node.children(&mut cursor).collect();
+    let [keyword, open, test, comma, body, close] = children[..] else {
+        return None;
+    };
+    let kinds = [keyword, open, test, comma, body, close].map(|n| n.kind());
+    if kinds != ["while", "(", "function_block", ",", "function_block", ")"] {
+        return None;
+    }
+    let text = |n: Node| String::from_utf8_lossy(&buf[n.byte_range()]).to_string();
+    let replacement = format!(" {} {}", text(test), text(body));
+    Some((open.start_byte(), close.end_byte(), replacement))
+}
+
 /// The rewrites under `node`, outermost first. What stands inside a call
 /// that is rewritten waits for the next pass: its edit would overlap.
 fn collect_rewrites(buf: &[u8], node: Node, edits: &mut Vec<TextEdit>) {
     let rewrite = match node.kind() {
         "if" => rewrite_if_call(buf, node),
-        "method_call" => rewrite_do_call(buf, node),
+        "while" => rewrite_while_call(buf, node),
+        "method_call" => rewrite_block_call(buf, node),
         _ => None,
     };
     if let Some((start_byte, end_byte, replacement)) = rewrite {
@@ -163,6 +187,21 @@ mod tests {
             format("2.do({ 5.do({ 1 }) });"),
             "2.do { 5.do { 1 } };"
         );
+    }
+
+    #[test]
+    fn test_the_other_block_methods_and_while_take_trailing_blocks_too() {
+        assert_eq!(format("a.collect({ |x| x * 2 });"), "a.collect { |x| x * 2 };");
+        assert_eq!(format("a.select({ 1 }).reject({ 2 });"), "a.select { 1 }.reject { 2 };");
+        assert_eq!(format("a.detect({ $) }).inject({ 3 });"), "a.detect { $) }.inject { 3 };");
+        assert_eq!(format("a.inject(0, { 3 });"), "a.inject(0, { 3 });");
+        assert_eq!(
+            format("while({ x < 10 }, { x = x + 1 });"),
+            "while { x < 10 } { x = x + 1 };"
+        );
+        assert_eq!(format("while({ $} }, { $) });"), "while { $} } { $) };");
+        assert_eq!(format("whilex({ 1 }, { 2 });"), "whilex({ 1 }, { 2 });");
+        assert_eq!(format("while({ 1 }, { 2 }, 3);"), "while({ 1 }, { 2 }, 3);");
     }
 
     #[test]

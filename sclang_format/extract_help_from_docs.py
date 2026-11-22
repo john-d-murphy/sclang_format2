@@ -923,233 +923,102 @@ def is_valid_sc_form(code: str) -> tuple[bool, str]:
 
 def extract_forms(code: str) -> list[str]:
     """
-    Extract individual top-level forms from SC code.
+    Cut SC code into the forms a person would evaluate one at a time.
 
-    A form is one of:
-    - ( ... ) parenthesized block
-    - { ... }.method().chain(); function with optional method chain
-    - statement; any expression ending in semicolon
+    A form ends at a semicolon outside brackets, strings and comments, or at
+    the end of a line that completes an expression when the next line of code
+    starts a new statement. Whatever follows a closing bracket (`} ! 4`,
+    `) * 2`, `}.play`, `.do { }`, a `.play` on the next line) belongs to the
+    same form.
     """
     forms = []
     i = 0
     n = len(code)
 
-    def skip_whitespace_and_comments():
+    def skip_comment() -> bool:
+        """Skip a comment at i, if there is one."""
         nonlocal i
-        while i < n:
-            if code[i] in " \t\n\r":
+        if code.startswith("//", i):
+            while i < n and code[i] != "\n":
                 i += 1
-                continue
-            if i < n - 1 and code[i : i + 2] == "//":
-                while i < n and code[i] != "\n":
-                    i += 1
-                continue
-            if i < n - 1 and code[i : i + 2] == "/*":
-                while i < n - 1 and code[i : i + 2] != "*/":
-                    i += 1
-                i += 2
-                continue
-            break
-
-    def read_string():
-        nonlocal i
-        quote = code[i]
-        i += 1
-        while i < n:
-            if code[i] == "\\" and i + 1 < n:
-                i += 2
-            elif code[i] == quote:
-                i += 1
-                return
-            else:
-                i += 1
-
-    def read_balanced(open_char: str, close_char: str) -> str:
-        nonlocal i
-        start = i
-        depth = 1
-        i += 1
-
-        while i < n and depth > 0:
-            c = code[i]
-
-            if c in "\"'":
-                read_string()
-                continue
-
-            if c == "/" and i + 1 < n:
-                if code[i + 1] == "/":
-                    while i < n and code[i] != "\n":
-                        i += 1
-                    continue
-                elif code[i + 1] == "*":
-                    i += 2
-                    while i < n - 1 and code[i : i + 2] != "*/":
-                        i += 1
-                    i += 2
-                    continue
-
-            if c == open_char:
-                depth += 1
-            elif c == close_char:
-                depth -= 1
-
-            i += 1
-
-        return code[start:i]
-
-    def skip_ws_only():
-        nonlocal i
-        while i < n and code[i] in " \t\n\r":
-            i += 1
-
-    def read_method_chain():
-        nonlocal i
-        result = ""
-
-        while i < n:
-            skip_ws_only()
-            if i >= n:
-                break
-
-            if code[i] == ".":
-                result += code[i]
-                i += 1
-                while i < n and (code[i].isalnum() or code[i] == "_"):
-                    result += code[i]
-                    i += 1
-                skip_ws_only()
-                if i < n and code[i] == "(":
-                    result += read_balanced("(", ")")
-            elif code[i] == ";":
-                result += ";"
-                i += 1
-                break
-            else:
-                break
-
-        return result
-
-    def at_statement_boundary() -> bool:
-        """Check if we're at a natural statement boundary (REPL-style)."""
-        nonlocal i
-        saved_i = i
-
-        while i < n and code[i] in " \t":
-            i += 1
-
-        if i >= n:
-            i = saved_i
             return True
-
-        if code[i] == ";":
-            i = saved_i
-            return False
-
-        if code[i] == "\n":
-            i += 1
-            while i < n and code[i] in " \t":
-                i += 1
-
-            if i >= n:
-                i = saved_i
-                return True
-
-            c = code[i]
-            if c in "~\\([{" or c.isalpha() or c == "_":
-                i = saved_i
-                return True
-            if c == "/" and i + 1 < n and code[i + 1] in "/*":
-                i = saved_i
-                return True
-
-        i = saved_i
+        if code.startswith("/*", i):
+            end = code.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            return True
         return False
 
-    def read_until_semicolon_or_boundary() -> str:
+    def skip_literal() -> bool:
+        """Skip a string, quoted symbol or character literal at i, if there is one."""
         nonlocal i
-        start = i
+        c = code[i]
+        if c == "$":
+            i += 3 if code.startswith("$\\", i) else 2
+            return True
+        if c in "\"'":
+            i += 1
+            while i < n and code[i] != c:
+                i += 2 if code[i] == "\\" else 1
+            i += 1
+            return True
+        return False
 
+    def read_balanced():
+        nonlocal i
+        depth = 0
         while i < n:
+            if skip_comment() or skip_literal():
+                continue
+            if code[i] in "([{":
+                depth += 1
+            elif code[i] in ")]}":
+                depth -= 1
+            i += 1
+            if depth == 0:
+                return
+
+    def at_statement_boundary() -> bool:
+        """At the end of a line: does the next line of code start a new statement?"""
+        nonlocal i
+        saved_i = i
+        while i < n:
+            if code[i] in " \t\r\n":
+                i += 1
+            elif not skip_comment():
+                break
+        boundary = i >= n or code[i].isalnum() or code[i] in "_~\\([{\"'$#"
+        i = saved_i
+        return boundary
+
+    while i < n:
+        if code[i] in " \t\r\n;":
+            i += 1
+            continue
+        if skip_comment():
+            continue
+        start = i
+        # Whether the code so far could end here: a line ending in an operator
+        # or a comma goes on to the next, whatever that starts with.
+        complete = False
+        while i < n:
+            if skip_comment():
+                continue
             c = code[i]
-
-            if c in "\"'":
-                read_string()
-                continue
-
-            if c == "/" and i + 1 < n:
-                if code[i + 1] == "/":
-                    while i < n and code[i] != "\n":
-                        i += 1
-                    continue
-                elif code[i + 1] == "*":
-                    i += 2
-                    while i < n - 1 and code[i : i + 2] != "*/":
-                        i += 1
-                    i += 2
-                    continue
-
-            if c == "(":
-                read_balanced("(", ")")
-                if at_statement_boundary():
-                    return code[start:i]
-                continue
-            if c == "{":
-                read_balanced("{", "}")
-                chain = read_method_chain()
-                if at_statement_boundary() or not chain:
-                    return code[start:i]
-                continue
-            if c == "[":
-                read_balanced("[", "]")
-                if at_statement_boundary():
-                    return code[start:i]
-                continue
-
             if c == ";":
                 i += 1
-                return code[start:i]
-
-            i += 1
-
-        return code[start:i]
-
-    # Main extraction loop
-    while i < n:
-        skip_whitespace_and_comments()
-        if i >= n:
-            break
-
-        c = code[i]
-
-        if c == "(":
-            form = read_balanced("(", ")")
-            form += read_method_chain()
-            form = form.strip()
-            if form:
-                forms.append(form)
-
-        elif c == "{":
-            form = read_balanced("{", "}")
-            form += read_method_chain()
-            form = form.strip()
-            if form:
-                forms.append(form)
-
-        elif c == ";":
-            i += 1
-
-        elif c.isalpha() or c == "_" or c == "~" or c == "\\" or c == "[" or c == "#":
-            form = read_until_semicolon_or_boundary()
-            form = form.strip()
-            if form:
-                forms.append(form)
-
-        else:
-            form = read_until_semicolon_or_boundary()
-            form = form.strip()
-            if form:
-                forms.append(form)
+                break
+            if c == "\n" and complete and at_statement_boundary():
+                break
+            if skip_literal():
+                complete = True
+            elif c in "([{":
+                read_balanced()
+                complete = True
+            else:
+                if not c.isspace():
+                    complete = c.isalnum() or c == "_"
+                i += 1
+        forms.append(code[start:i].strip())
 
     return forms
 

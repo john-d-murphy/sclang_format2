@@ -1,5 +1,6 @@
 // src/rules/arg_to_pipe.rs
 
+use crate::engine::ast::is_literal_default;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -58,69 +59,47 @@ impl ArgToPipeParams {
         }
     }
 
-    /// Check if a node needs parentheses when used as a pipe parameter default
-    fn needs_parens(&self, node: Node) -> bool {
-        match node.kind() {
-            // Method calls need parens: 4.dbamp -> (4.dbamp)
-            "function_call" => {
-                // Check if it has a receiver (making it a method call)
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    if child.kind() == "receiver" {
-                        return true;
-                    }
-                }
-                false
-            }
-            // Binary expressions need parens: 1 + 2 -> (1 + 2)
-            "binary_expression" => true,
-            // Unary expressions might need parens: -1 -> (-1)
-            "unary_expression" => true,
-            // Code blocks already have braces, no parens needed
-            "code_block" => false,
-            // Literals, variables, symbols don't need parens
-            _ => false,
-        }
+    /// Whether `node` is an expression in parentheses, `(a + b)` or `(a; b)`:
+    /// the one default that is not a literal and stands between pipes as it
+    /// is. An event `(a: 1)`, the empty `()` and a series `(1..3)` begin with
+    /// a parenthesis too, and are not.
+    fn is_parenthesized_expression(node: Node) -> bool {
+        let mut cursor = node.walk();
+        node.kind() == "code_block"
+            && node.named_child_count() > 0
+            && node.child_by_field_name("pairs").is_none()
+            && !node.children(&mut cursor).any(|child| child.kind() == ",")
     }
 
+    /// One argument as it is written between pipes. What sclang compiles was
+    /// asked of sclang: `arg a = X;` is `|a = X|` when X is a literal and
+    /// `|a = (X)|` when it is anything else, and the older `arg a(X);` is
+    /// `|a = (X)|` whatever X is.
     fn process_argument(&self, arg_node: Node, cx: &Ctx) -> String {
         let Some(name_n) = arg_node.child_by_field_name("name") else {
             return String::new();
         };
-
         let name = self.get_node_text(cx, name_n);
 
-        // Find the argument_default child node
         let mut cursor = arg_node.walk();
-        let mut default_node: Option<Node> = None;
-
-        for child in arg_node.children(&mut cursor) {
-            if child.kind() == "argument_default" {
-                default_node = Some(child);
-                break;
-            }
-        }
-
-        let Some(default) = default_node else {
-            return name; // No default value
-        };
-
-        // Now get the 'value' field from argument_default
-        let Some(expr) = default.child_by_field_name("value") else {
+        let Some(default) = arg_node
+            .children(&mut cursor)
+            .find(|child| child.kind() == "argument_default")
+        else {
             return name;
         };
+        let Some(value) = default.child_by_field_name("value") else {
+            return name;
+        };
+        let value_text = self.get_node_text(cx, value);
 
-        let value_text = self.get_node_text(cx, expr);
-
-        if self.needs_parens(expr) {
-            let trimmed = value_text.trim();
-            if trimmed.starts_with('(') && trimmed.ends_with(')') {
-                format!("{} = {}", name, value_text)
-            } else {
-                format!("{} = ({})", name, value_text)
-            }
+        let older_form = default.child(0).is_some_and(|n| n.kind() == "(");
+        if !older_form
+            && (is_literal_default(value, cx.bytes()) || Self::is_parenthesized_expression(value))
+        {
+            format!("{name} = {value_text}")
         } else {
-            format!("{} = {}", name, value_text)
+            format!("{name} = ({value_text})")
         }
     }
 
@@ -298,5 +277,40 @@ mod tests {
         assert_eq!(format(src), src);
         let src = "f = { arg freq /* Hz */, amp; freq * amp };";
         assert_eq!(format(src), src);
+    }
+
+    /// What sclang compiles each to was asked of sclang: `arg a = X;` is
+    /// `|a = X|` for a literal and `|a = (X)|` for anything else, and
+    /// `arg a(X);` is `|a = (X)|` whatever X is.
+    #[test]
+    fn test_a_default_is_parenthesized_unless_it_is_a_literal() {
+        for (arg, pipe) in [
+            ("a = 1", "a = 1"),
+            ("a = -1", "a = -1"),
+            ("a = #[1, 2]", "a = #[1, 2]"),
+            ("a = inf", "a = inf"),
+            ("a = -inf", "a = -inf"),
+            ("a = 2pi", "a = 2pi"),
+            ("a = $x", "a = $x"),
+            ("a = \\q", "a = \\q"),
+            ("a = nil", "a = nil"),
+            ("a = true", "a = true"),
+            ("a = [1, 2]", "a = ([1, 2])"),
+            ("a = b", "a = (b)"),
+            ("a = thisProcess", "a = (thisProcess)"),
+            ("a = Env.perc", "a = (Env.perc)"),
+            ("a = 1 + 2", "a = (1 + 2)"),
+            ("a = (1 + 2)", "a = (1 + 2)"),
+            ("a = (1; 2)", "a = (1; 2)"),
+            ("a = (1 + 2).neg", "a = ((1 + 2).neg)"),
+            ("a = (b: 1)", "a = ((b: 1))"),
+            ("a = ()", "a = (())"),
+            ("a = (1..3)", "a = ((1..3))"),
+            ("a(3)", "a = (3)"),
+            ("a(3 + 1)", "a = (3 + 1)"),
+        ] {
+            let out = format(&format!("{{ arg {arg}; a }}"));
+            assert!(out.contains(&format!("{{ |{pipe}|")), "{arg}: {out}");
+        }
     }
 }

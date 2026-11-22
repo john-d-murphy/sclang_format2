@@ -58,3 +58,30 @@ pub fn end_of_token_before(node: Node) -> usize {
         }
     }
 }
+
+/// Whether `node` is a default that sclang stores with the function as it
+/// stands: a number, negative or not, `inf`, `nil`, a boolean, a character, a
+/// string, a symbol or a literal array (`#[...]`). Any other default is an
+/// expression. Between pipes an expression must stand in parentheses, and a
+/// literal must not: a parenthesized default is compiled as code that fills
+/// the argument in when it is nil, so `{ |a = (1)| a }.value(nil)` is 1.
+#[must_use]
+pub fn is_literal_default(node: Node, src: &[u8]) -> bool {
+    let text = |n: Node| &src[n.start_byte()..n.end_byte()];
+    match node.kind() {
+        "literal" => true,
+        "variable" => matches!(text(node), b"nil" | b"inf"),
+        "collection" => src[node.start_byte()] == b'#',
+        "unary_expression" | "pipe_safe_unary_expression" => {
+            src[node.start_byte()] == b'-'
+                && node
+                    .child_by_field_name("right")
+                    .is_some_and(|right| match right.kind() {
+                        "literal" => right.child(0).is_some_and(|n| n.kind() == "number"),
+                        "variable" => text(right) == b"inf",
+                        _ => false,
+                    })
+        }
+        _ => false,
+    }
+}

@@ -31,40 +31,6 @@ use std::process::{Command, Stdio};
 ///
 ///     cargo test --test sclang_judge formatting_keeps_meaning -- --test-threads=8
 const KNOWN_MEANING_CHANGES: &[&str] = &[
-    // PipeParamDefaultParens wraps a literal default in parentheses:
-    // `{ |a = #[1, 2]| a }` becomes `{ |a = (#[1, 2])| a }`. A parenthesized
-    // default is an expression, which sclang compiles to a test at the top of
-    // the function that puts the default in when the argument is nil, so
-    // `.value(nil)` returns [1, 2] where it returned nil.
-    "tests/sc_help/Classes/BufDelayC_0e.scd",
-    "tests/sc_help/Classes/BufDelayL_0e.scd",
-    "tests/sc_help/Classes/BufDelayN_0e.scd",
-    "tests/sc_help/Classes/Event_16.scd",
-    "tests/sc_help/Classes/Klank_4a.scd",
-    "tests/sc_help/Classes/Klank_4c.scd",
-    "tests/sc_help/Classes/Klank_4e.scd",
-    "tests/sc_help/Classes/Klank_4g.scd",
-    "tests/sc_help/Classes/NdefParamGui_0q.scd",
-    "tests/sc_help/Classes/NodeProxy_18_44.scd",
-    "tests/sc_help/Classes/NodeProxy_18_46.scd",
-    "tests/sc_help/Classes/NodeProxy_18_47.scd",
-    "tests/sc_help/Classes/Node_4b.scd",
-    "tests/sc_help/Classes/Node_6g.scd",
-    "tests/sc_help/Classes/Ref_4.scd",
-    "tests/sc_help/Classes/Synth_1e.scd",
-    "tests/sc_help/Classes/Synth_6a.scd",
-    "tests/sc_help/Guides/FFT-Overview_12c.scd",
-    "tests/sc_help/Guides/Multichannel-Expansion_15a.scd",
-    "tests/sc_help/Guides/NodeMessaging_9.scd",
-    "tests/sc_help/Guides/UserFAQ_23.scd",
-    "tests/sc_help/Guides/UserFAQ_26.scd",
-    "tests/sc_help/Reference/Functions_4c.scd",
-    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0c.scd",
-    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0d.scd",
-    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0e.scd",
-    "tests/sc_help/Tutorials/JITLib/audio_rate_mapping_0i.scd",
-    "tests/sc_help/Tutorials/JITLib/jitlib_basic_concepts_03_18b.scd",
-    "tests/sc_help/Tutorials/JITLib/proxyspace_examples_7e.scd",
     // Grammar gap: sclang reads any run of operator characters as one binary
     // operator; the grammar knows a fixed set and reads `<--`, `--`, `--->`,
     // `<!` or `<<*` as two, which spaces_around_binary_ops then parts:

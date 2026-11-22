@@ -12,7 +12,7 @@ var amp;
 var out;
 
 // SynthDef with weird spacing
-SynthDef(\testA, { |freq = 440, amp = 0.1, pan = (-0.5)|
+SynthDef(\testA, { |freq = 440, amp = 0.1, pan = -0.5|
     var sig1, sig2;
     sig1 = SinOsc.ar(freq.linexp(0, 1, 200, 2000)) * 0.1;
     sig2 = sig1 ! 2;

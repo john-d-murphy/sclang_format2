@@ -44,40 +44,6 @@ fn walk_tree_for_pipes(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     }
 }
 
-/// Check if a node needs parentheses when used as a pipe parameter default
-fn needs_parens(node: Node) -> bool {
-    match node.kind() {
-        // Method calls need parens: 4.dbamp -> (4.dbamp)
-        "function_call" => {
-            // Check if it has a receiver (making it a method call)
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.kind() == "receiver" {
-                    return true;
-                }
-            }
-            false
-        }
-        // Binary expressions need parens: 1 + 2 -> (1 + 2)
-        "binary_expression" => true,
-        // Unary expressions might need parens: -1 -> (-1)
-        "unary_expression" => true,
-        // Code blocks already have braces, no parens needed
-        "code_block" => false,
-        // Literals, variables, symbols don't need parens
-        _ => false,
-    }
-}
-
-fn get_node_text(src: &[u8], node: Node) -> String {
-    let start = node.start_byte();
-    let end = node.end_byte();
-    if end > src.len() {
-        return String::new();
-    }
-    String::from_utf8_lossy(&src[start..end]).to_string()
-}
-
 fn fix_missing_commas_in_pipe_list(pipe_list: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     let mut args = Vec::new();
     let mut cursor = pipe_list.walk();
@@ -98,7 +64,6 @@ fn fix_missing_commas_in_pipe_list(pipe_list: Node, src: &[u8], edits: &mut Vec<
         return;
     }
 
-    // First pass: add missing commas
     for window in args.windows(2) {
         let arg1 = window[0];
         let arg2 = window[1];
@@ -121,58 +86,6 @@ fn fix_missing_commas_in_pipe_list(pipe_list: Node, src: &[u8], edits: &mut Vec<
             });
         }
     }
-
-    // Second pass: wrap values in parens if needed
-    for arg in args {
-        wrap_value_if_needed(arg, src, edits);
-    }
-}
-
-fn wrap_value_if_needed(pipe_arg: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
-    // Find the value node within this pipe_argument
-    let mut cursor = pipe_arg.walk();
-    let mut value_node: Option<Node> = None;
-
-    for child in pipe_arg.children(&mut cursor) {
-        if child.kind() == "value" {
-            // The 'value' field wraps the actual expression
-            let mut value_cursor = child.walk();
-            for value_child in child.children(&mut value_cursor) {
-                value_node = Some(value_child);
-                break;
-            }
-            break;
-        }
-    }
-
-    let Some(value) = value_node else {
-        return; // No default value
-    };
-
-    if !needs_parens(value) {
-        return; // Doesn't need wrapping
-    }
-
-    let value_text = get_node_text(src, value);
-    let trimmed = value_text.trim();
-
-    // Check if already wrapped in parens
-    if trimmed.starts_with('(') && trimmed.ends_with(')') {
-        return; // Already has parens
-    }
-
-    // Wrap in parentheses
-    edits.push(TextEdit {
-        start_byte: value.start_byte(),
-        end_byte: value.start_byte(),
-        replacement: "(".to_string(),
-    });
-
-    edits.push(TextEdit {
-        start_byte: value.end_byte(),
-        end_byte: value.end_byte(),
-        replacement: ")".to_string(),
-    });
 }
 
 fn fix_arg_style_params(src: &[u8], root: &Node, edits: &mut Vec<TextEdit>) {

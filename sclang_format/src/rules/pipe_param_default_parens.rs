@@ -1,191 +1,12 @@
+use crate::engine::ast::{descendants_of_kind, is_literal_default};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use crate::engine::ast::in_string_or_comment;
-use crate::engine::text::{is_space};
+use tree_sitter::Node;
 
-/// Simple literal classification
-fn is_numeric_literal(s: &str) -> bool {
-    let bytes = s.as_bytes();
-    if bytes.is_empty() {
-        return false;
-    }
-
-    let mut i = 0;
-    if bytes[i] == b'+' || bytes[i] == b'-' {
-        i += 1;
-    }
-
-    let mut has_digit = false;
-    while i < bytes.len() && bytes[i].is_ascii_digit() {
-        has_digit = true;
-        i += 1;
-    }
-
-    if i < bytes.len() && bytes[i] == b'.' {
-        i += 1;
-        while i < bytes.len() && bytes[i].is_ascii_digit() {
-            has_digit = true;
-            i += 1;
-        }
-    }
-
-    if !has_digit {
-        return false;
-    }
-
-    if i < bytes.len() && (bytes[i] == b'e' || bytes[i] == b'E') {
-        i += 1;
-        if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
-            i += 1;
-        }
-        let mut exp_digit = false;
-        while i < bytes.len() && bytes[i].is_ascii_digit() {
-            exp_digit = true;
-            i += 1;
-        }
-        if !exp_digit {
-            return false;
-        }
-    }
-
-    i == bytes.len()
-}
-
-fn is_symbol_literal(s: &str) -> bool {
-    let mut chars = s.chars();
-    match chars.next() {
-        Some('\\') => {}
-        _ => return false,
-    }
-    for ch in chars {
-        if !(ch.is_ascii_alphanumeric() || ch == '_') {
-            return false;
-        }
-    }
-    true
-}
-
-fn is_string_literal(s: &str) -> bool {
-    let bytes = s.as_bytes();
-    bytes.len() >= 2 && bytes[0] == b'"' && *bytes.last().unwrap() == b'"'
-}
-
-fn is_already_parenthesized(s: &str) -> bool {
-    let bytes = s.as_bytes();
-    if bytes.len() < 2 || bytes[0] != b'(' || *bytes.last().unwrap() != b')' {
-        return false;
-    }
-
-    let mut depth = 0i32;
-    for (i, &b) in bytes.iter().enumerate() {
-        match b {
-            b'(' => depth += 1,
-            b')' => {
-                depth -= 1;
-                if depth == 0 && i != bytes.len() - 1 {
-                    // Closed before the end → outer parens don’t wrap the whole expr.
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    depth == 0
-}
-
-fn is_simple_default_expr(s: &str) -> bool {
-    if s.is_empty() {
-        return true;
-    }
-    if is_numeric_literal(s) {
-        return true;
-    }
-    if is_symbol_literal(s) {
-        return true;
-    }
-    if is_string_literal(s) {
-        return true;
-    }
-    matches!(s, "true" | "false" | "nil")
-}
-
-/// Filter out ==, <=, >=, != etc.
-fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
-    let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
-    let next = seg.get(idx + 1).copied().unwrap_or(b' ');
-    !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
-}
-
-/// AST-based “are we in a string/comment?”
-
-/// Same header detection idea as in `pipe_param_commas`:
-/// - '|' not in string/comment
-/// - '{' earlier on same line
-/// - matching '|' on same line, not in string/comment
-fn find_pipe_param_headers(buf: &[u8], root: &tree_sitter::Node) -> Vec<(usize, usize)> {
-    let len = buf.len();
-    let mut res = Vec::new();
-    let mut i = 0;
-
-    while i < len {
-        if buf[i] == b'|' {
-            if in_string_or_comment(*root, i) {
-                i += 1;
-                continue;
-            }
-
-            // Search backwards on this line for '{'
-            let mut j = i;
-            let mut saw_open_brace = false;
-            while j > 0 {
-                j -= 1;
-                let c = buf[j];
-                if c == b'\n' {
-                    break;
-                }
-                if c == b'{' {
-                    saw_open_brace = true;
-                    break;
-                }
-            }
-            if !saw_open_brace {
-                i += 1;
-                continue;
-            }
-
-            // Search forwards on same line for closing '|'
-            let start = i;
-            let mut k = i + 1;
-            let mut end_opt = None;
-            while k < len {
-                let c = buf[k];
-                if c == b'\n' {
-                    break;
-                }
-                if c == b'|' {
-                    if in_string_or_comment(*root, k) {
-                        break;
-                    }
-                    end_opt = Some(k);
-                    break;
-                }
-                k += 1;
-            }
-
-            if let Some(end) = end_opt {
-                res.push((start, end));
-                i = end + 1;
-                continue;
-            }
-        }
-
-        i += 1;
-    }
-
-    res
-}
-
+/// Between pipes sclang takes a default that is a literal, or an expression
+/// in parentheses, and nothing else. This parenthesizes a default that is
+/// neither, and leaves the two that sclang takes as they are.
 pub struct PipeParamDefaultParens;
 
 impl Rule for PipeParamDefaultParens {
@@ -194,113 +15,30 @@ impl Rule for PipeParamDefaultParens {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        if cx.tree.root_node().has_error() {
-            return Ok(0);
-        }
+        let src = cx.bytes();
+        let mut edits = Vec::new();
 
-        let bytes = cx.bytes();
-        let buf: &[u8] = &bytes;
-        let root = cx.tree.root_node();
-
-        let mut edits: Vec<TextEdit> = Vec::new();
-
-        for (pipe_l, pipe_r) in find_pipe_param_headers(buf, &root) {
-            if pipe_r <= pipe_l + 1 {
+        for arg in descendants_of_kind(cx.tree.root_node(), "pipe_argument") {
+            let mut cursor = arg.walk();
+            let children: Vec<Node> = arg.children(&mut cursor).collect();
+            // The default follows the equals sign. The older `name(value)` is
+            // parenthesized already, and `name value` takes only a literal.
+            let Some(value) = children
+                .iter()
+                .skip_while(|child| child.kind() != "=")
+                .find(|child| child.is_named() && !child.is_extra())
+            else {
+                continue;
+            };
+            if is_literal_default(*value, src) || value.kind() == "code_block" {
                 continue;
             }
-
-            let seg_lo = pipe_l + 1;
-            let seg_hi = pipe_r;
-            let seg = &buf[seg_lo..seg_hi];
-
-            for (i, &b) in seg.iter().enumerate() {
-                if b != b'=' || !is_assignment_eq(seg, i) {
-                    continue;
-                }
-
-                let eq_idx = i;
-
-                // expr start: first non-space after '='
-                let mut start = eq_idx + 1;
-                while start < seg.len() && is_space(seg[start]) {
-                    start += 1;
-                }
-                if start >= seg.len() {
-                    continue;
-                }
-
-                // find expr end: next comma/pipe/newline at top level
-                let mut paren = 0i32;
-                let mut brace = 0i32;
-                let mut bracket = 0i32;
-                let mut delim = seg.len();
-
-                for j in start..seg.len() {
-                    let c = seg[j];
-                    match c {
-                        b'(' => paren += 1,
-                        b')' => paren -= 1,
-                        b'{' => brace += 1,
-                        b'}' => brace -= 1,
-                        b'[' => bracket += 1,
-                        b']' => bracket -= 1,
-                        b',' | b'|' | b'\n' if paren == 0 && brace == 0 && bracket == 0 => {
-                            delim = j;
-                            break;
-                        }
-                        // The rest argument (`... name`) follows a default with no comma.
-                        b'.' if paren == 0
-                            && brace == 0
-                            && bracket == 0
-                            && seg[j..].starts_with(b"...") =>
-                        {
-                            delim = j;
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-
-                if delim <= start {
-                    continue;
-                }
-
-                // trim trailing spaces before delim
-                let mut end = delim;
-                while end > start && is_space(seg[end - 1]) {
-                    end -= 1;
-                }
-                if end <= start {
-                    continue;
-                }
-
-                let expr_bytes = &seg[start..end];
-                let expr_str = String::from_utf8(expr_bytes.to_vec()).unwrap_or_default();
-                let trimmed = expr_str.trim();
-
-                if trimmed.is_empty() {
-                    continue;
-                }
-                if is_already_parenthesized(trimmed) {
-                    continue;
-                }
-                if is_simple_default_expr(trimmed) {
-                    continue;
-                }
-
-                // compute byte offsets of `trimmed` inside `seg`
-                let leading_ws = expr_str.len() - expr_str.trim_start().len();
-                let expr_trim_start = start + leading_ws;
-                let expr_trim_end = expr_trim_start + trimmed.len();
-
-                let replacement = format!("({trimmed})");
-
-                edits.push(TextEdit {
-                    start_byte: seg_lo + expr_trim_start,
-                    end_byte: seg_lo + expr_trim_end,
-                    replacement,
-                });
-            }
+            let text = String::from_utf8_lossy(&src[value.start_byte()..value.end_byte()]);
+            edits.push(TextEdit {
+                start_byte: value.start_byte(),
+                end_byte: value.end_byte(),
+                replacement: format!("({text})"),
+            });
         }
 
         let n = edits.len();
@@ -336,5 +74,33 @@ mod tests {
             format("f = { |dur = 1.neg ... more| dur };"),
             "f = { |dur = (1.neg) ... more| dur };"
         );
+    }
+
+    /// sclang compiles a parenthesized default as code that fills the
+    /// argument in when it is nil, and a literal as the value the function is
+    /// made with: `{ |a = (#[1, 2])| a }.value(nil)` is [1, 2], and nil
+    /// without the parentheses.
+    #[test]
+    fn test_a_literal_default_is_never_parenthesized() {
+        for src in [
+            "{ |a = #[1, 2], b = #Array[1]| a }",
+            "{ |a = inf, b = -inf, c = pi, d = 2pi, e = -2pi, f = - 1| a }",
+            "{ |a = $x, b = 'q z', c = \\q, d = $ | a }",
+            "{ |a = \"...\", b = \"a|b\" \"c\"| a }",
+            "{ |a = 2s, b = 1e-3, c = 16rFF, d = 0x1F, e = 1.5| a }",
+            "{ |a = nil, b = true| a }",
+            "{ |a(3), b 4, c = (1 + 2), d = (1; 2)| a }",
+        ] {
+            assert_eq!(format(src), src);
+        }
+    }
+
+    #[test]
+    fn test_any_other_default_is_parenthesized() {
+        assert_eq!(format("{ |a = b| a }"), "{ |a = (b)| a }");
+        assert_eq!(format("{ |a = [1, 2]| a }"), "{ |a = ([1, 2])| a }");
+        assert_eq!(format("{ |a = (1 + 2).neg| a }"), "{ |a = ((1 + 2).neg)| a }");
+        assert_eq!(format("{ |a = (1..3)| a }"), "{ |a = ((1..3))| a }");
+        assert_eq!(format("{\n    |a = Env.perc|\n    a\n}"), "{\n    |a = (Env.perc)|\n    a\n}");
     }
 }

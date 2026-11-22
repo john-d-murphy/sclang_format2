@@ -258,10 +258,6 @@ const KNOWN_PARSE_FAILURES: &[&str] = &[
     // Grammar gap: a quoted symbol left open to the end of the text, which
     // sclang's lexer accepts (`'(sclang-eval-line-forward nil)`).
     "tests/sc_help/Reference/EmacsEditor_1.scd",
-    // PipeParamDefaultParens breaks the tree on a string default holding
-    // `...`: `{ |b = "..."| b }` becomes `{ |b = (")..."| b }`.
-    "tests/sc_help/Classes/Function_24d.scd",
-    "tests/sc_help/Classes/Function_25b.scd",
 ];
 
 /// Run with: cargo test sc_help_corpus_idempotent

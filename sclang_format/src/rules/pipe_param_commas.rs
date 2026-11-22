@@ -22,8 +22,11 @@ impl Rule for PipeParamAddMissingCommas {
         // Handle pipe-style with AST (works when commas are missing)
         walk_tree_for_pipes(root, &src, &mut edits);
 
-        // Handle arg-style with byte scanning (AST is broken when commas are missing)
-        fix_arg_style_params(&src, &root, &mut edits);
+        // Handle arg-style with byte scanning (AST is broken when commas are
+        // missing). Only then: text that parsed has every comma it needs.
+        if root.has_error() {
+            fix_arg_style_params(src, &root, &mut edits);
+        }
 
         let n = edits.len();
         if n > 0 {
@@ -93,8 +96,9 @@ fn fix_arg_style_params(src: &[u8], root: &Node, edits: &mut Vec<TextEdit>) {
     let mut i = 0;
 
     while i < len {
-        // Look for "arg " keyword
+        // Look for "arg " keyword, a word of its own: not the end of `karg`
         if i + 4 <= len
+            && (i == 0 || !is_ident_char(src[i - 1]))
             && &src[i..i + 3] == b"arg"
             && (src[i + 3] == b' ' || src[i + 3] == b'\t' || src[i + 3] == b'\n')
         {
@@ -214,4 +218,38 @@ fn is_assignment_eq(seg: &[u8], idx: usize) -> bool {
     let prev = if idx > 0 { seg[idx - 1] } else { b' ' };
     let next = seg.get(idx + 1).copied().unwrap_or(b' ');
     !(prev == b'=' || prev == b'<' || prev == b'>' || prev == b'!') && next != b'='
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeParamAddMissingCommas.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_missing_comma_is_added() {
+        assert_eq!(format("{ |a = 1 b = 2| a }"), "{ |a = 1, b = 2| a }");
+        assert_eq!(format("{ arg a = 1 b = 2; a }"), "{ arg a = 1, b = 2; a }");
+    }
+
+    #[test]
+    fn test_a_name_that_ends_in_arg_is_not_an_argument_list() {
+        for src in [
+            "var karg, b; karg = b = 2; karg",
+            "{ arg a = 1, b = 2; var karg, c; karg = c = 2; a }",
+        ] {
+            assert_eq!(format(src), src);
+        }
+    }
 }

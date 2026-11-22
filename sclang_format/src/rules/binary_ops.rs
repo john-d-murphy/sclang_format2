@@ -1,10 +1,10 @@
 // src/rules/binary_ops.rs
 
+use crate::engine::text::is_newline;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-use crate::engine::text::{is_newline};
 
 /// Operators that should have spaces around them
 const SPACED_OPERATORS: &[&str] = &[

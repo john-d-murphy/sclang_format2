@@ -274,8 +274,9 @@ pub fn judge(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Verdict> {
 pub fn test_threads() -> usize {
     let args: Vec<String> = std::env::args().collect();
     let given = args.iter().enumerate().find_map(|(i, arg)| {
-        arg.strip_prefix("--test-threads=")
-            .or_else(|| (arg == "--test-threads").then(|| args.get(i + 1).map_or("", String::as_str)))
+        arg.strip_prefix("--test-threads=").or_else(|| {
+            (arg == "--test-threads").then(|| args.get(i + 1).map_or("", String::as_str))
+        })
     });
     given
         .map(String::from)

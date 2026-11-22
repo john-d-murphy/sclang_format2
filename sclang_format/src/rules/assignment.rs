@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
-use crate::engine::{Ctx, TextEdit};
 use crate::engine::ast::in_string_or_comment;
+use crate::engine::{Ctx, TextEdit};
 
 pub struct AddSpacesAroundAssignment;
 

@@ -30,8 +30,8 @@ use common::judge::{
     Verdict, compile_all, compile_classes, declare, fresh_dir, judge, manifest_dir, par_map,
     sclang_installed, tally,
 };
-use std::collections::BTreeSet;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -104,8 +104,7 @@ fn format_and_judge(corpus: &Path, work: &Path) -> Formatted {
                         result.differing.insert(path.clone(), how);
                     }
                     None => {
-                        let how =
-                            format!("refused once formatted: {}", after.errors.join(" | "));
+                        let how = format!("refused once formatted: {}", after.errors.join(" | "));
                         result.differing.insert(path.clone(), how);
                     }
                 }
@@ -293,7 +292,11 @@ fn class_library_keeps_its_meaning() {
 /// The same reading as `non_ascii_in_code` in extract_help_from_docs.py.
 fn non_ascii_in_code(text: &str) -> bool {
     let chars: Vec<char> = text.chars().collect();
-    let at = |i: usize, s: &str| s.chars().enumerate().all(|(k, c)| chars.get(i + k) == Some(&c));
+    let at = |i: usize, s: &str| {
+        s.chars()
+            .enumerate()
+            .all(|(k, c)| chars.get(i + k) == Some(&c))
+    };
     let (mut i, n) = (0, chars.len());
     while i < n {
         if at(i, "//") {
@@ -340,10 +343,23 @@ fn non_ascii_in_code(text: &str) -> bool {
 
 #[test]
 fn non_ascii_counts_only_in_code() {
-    for text in ["\"π\";", "'é';", "x; // ± 1", "/* /* 日本 */ é */ 1", "$\"; \"é\""] {
+    for text in [
+        "\"π\";",
+        "'é';",
+        "x; // ± 1",
+        "/* /* 日本 */ é */ 1",
+        "$\"; \"é\"",
+    ] {
         assert!(!non_ascii_in_code(text), "{text}");
     }
-    for text in ["z = ±1", "これは", "x = 1\u{a0}+ 2", "$é", "$\\é", "\"a\" ++ é"] {
+    for text in [
+        "z = ±1",
+        "これは",
+        "x = 1\u{a0}+ 2",
+        "$é",
+        "$\\é",
+        "\"a\" ++ é",
+    ] {
         assert!(non_ascii_in_code(text), "{text}");
     }
 }
@@ -428,7 +444,11 @@ fn corpus_design() {
     eprintln!("\n=== The corpus, by sclang ===");
     eprintln!("Candidates: {}", tally(&verdicts));
     eprintln!("Accepted, but with characters outside ASCII in code: {non_ascii}");
-    eprintln!("Corpus: {} files, {} expected", corpus.len(), expected.len());
+    eprintln!(
+        "Corpus: {} files, {} expected",
+        corpus.len(),
+        expected.len()
+    );
     assert!(
         missing.is_empty() && extra.is_empty(),
         "tests/sc_help is not what sclang makes of the help: {} accepted forms are \

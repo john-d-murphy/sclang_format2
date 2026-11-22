@@ -100,6 +100,9 @@ mod tests {
         ] {
             assert_eq!(format(src), src);
         }
-        assert_eq!(format("x = $\"; f = { |a|a }; y = $\";"), "x = $\"; f = { |a| a }; y = $\";");
+        assert_eq!(
+            format("x = $\"; f = { |a|a }; y = $\";"),
+            "x = $\"; f = { |a| a }; y = $\";"
+        );
     }
 }

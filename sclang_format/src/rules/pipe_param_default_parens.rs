@@ -101,8 +101,14 @@ mod tests {
     fn test_any_other_default_is_parenthesized() {
         assert_eq!(format("{ |a = b| a }"), "{ |a = (b)| a }");
         assert_eq!(format("{ |a = [1, 2]| a }"), "{ |a = ([1, 2])| a }");
-        assert_eq!(format("{ |a = (1 + 2).neg| a }"), "{ |a = ((1 + 2).neg)| a }");
+        assert_eq!(
+            format("{ |a = (1 + 2).neg| a }"),
+            "{ |a = ((1 + 2).neg)| a }"
+        );
         assert_eq!(format("{ |a = (1..3)| a }"), "{ |a = ((1..3))| a }");
-        assert_eq!(format("{\n    |a = Env.perc|\n    a\n}"), "{\n    |a = (Env.perc)|\n    a\n}");
+        assert_eq!(
+            format("{\n    |a = Env.perc|\n    a\n}"),
+            "{\n    |a = (Env.perc)|\n    a\n}"
+        );
     }
 }

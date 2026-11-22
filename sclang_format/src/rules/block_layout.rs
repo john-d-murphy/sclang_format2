@@ -1,7 +1,7 @@
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use crate::engine::text::{is_space, is_newline};
 
 const fn is_line_comment(line: &[u8]) -> bool {
     let mut i = 0;

@@ -1,5 +1,5 @@
-use crate::engine::{Ctx, TextEdit};
 use crate::engine::ast::descendants_of_kind;
+use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
@@ -128,8 +128,7 @@ fn one_element_per_line(buf: &[u8], bracket: Node, edits: &mut Vec<TextEdit>) {
                     indent_end += 1;
                 }
 
-                let indent =
-                    String::from_utf8_lossy(&buf[line_start..indent_end]).to_string();
+                let indent = String::from_utf8_lossy(&buf[line_start..indent_end]).to_string();
 
                 let replacement = if indent.is_empty() {
                     "\n".to_string()

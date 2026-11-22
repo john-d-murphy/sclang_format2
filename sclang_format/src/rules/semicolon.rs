@@ -1,7 +1,7 @@
 use crate::engine::ast::end_of_token_before;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 pub struct NoSpaceBeforeSemicolon;

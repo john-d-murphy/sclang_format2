@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
 
-use crate::engine::{Ctx, TextEdit};
 use crate::engine::ast::in_string_or_comment;
+use crate::engine::{Ctx, TextEdit};
 
 pub struct BraceAndPipesSingleLine;
 
@@ -33,8 +33,7 @@ impl BraceAndPipesSingleLine {
 
         // After '{' -> exactly one space (unless already before '|', both fine: we want "{ |")
         let mut after_l = open + 1;
-        while after_l < src.len() && src[after_l].is_ascii_whitespace() && src[after_l] != b'\n'
-        {
+        while after_l < src.len() && src[after_l].is_ascii_whitespace() && src[after_l] != b'\n' {
             after_l += 1;
         }
         if after_l == close {
@@ -65,9 +64,7 @@ impl BraceAndPipesSingleLine {
 
         // Before '}' -> exactly one space (unless previous is '{', then "{ }" still okay)
         let mut before_r = close;
-        while before_r > 0
-            && src[before_r - 1].is_ascii_whitespace()
-            && src[before_r - 1] != b'\n'
+        while before_r > 0 && src[before_r - 1].is_ascii_whitespace() && src[before_r - 1] != b'\n'
         {
             before_r -= 1;
         }

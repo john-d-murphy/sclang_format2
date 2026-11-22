@@ -138,7 +138,9 @@ fn formatted(parser: &mut Parser, form: &str) -> Result<String, String> {
         Ok(twice) => Err(format!(
             "a second pass changes it: {once:?} becomes {twice:?}"
         )),
-        Err(e) => Err(format!("the formatter refuses its own output {once:?}: {e:#}")),
+        Err(e) => Err(format!(
+            "the formatter refuses its own output {once:?}: {e:#}"
+        )),
     }
 }
 
@@ -196,7 +198,10 @@ fn check_interpreted(what: &str, forms: &[(String, String)], work: &Path) {
         match &compiled[&name(i)].dump {
             Some(dump) if dump == original => {}
             Some(_) => {
-                faults.insert(i, format!("it means something else once formatted: {text:?}"));
+                faults.insert(
+                    i,
+                    format!("it means something else once formatted: {text:?}"),
+                );
             }
             None => {
                 faults.insert(i, format!("sclang refuses it once formatted: {text:?}"));
@@ -250,7 +255,9 @@ fn interpreted_forms_keep_their_meaning_among_awkward_literals() {
     // return, so a form that opens with any of them is left out.
     let stands_alone = |form: &str| {
         let top = form.trim_start_matches(['(', ' ']);
-        ["arg ", "var ", "|", "^"].iter().any(|opening| top.starts_with(opening))
+        ["arg ", "var ", "|", "^"]
+            .iter()
+            .any(|opening| top.starts_with(opening))
     };
     let forms: Vec<(String, String)> = forms("interpreted.forms")
         .into_iter()
@@ -258,7 +265,11 @@ fn interpreted_forms_keep_their_meaning_among_awkward_literals() {
         .map(|(heading, form)| {
             // The second list is one more expression, after a semicolon if
             // the form does not end with its own.
-            let semicolon = if form.trim_end().ends_with(';') { "" } else { "; " };
+            let semicolon = if form.trim_end().ends_with(';') {
+                ""
+            } else {
+                "; "
+            };
             let form = format!("{AWKWARD_BEFORE}\n{form}\n{semicolon}{AWKWARD_AFTER}");
             (heading, form)
         })
@@ -389,7 +400,9 @@ fn production(name: &str, symbols: &[&str]) -> String {
         let symbols = symbols.join(" ");
         format!(
             "{name}: {}",
-            symbols.replace("'BAR'", "'|'").replace("'SEMICOLON'", "';'")
+            symbols
+                .replace("'BAR'", "'|'")
+                .replace("'SEMICOLON'", "';'")
         )
     }
 }
@@ -428,7 +441,13 @@ fn every_production_has_a_form() {
         without.is_empty() && unknown.is_empty(),
         "\nProductions of lang11d with no heading in tests/lang11d/*.forms:\n{}\n\
          Headings that are neither a production nor `lexer ...`:\n{}",
-        without.iter().map(|p| format!("  {p}\n")).collect::<String>(),
-        unknown.iter().map(|h| format!("  {h}\n")).collect::<String>()
+        without
+            .iter()
+            .map(|p| format!("  {p}\n"))
+            .collect::<String>(),
+        unknown
+            .iter()
+            .map(|h| format!("  {h}\n"))
+            .collect::<String>()
     );
 }

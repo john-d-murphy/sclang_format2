@@ -141,7 +141,10 @@ mod tests {
 
     #[test]
     fn test_one_space_after_a_colon() {
-        assert_eq!(format("(a:1, \\b:  2, \"c\":3, 4:5)"), "(a: 1, \\b: 2, \"c\": 3, 4: 5)");
+        assert_eq!(
+            format("(a:1, \\b:  2, \"c\":3, 4:5)"),
+            "(a: 1, \\b: 2, \"c\": 3, 4: 5)"
+        );
         assert_eq!(format("[a:1, b: 2]"), "[a: 1, b: 2]");
     }
 
@@ -149,7 +152,13 @@ mod tests {
     /// and so do `[a : 1]` and `[a: 1]`, `(Object : 1)` and `(Object: 1)`.
     #[test]
     fn test_the_space_before_a_colon_is_kept() {
-        for src in ["(a : 1)", "[a : 1]", "(Object : 1)", "(a + 1 : 2)", "(\\a : 1)"] {
+        for src in [
+            "(a : 1)",
+            "[a : 1]",
+            "(Object : 1)",
+            "(a + 1 : 2)",
+            "(\\a : 1)",
+        ] {
             assert_eq!(format(src), src);
         }
         assert_eq!(format("(a :1)"), "(a : 1)");

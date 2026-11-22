@@ -2,9 +2,9 @@
 //! one line: what the rule that joins one into a line and the rule that
 //! parts one over lines both need to know, read from the tree and said once.
 
+use crate::engine::Ctx;
 use crate::engine::layout::make_indent;
 use crate::engine::text::{is_newline, is_space};
-use crate::engine::Ctx;
 use crate::rules::ast_indent::line_depth;
 use tree_sitter::Node;
 
@@ -67,7 +67,11 @@ impl<'a> IfWithBlocks<'a> {
         let semicolon = bytes.get(end) == Some(&b';');
         Some(Self {
             start: node.start_byte(),
-            end: if semicolon { end + 1 } else { else_block.end_byte() },
+            end: if semicolon {
+                end + 1
+            } else {
+                else_block.end_byte()
+            },
             condition: text(open.end_byte(), close.start_byte())?,
             then_body: body(then_block)?,
             else_body: body(else_block)?,
@@ -110,11 +114,12 @@ impl<'a> IfWithBlocks<'a> {
             .iter()
             .position(|&b| is_newline(b))
             .map_or(bytes.len(), |at| self.end + at);
-        let indent = make_indent(cx.indent_style, line_depth(cx.tree.root_node(), bytes, first));
-        let width = indent.len()
-            + (self.start - first)
-            + self.on_one_line().len()
-            + (line_end - self.end);
+        let indent = make_indent(
+            cx.indent_style,
+            line_depth(cx.tree.root_node(), bytes, first),
+        );
+        let width =
+            indent.len() + (self.start - first) + self.on_one_line().len() + (line_end - self.end);
         width > MAX_LINE_WIDTH
     }
 }

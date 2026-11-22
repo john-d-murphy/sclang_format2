@@ -114,7 +114,10 @@ fn convert(block: Node, bytes: &[u8], edits: &mut Vec<TextEdit>) {
     }
 
     let mut cursor = block.walk();
-    let Some(brace) = block.children(&mut cursor).find(|child| child.kind() == "{") else {
+    let Some(brace) = block
+        .children(&mut cursor)
+        .find(|child| child.kind() == "{")
+    else {
         return;
     };
 
@@ -141,7 +144,11 @@ fn convert(block: Node, bytes: &[u8], edits: &mut Vec<TextEdit>) {
         replacement: format!(" |{params}|"),
     });
     edits.push(TextEdit {
-        start_byte: if alone { line_start } else { param_list.start_byte() },
+        start_byte: if alone {
+            line_start
+        } else {
+            param_list.start_byte()
+        },
         end_byte: end,
         replacement: String::new(),
     });

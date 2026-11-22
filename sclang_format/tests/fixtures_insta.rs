@@ -324,8 +324,8 @@ fn sc_help_corpus_idempotent() {
         .filter(|k| !known_failures.iter().any(|e| e.starts_with(*k as &str)))
         .collect();
 
-    let total = success_count + known_failures.len() + parse_failures.len()
-        + idempotency_failures.len();
+    let total =
+        success_count + known_failures.len() + parse_failures.len() + idempotency_failures.len();
     eprintln!("\n=== SC Help Corpus Results ===");
     eprintln!("Total: {}", total);
     eprintln!("Success: {}", success_count);

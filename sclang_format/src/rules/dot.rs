@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
-use crate::engine::{Ctx, TextEdit};
 use crate::engine::ast::{end_of_token_before, in_string_or_comment};
+use crate::engine::{Ctx, TextEdit};
 
 pub struct NoSpacesAroundDot;
 
@@ -55,10 +55,7 @@ impl crate::rules::Rule for NoSpacesAroundDot {
             // left
             let token_before_end = end_of_token_before(cap.node);
             let mut l = dot;
-            while l > token_before_end
-                && src[l - 1].is_ascii_whitespace()
-                && src[l - 1] != b'\n'
-            {
+            while l > token_before_end && src[l - 1].is_ascii_whitespace() && src[l - 1] != b'\n' {
                 l -= 1;
             }
             if l != dot {

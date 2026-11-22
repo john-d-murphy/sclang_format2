@@ -1,10 +1,10 @@
 // src/rules/inline_comment_spacing.rs
 
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-use crate::engine::text::{is_space, is_newline};
 
 /// Check if this byte position is the START of a line comment node
 fn is_line_comment_start(root: Node, byte: usize) -> bool {

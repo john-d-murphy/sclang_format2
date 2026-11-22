@@ -64,6 +64,9 @@ mod tests {
 
     #[test]
     fn test_both_blocks_get_a_space_inside_each_brace() {
-        assert_eq!(format("x = if (a)\n{ 1 }\n{ 2 };"), "x = if (a) { 1 } { 2 };");
+        assert_eq!(
+            format("x = if (a)\n{ 1 }\n{ 2 };"),
+            "x = if (a) { 1 } { 2 };"
+        );
     }
 }

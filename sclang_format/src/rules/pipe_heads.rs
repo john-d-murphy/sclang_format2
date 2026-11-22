@@ -57,25 +57,26 @@ fn is_valid_context(pipe_list_node: tree_sitter::Node) -> bool {
     while let Some(node) = current {
         if node.kind() == "function_block" {
             if let Some(parent) = node.parent()
-                && parent.kind() == "function_call" {
-                    let mut has_receiver = false;
-                    let mut cursor = parent.walk();
-                    if cursor.goto_first_child() {
-                        loop {
-                            if cursor.field_name() == Some("receiver") {
-                                has_receiver = true;
-                                break;
-                            }
-                            if !cursor.goto_next_sibling() {
-                                break;
-                            }
+                && parent.kind() == "function_call"
+            {
+                let mut has_receiver = false;
+                let mut cursor = parent.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        if cursor.field_name() == Some("receiver") {
+                            has_receiver = true;
+                            break;
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
                         }
                     }
-
-                    if !has_receiver {
-                        return false;
-                    }
                 }
+
+                if !has_receiver {
+                    return false;
+                }
+            }
             break;
         }
         current = node.parent();
@@ -176,8 +177,7 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
     let inner_end = right.start_byte();
     let token_end = end_of_token_before(right).max(left.end_byte());
     let mut space_start = inner_end;
-    while space_start > token_end
-        && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
+    while space_start > token_end && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
     {
         space_start -= 1;
     }

@@ -1,9 +1,9 @@
 // src/rules/call_index_paren.rs
 
+use crate::engine::text::{is_escaped, is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-use crate::engine::text::{is_space, is_newline, is_escaped};
 
 const fn is_ident_char(b: u8) -> bool {
     b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'

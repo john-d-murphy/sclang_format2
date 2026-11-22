@@ -70,7 +70,11 @@ fn files_format_cleanly(root: &str) {
         }
     }
 
-    eprintln!("{root}: {} class files, {} faults", paths.len(), faults.len());
+    eprintln!(
+        "{root}: {} class files, {} faults",
+        paths.len(),
+        faults.len()
+    );
     assert!(faults.is_empty(), "\n{}", faults.join("\n"));
 }
 

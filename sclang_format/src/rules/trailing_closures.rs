@@ -49,7 +49,9 @@ fn only_child(node: Node) -> Option<Node> {
 
 /// The methods whose one argument, when it is a block, is written after
 /// the call and not in its parentheses.
-const BLOCK_METHODS: [&[u8]; 6] = [b"do", b"collect", b"select", b"reject", b"inject", b"detect"];
+const BLOCK_METHODS: [&[u8]; 6] = [
+    b"do", b"collect", b"select", b"reject", b"inject", b"detect",
+];
 
 /// Try to rewrite `.do({ ... })`, given its `method_call` node, as
 /// `.do { ... }`: the one argument a block, and nothing else in the
@@ -183,17 +185,23 @@ mod tests {
     fn test_do_with_one_block_in_parentheses_takes_it_as_a_trailing_block() {
         assert_eq!(format("3.do({ |i| i.postln });"), "3.do { |i| i.postln };");
         assert_eq!(format("a.do ( {1} );"), "a.do  {1};");
-        assert_eq!(
-            format("2.do({ 5.do({ 1 }) });"),
-            "2.do { 5.do { 1 } };"
-        );
+        assert_eq!(format("2.do({ 5.do({ 1 }) });"), "2.do { 5.do { 1 } };");
     }
 
     #[test]
     fn test_the_other_block_methods_and_while_take_trailing_blocks_too() {
-        assert_eq!(format("a.collect({ |x| x * 2 });"), "a.collect { |x| x * 2 };");
-        assert_eq!(format("a.select({ 1 }).reject({ 2 });"), "a.select { 1 }.reject { 2 };");
-        assert_eq!(format("a.detect({ $) }).inject({ 3 });"), "a.detect { $) }.inject { 3 };");
+        assert_eq!(
+            format("a.collect({ |x| x * 2 });"),
+            "a.collect { |x| x * 2 };"
+        );
+        assert_eq!(
+            format("a.select({ 1 }).reject({ 2 });"),
+            "a.select { 1 }.reject { 2 };"
+        );
+        assert_eq!(
+            format("a.detect({ $) }).inject({ 3 });"),
+            "a.detect { $) }.inject { 3 };"
+        );
         assert_eq!(format("a.inject(0, { 3 });"), "a.inject(0, { 3 });");
         assert_eq!(
             format("while({ x < 10 }, { x = x + 1 });"),

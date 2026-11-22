@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::fmt;
 use tree_sitter::{Language, Node, Parser, Tree};
 

@@ -77,7 +77,10 @@ mod tests {
             format("Foo { init { |a| name = a; ^this } }"),
             "Foo { init { |a| name = a; ^this } }"
         );
-        assert_eq!(format("Foo { bar { a.foo; ^b; } }"), "Foo { bar { a.foo; ^b } }");
+        assert_eq!(
+            format("Foo { bar { a.foo; ^b; } }"),
+            "Foo { bar { a.foo; ^b } }"
+        );
     }
 
     #[test]

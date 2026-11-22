@@ -2,203 +2,48 @@ use crate::engine::ast::in_string_or_comment;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
+use tree_sitter::Node;
 
 const fn is_space(b: u8) -> bool {
     b == b' ' || b == b'\t' || b == b'\r' || b == b'\n'
 }
 
-const fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'\\'
-}
-
-/// Try to rewrite an `if(cond, { ... }, { ... })` or `if(cond, { ... })` call at `start_if`.
+/// Try to rewrite an `if(cond, { ... }, { ... })` or `if(cond, { ... })` call,
+/// given its `if` node. The tree, not the bytes, says where the condition and
+/// the blocks are: a `,` or a bracket may be a character (`$,`) or in a string,
+/// and the blank of `$ ` is not space to trim.
 /// Returns (`start_byte`, `end_byte`, replacement) if successful.
-fn rewrite_if_call(buf: &[u8], start_if: usize) -> Option<(usize, usize, String)> {
-    let len = buf.len();
+fn rewrite_if_call(buf: &[u8], if_node: Node) -> Option<(usize, usize, String)> {
+    let mut cursor = if_node.walk();
+    let children: Vec<Node> = if_node.children(&mut cursor).collect();
+    let text = |n: &Node| String::from_utf8_lossy(&buf[n.byte_range()]).to_string();
 
-    // Verify "if" token.
-    if start_if + 2 > len {
+    // `if`, `(`, the condition up to the first `,`, then nothing but blocks
+    // and commas to the `)` that ends the node. In the trailing form the node
+    // ends with a block instead.
+    let (open, rest) = children.split_first()?.1.split_first()?;
+    if open.kind() != "(" || children.last()?.kind() != ")" {
         return None;
     }
-    if &buf[start_if..start_if + 2] != b"if" {
-        return None;
-    }
-    // Ensure it's not part of an identifier.
-    if start_if > 0 && is_ident_char(buf[start_if - 1]) {
-        return None;
-    }
-    if start_if + 2 < len && is_ident_char(buf[start_if + 2]) {
-        return None;
-    }
-    // Reject the method-call form `recv.if(...)` (including `recv. if(...)`).
-    // There the first argument is the then-block, not a condition, so the
-    // keyword-if rewrite `if (cond) { ... }` would be semantically wrong.
-    {
-        let mut p = start_if;
-        while p > 0 && is_space(buf[p - 1]) {
-            p -= 1;
+    let comma = rest.iter().position(|n| n.kind() == ",")?;
+    let (cond, args) = rest.split_at(comma);
+    let blocks: Vec<String> = match args.iter().map(Node::kind).collect::<Vec<_>>()[..] {
+        [",", "function_block", ")"] => vec![text(&args[1])],
+        [",", "function_block", ",", "function_block", ")"] => {
+            vec![text(&args[1]), text(&args[3])]
         }
-        if p > 0 && buf[p - 1] == b'.' {
-            return None;
-        }
-    }
-
-    // Find '(' after "if".
-    let mut i = start_if + 2;
-    while i < len && is_space(buf[i]) {
-        i += 1;
-    }
-    if i >= len || buf[i] != b'(' {
-        return None;
-    }
-    let open = i;
-
-    // Scan to matching ')' and record top-level commas.
-    let mut paren = 1i32;
-    let mut brace = 0i32;
-    let mut bracket = 0i32;
-    let mut commas: Vec<usize> = Vec::new();
-    let mut j = open + 1;
-    let mut close_opt = None;
-
-    while j < len {
-        let c = buf[j];
-        match c {
-            b'(' => paren += 1,
-            b')' => {
-                paren -= 1;
-                if paren == 0 {
-                    close_opt = Some(j);
-                    break;
-                }
-            }
-            b'{' => brace += 1,
-            b'}' => brace -= 1,
-            b'[' => bracket += 1,
-            b']' => bracket -= 1,
-            b',' if paren == 1 && brace == 0 && bracket == 0 => {
-                commas.push(j);
-            }
-            _ => {}
-        }
-        j += 1;
-    }
-
-    let close = close_opt?;
-    if commas.is_empty() {
-        return None; // no arg separation → not the form we want
-    }
-
-    // Split condition and arg area.
-    let cond_lo = open + 1;
-    let cond_hi = commas[0];
-    if cond_hi <= cond_lo {
-        return None;
-    }
-
-    let mut cond_start = cond_lo;
-    while cond_start < cond_hi && is_space(buf[cond_start]) {
-        cond_start += 1;
-    }
-    let mut cond_end = cond_hi;
-    while cond_end > cond_start && is_space(buf[cond_end - 1]) {
-        cond_end -= 1;
-    }
-    if cond_end <= cond_start {
-        return None;
-    }
-    let cond_str = String::from_utf8_lossy(&buf[cond_start..cond_end]).to_string();
-
-    // Now parse the block arguments after the first comma.
-    let mut then_block: Option<(usize, usize)> = None;
-    let mut else_block: Option<(usize, usize)> = None;
-
-    // Helper to find a block starting at or after 'idx', returning (start, end_of_block).
-    let find_block = |buf: &[u8], mut idx: usize, limit: usize| -> Option<(usize, usize)> {
-        while idx < limit && is_space(buf[idx]) {
-            idx += 1;
-        }
-        if idx >= limit || buf[idx] != b'{' {
-            return None;
-        }
-        let start = idx;
-        let mut brace = 1i32;
-        idx += 1;
-        while idx < limit {
-            let c = buf[idx];
-            match c {
-                b'{' => brace += 1,
-                b'}' => {
-                    brace -= 1;
-                    if brace == 0 {
-                        return Some((start, idx));
-                    }
-                }
-                _ => {}
-            }
-            idx += 1;
-        }
-        None
+        _ => return None,
     };
-
-    let first_arg_lo = commas[0] + 1;
-    let arg_region_hi = close;
-
-    if commas.len() == 1 {
-        // if(cond, { ... }) form
-        if let Some((t_start, t_end)) = find_block(buf, first_arg_lo, arg_region_hi) {
-            // ensure only whitespace between end of block and ')'
-            let mut k = t_end + 1;
-            while k < arg_region_hi {
-                if !is_space(buf[k]) {
-                    return None;
-                }
-                k += 1;
-            }
-            then_block = Some((t_start, t_end));
-        } else {
-            return None;
-        }
-    } else if commas.len() >= 2 {
-        // if(cond, { ... }, { ... }) form
-        if let Some((t_start, t_end)) = find_block(buf, commas[0] + 1, commas[1]) {
-            then_block = Some((t_start, t_end));
-        } else {
-            return None;
-        }
-
-        if let Some((e_start, e_end)) = find_block(buf, commas[1] + 1, arg_region_hi) {
-            // ensure only whitespace between end of else-block and ')'
-            let mut k = e_end + 1;
-            while k < arg_region_hi {
-                if !is_space(buf[k]) {
-                    return None;
-                }
-                k += 1;
-            }
-            else_block = Some((e_start, e_end));
-        } else {
-            return None;
-        }
-    }
-
-    let (t_start, t_end) = then_block?;
-    let then_str = String::from_utf8_lossy(&buf[t_start..=t_end]).to_string();
-    let else_str = else_block.map(|(s, e)| String::from_utf8_lossy(&buf[s..=e]).to_string());
+    let cond = String::from_utf8_lossy(&buf[cond.first()?.start_byte()..cond.last()?.end_byte()]);
 
     // Build replacement: `if (COND) { ... } [ { ... } ]`
-    let mut repl = String::new();
-    repl.push_str("if (");
-    repl.push_str(cond_str.trim());
-    repl.push(')');
-    repl.push(' ');
-    repl.push_str(&then_str);
-    if let Some(es) = else_str {
+    let mut repl = format!("if ({cond})");
+    for block in blocks {
         repl.push(' ');
-        repl.push_str(&es);
+        repl.push_str(&block);
     }
 
-    Some((start_if, close + 1, repl))
+    Some((if_node.start_byte(), if_node.end_byte(), repl))
 }
 
 /// Try to rewrite `.do({ ... })` at the given `dot` index (where buf[dot] == '.').
@@ -344,11 +189,13 @@ impl TrailingClosures {
         let mut i = 0;
 
         while i < len {
-            // First, try `if(...)` form.
+            // First, try `if(...)` form: an `if` token that begins an `if` node.
             if i + 2 <= len
                 && &buf[i..i + 2] == b"if"
-                && !in_string_or_comment(root, i)
-                && let Some((start, end, repl)) = rewrite_if_call(buf, i)
+                && let Some(token) = root.descendant_for_byte_range(i, i + 2)
+                && token.kind() == "if"
+                && let Some(if_node) = token.parent().filter(|n| n.kind() == "if")
+                && let Some((start, end, repl)) = rewrite_if_call(buf, if_node)
             {
                 edits.push(TextEdit {
                     start_byte: start,
@@ -382,5 +229,39 @@ impl TrailingClosures {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        TrailingClosures.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_condition_keeps_the_character_space() {
+        assert_eq!(
+            format("if (char == $ , { 1 }, { 2 });"),
+            "if (char == $ ) { 1 } { 2 };"
+        );
+    }
+
+    #[test]
+    fn test_brackets_and_commas_in_characters_and_strings_are_not_the_call() {
+        assert_eq!(format("if(c == $,, {1}, {2});"), "if (c == $,) {1} {2};");
+        assert_eq!(format("if(c == $(, {1});"), "if (c == $() {1};");
+        assert_eq!(format("if(s == \")\", {1});"), "if (s == \")\") {1};");
+        assert_eq!(format("if(a, { $} }, {2});"), "if (a) { $} } {2};");
     }
 }

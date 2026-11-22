@@ -18,11 +18,21 @@ pub fn fresh_dir(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
-pub fn sclang_installed() -> bool {
+fn sclang_installed() -> bool {
     Command::new("sclang")
         .arg("-v")
         .output()
         .is_ok_and(|out| out.status.success())
+}
+
+/// Whether sclang is there to judge. When it is not, says that `test` is
+/// skipped for want of it.
+pub fn sclang_or_skip(test: &str) -> bool {
+    let installed = sclang_installed();
+    if !installed {
+        super::skip(test, "sclang is not installed");
+    }
+    installed
 }
 
 /// What sclang posted while compiling one file: the compiled function

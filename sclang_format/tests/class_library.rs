@@ -8,13 +8,8 @@
 //! - `test_suite_formats_cleanly`: the class files of SuperCollider's own
 //!   test suite (testsuite/ in its source), which the installed library
 //!   leaves out. Its scripts are the business of tests/sclang_judge.rs.
-//!   Skips, saying so, when the source is not there. To fetch
-//!   it, from this directory (target/ is not committed):
-//!
-//!       git clone --depth 1 --branch Version-3.14.1 \
-//!           https://github.com/supercollider/supercollider target/sc-source
-//!
-//!   The source is only read. Nothing in it is built or run.
+//!   Skips, saying so, when the source is not there; tests/common/mod.rs
+//!   has where it is looked for and the command that fetches it.
 
 mod common;
 
@@ -24,25 +19,24 @@ use std::path::Path;
 use tree_sitter::Parser;
 
 const LIBRARY: &str = "/usr/share/SuperCollider/SCClassLibrary";
-const TEST_SUITE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/sc-source/testsuite");
 
 fn parses(parser: &mut Parser, src: &str) -> bool {
     !parser.parse(src, None).unwrap().root_node().has_error()
 }
 
 /// Formats every .sc file under `root` and requires each to be clean.
-fn files_format_cleanly(root: &str) {
+fn files_format_cleanly(root: &Path) {
     let mut parser = Parser::new();
     parser
         .set_language(&sclang_format::grammar::language())
         .unwrap();
 
-    let mut paths: Vec<_> = glob(&format!("{root}/**/*.sc"))
+    let mut paths: Vec<_> = glob(&format!("{}/**/*.sc", root.display()))
         .unwrap()
         .map(Result::unwrap)
         .collect();
     paths.sort();
-    assert!(!paths.is_empty(), "no .sc files under {root}");
+    assert!(!paths.is_empty(), "no .sc files under {}", root.display());
 
     let mut faults = Vec::new();
     for path in &paths {
@@ -71,7 +65,8 @@ fn files_format_cleanly(root: &str) {
     }
 
     eprintln!(
-        "{root}: {} class files, {} faults",
+        "{}: {} class files, {} faults",
+        root.display(),
         paths.len(),
         faults.len()
     );
@@ -81,20 +76,19 @@ fn files_format_cleanly(root: &str) {
 #[test]
 fn class_library_formats_cleanly() {
     if !Path::new(LIBRARY).is_dir() {
-        eprintln!("skipping class_library_formats_cleanly: no class library at {LIBRARY}");
+        common::skip(
+            "class_library_formats_cleanly",
+            &format!("no class library at {LIBRARY}"),
+        );
         return;
     }
-    files_format_cleanly(LIBRARY);
+    files_format_cleanly(Path::new(LIBRARY));
 }
 
 #[test]
 fn test_suite_formats_cleanly() {
-    if !Path::new(TEST_SUITE).is_dir() {
-        eprintln!(
-            "skipping test_suite_formats_cleanly: no SuperCollider source at {TEST_SUITE} \
-             (the top of tests/class_library.rs says how to fetch it)"
-        );
+    let Some(source) = common::sc_source("test_suite_formats_cleanly") else {
         return;
-    }
-    files_format_cleanly(TEST_SUITE);
+    };
+    files_format_cleanly(&source.join("testsuite"));
 }

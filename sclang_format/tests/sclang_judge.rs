@@ -28,7 +28,7 @@ mod common;
 
 use common::judge::{
     Verdict, compile_all, compile_classes, declare, fresh_dir, judge, manifest_dir, par_map,
-    sclang_installed, tally,
+    sclang_or_skip, tally,
 };
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -121,8 +121,7 @@ fn format_and_judge(corpus: &Path, work: &Path) -> Formatted {
 
 #[test]
 fn formatting_keeps_meaning() {
-    if !sclang_installed() {
-        eprintln!("Skipping formatting_keeps_meaning: sclang is not installed");
+    if !sclang_or_skip("formatting_keeps_meaning") {
         return;
     }
     let corpus = manifest_dir().join("tests/sc_help");
@@ -186,19 +185,13 @@ fn formatting_keeps_meaning() {
 /// make of it something sclang accepts. It may refuse it too.
 #[test]
 fn test_suite_scripts_keep_their_meaning() {
-    if !sclang_installed() {
-        eprintln!("Skipping test_suite_scripts_keep_their_meaning: sclang is not installed");
+    if !sclang_or_skip("test_suite_scripts_keep_their_meaning") {
         return;
     }
-    let scripts = manifest_dir().join("target/sc-source/testsuite");
-    if !scripts.is_dir() {
-        eprintln!(
-            "Skipping test_suite_scripts_keep_their_meaning: no SuperCollider source at {} \
-             (the top of tests/class_library.rs says how to fetch it)",
-            scripts.display()
-        );
+    let Some(source) = common::sc_source("test_suite_scripts_keep_their_meaning") else {
         return;
-    }
+    };
+    let scripts = source.join("testsuite");
     let work = fresh_dir(&manifest_dir().join("target/judge/test_suite"));
     let formatted = format_and_judge(&scripts, &work);
 
@@ -227,10 +220,13 @@ fn test_suite_scripts_keep_their_meaning() {
 #[test]
 fn class_library_keeps_its_meaning() {
     let library = Path::new("/usr/share/SuperCollider/SCClassLibrary");
-    if !sclang_installed() || !library.is_dir() {
-        eprintln!(
-            "Skipping class_library_keeps_its_meaning: needs sclang and its class library at {}",
-            library.display()
+    if !sclang_or_skip("class_library_keeps_its_meaning") {
+        return;
+    }
+    if !library.is_dir() {
+        common::skip(
+            "class_library_keeps_its_meaning",
+            &format!("no class library at {}", library.display()),
         );
         return;
     }
@@ -273,6 +269,14 @@ fn class_library_keeps_its_meaning() {
         files.len(),
         original.len(),
         changed.len()
+    );
+    // Both sets empty would be equal too: sclang must have attributed the
+    // library's classes to the directory it was given.
+    assert!(
+        original.len() > 10_000,
+        "sclang posted only {} classes and methods for {}",
+        original.len(),
+        library.display()
     );
     assert!(
         changed.is_empty(),
@@ -379,8 +383,7 @@ fn texts(dir: &Path) -> BTreeMap<PathBuf, String> {
 #[test]
 #[ignore = "checks the corpus against the help; needs sclang, python3 and the help sources"]
 fn corpus_design() {
-    if !sclang_installed() {
-        eprintln!("Skipping corpus_design: sclang is not installed");
+    if !sclang_or_skip("corpus_design") {
         return;
     }
     let root = manifest_dir();
@@ -401,7 +404,7 @@ fn corpus_design() {
             String::from_utf8_lossy(&out.stderr)
         ),
         Err(e) => {
-            eprintln!("Skipping corpus_design: cannot run python3 ({e})");
+            common::skip("corpus_design", &format!("cannot run python3 ({e})"));
             return;
         }
     };

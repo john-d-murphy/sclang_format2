@@ -13,104 +13,21 @@
 //!   so, when it is not installed.
 //! - `every_production_has_a_form` reads the Bison grammar itself and
 //!   requires each of its productions to be a heading in one of the two
-//!   files. It needs SuperCollider's source, at the tag of the version
-//!   installed, and skips, saying so, when the source is not there. To
-//!   fetch it, from this directory (target/ is not committed):
+//!   files. It needs SuperCollider's source and skips, saying so, when the
+//!   source is not there; tests/common/mod.rs has where it is looked for
+//!   and the command that fetches it.
 //!
-//!       git clone --depth 1 --branch Version-3.14.1 \
-//!           https://github.com/supercollider/supercollider target/sc-source
-//!
-//!   The source is only read. Nothing in it is built or run.
-//!
-//! A forms file is read like this. A line that begins `== ` is a heading: a
-//! production, written as the Bison file writes it, or `lexer ...` for
-//! something the lexer does. Headings that follow one another share what
-//! comes under them. Under the headings come the forms, one to a paragraph,
-//! or a line that begins `-- ` and says why no form can reach the
-//! production. What stands before the first heading is the file's own
-//! introduction.
 
 mod common;
 
+use common::forms::{forms, groups};
 use common::judge::{
-    Verdict, compile_all, compile_classes, declare, fresh_dir, judge, manifest_dir,
-    sclang_installed,
+    Verdict, compile_all, compile_classes, declare, fresh_dir, judge, manifest_dir, sclang_or_skip,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tree_sitter::Parser;
-
-/// Where SuperCollider's source is looked for, and how to put it there.
-const SC_SOURCE: &str = "target/sc-source";
-const FETCH: &str = "git clone --depth 1 --branch Version-3.14.1 \
-                     https://github.com/supercollider/supercollider target/sc-source";
-
-struct Group {
-    headings: Vec<String>,
-    forms: Vec<String>,
-    /// Why no form reaches these productions, where none does.
-    excuse: Option<String>,
-}
-
-fn groups(file: &str) -> Vec<Group> {
-    let path = manifest_dir().join("tests/lang11d").join(file);
-    let text = fs::read_to_string(&path).unwrap();
-    let mut groups: Vec<Group> = Vec::new();
-    let mut form: Vec<&str> = Vec::new();
-    // A blank line, a heading and the end of the file each end a form.
-    let end_form = |groups: &mut Vec<Group>, form: &mut Vec<&str>| {
-        if let (Some(group), false) = (groups.last_mut(), form.is_empty()) {
-            group.forms.push(form.join("\n"));
-        }
-        form.clear();
-    };
-    for line in text.lines() {
-        if let Some(heading) = line.strip_prefix("== ") {
-            end_form(&mut groups, &mut form);
-            match groups.last_mut() {
-                Some(group) if group.forms.is_empty() && group.excuse.is_none() => {
-                    group.headings.push(heading.trim().to_string());
-                }
-                _ => groups.push(Group {
-                    headings: vec![heading.trim().to_string()],
-                    forms: Vec::new(),
-                    excuse: None,
-                }),
-            }
-        } else if let Some(excuse) = line.strip_prefix("-- ") {
-            let group = groups.last_mut().expect("an excuse before any heading");
-            group.excuse = Some(excuse.to_string());
-        } else if line.trim().is_empty() {
-            end_form(&mut groups, &mut form);
-        } else {
-            form.push(line);
-        }
-    }
-    end_form(&mut groups, &mut form);
-    for group in &groups {
-        assert!(
-            group.forms.is_empty() != group.excuse.is_none(),
-            "{file}: under {:?} there must be forms, or one line saying why there are none",
-            group.headings
-        );
-    }
-    groups
-}
-
-/// Every form of a file, with the first of its headings to name it by.
-fn forms(file: &str) -> Vec<(String, String)> {
-    groups(file)
-        .into_iter()
-        .flat_map(|group| {
-            let heading = group.headings[0].clone();
-            group
-                .forms
-                .into_iter()
-                .map(move |form| (heading.clone(), form))
-        })
-        .collect()
-}
 
 fn parser() -> Parser {
     let mut parser = Parser::new();
@@ -218,8 +135,7 @@ fn check_interpreted(what: &str, forms: &[(String, String)], work: &Path) {
 
 #[test]
 fn interpreted_forms_keep_their_meaning() {
-    if !sclang_installed() {
-        eprintln!("Skipping interpreted_forms_keep_their_meaning: sclang is not installed");
+    if !sclang_or_skip("interpreted_forms_keep_their_meaning") {
         return;
     }
     check_interpreted(
@@ -244,11 +160,7 @@ const AWKWARD_AFTER: &str = "[$}, $), $], \"*/})]\"]";
 /// the form, or spoil it.
 #[test]
 fn interpreted_forms_keep_their_meaning_among_awkward_literals() {
-    if !sclang_installed() {
-        eprintln!(
-            "Skipping interpreted_forms_keep_their_meaning_among_awkward_literals: \
-             sclang is not installed"
-        );
+    if !sclang_or_skip("interpreted_forms_keep_their_meaning_among_awkward_literals") {
         return;
     }
     // Arguments and variables must come first and nothing may follow a
@@ -281,10 +193,129 @@ fn interpreted_forms_keep_their_meaning_among_awkward_literals() {
     );
 }
 
+/// Each form once more, after a line of characters that are quotes and
+/// brackets with nothing to pair them: `$"`, `$'`, `$(`, a `$` and a tab. A
+/// rule that counts quotes or brackets as it reads bytes is lost from there
+/// to the end of the file, and leaves the form as it was written or worse.
+/// So the form must come out exactly as it does when it stands alone.
+#[test]
+fn interpreted_forms_are_formatted_alike_after_unpaired_literals() {
+    const UNPAIRED: &str = "u = [$\", $', $,, $(, $[, ${, $|, $/, $\t, $ ];";
+    let stands_alone = |form: &str| {
+        let top = form.trim_start_matches(['(', ' ']);
+        ["arg ", "var ", "|", "^"]
+            .iter()
+            .any(|opening| top.starts_with(opening))
+    };
+    let format = |text: &str| sclang_format::format_source(text);
+    let before = format(UNPAIRED).expect("the line of unpaired literals is refused");
+    let forms: Vec<(String, String)> = ["interpreted.forms", "awkward.forms"]
+        .iter()
+        .flat_map(|file| forms(file))
+        .filter(|(_, form)| !stands_alone(form))
+        .collect();
+    let mut faults = Vec::new();
+    for (heading, form) in &forms {
+        let alone = format(form);
+        let after = format(&format!("{UNPAIRED}\n{form}"));
+        let fault = match (alone, after) {
+            // A form the formatter refuses is the other tests' business.
+            (Err(_), _) => continue,
+            (Ok(_), Err(e)) => format!("refused after the unpaired literals: {e:#}"),
+            (Ok(alone), Ok(after)) if after == format!("{before}{alone}") => continue,
+            (Ok(alone), Ok(after)) => format!("alone: {alone:?}\n  after: {after:?}"),
+        };
+        faults.push(format!("{form}\n  [{heading}]\n  {fault}"));
+    }
+    report(
+        "interpreted forms after unpaired literals",
+        forms.len(),
+        &faults,
+    );
+}
+
+/// The traps of awkward.forms, held to what the forms of the grammar are.
+#[test]
+fn awkward_forms_keep_their_meaning() {
+    if !sclang_or_skip("awkward_forms_keep_their_meaning") {
+        return;
+    }
+    check_interpreted(
+        "awkward forms",
+        &forms("awkward.forms"),
+        &fresh_dir(&manifest_dir().join("target/judge/lang11d/awkward-forms")),
+    );
+}
+
+/// What the formatter does with text that is not SuperCollider: it never
+/// repairs it. refused.forms has three kinds, by heading: text sclang
+/// refuses that the formatter must refuse too (our grammar does not parse
+/// it); text sclang refuses that our grammar takes, where what the formatter
+/// writes must still be refused by sclang; and text that sclang accepts only
+/// because its lexer ends the text at an open comment, string or symbol,
+/// which the formatter must refuse.
+#[test]
+fn refused_forms_are_not_made_valid() {
+    if !sclang_or_skip("refused_forms_are_not_made_valid") {
+        return;
+    }
+    let forms = forms("refused.forms");
+    let work = fresh_dir(&manifest_dir().join("target/judge/lang11d/refused"));
+    let name = |i: usize| PathBuf::from(format!("{i:04}.scd"));
+
+    let original_dir = fresh_dir(&work.join("original"));
+    let formatted_dir = fresh_dir(&work.join("formatted"));
+    let mut written = BTreeMap::new();
+    for (i, (_, form)) in forms.iter().enumerate() {
+        fs::write(original_dir.join(name(i)), form).unwrap();
+        if let Ok(text) = sclang_format::format_source(form) {
+            fs::write(formatted_dir.join(name(i)), &text).unwrap();
+            written.insert(i, text);
+        }
+    }
+    let originals = compile_all(&original_dir, &work);
+    let formatted = compile_all(&formatted_dir, &work);
+
+    let mut faults = Vec::new();
+    for (i, (heading, form)) in forms.iter().enumerate() {
+        let sclang_accepts = originals[&name(i)].dump.is_some();
+        let revived = formatted
+            .get(&name(i))
+            .is_some_and(|compiled| compiled.dump.is_some());
+        let fault = if heading.starts_with("sclang refuses it, and so does the formatter") {
+            match (sclang_accepts, written.get(&i)) {
+                (true, _) => "sclang accepts it".to_string(),
+                (false, Some(text)) => format!("the formatter takes it and writes {text:?}"),
+                (false, None) => continue,
+            }
+        } else if heading.starts_with("sclang refuses it; the formatter takes it") {
+            match (sclang_accepts, written.get(&i)) {
+                (true, _) => "sclang accepts it".to_string(),
+                (false, None) => {
+                    "the formatter refuses it: it belongs under the first heading".to_string()
+                }
+                (false, Some(text)) if revived => {
+                    format!("sclang accepts what the formatter writes: {text:?}")
+                }
+                (false, Some(_)) => continue,
+            }
+        } else if heading.starts_with("sclang ends the text") {
+            match (sclang_accepts, written.get(&i)) {
+                (false, _) => "sclang refuses it".to_string(),
+                (true, Some(text)) => format!("the formatter takes it and writes {text:?}"),
+                (true, None) => continue,
+            }
+        } else {
+            panic!("refused.forms: a heading the test does not know: {heading}");
+        };
+        faults.push(format!("{form}\n  [{heading}]\n  {fault}"));
+    }
+    report("refused forms", forms.len(), &faults);
+}
+
 #[test]
 fn class_forms_keep_their_meaning() {
-    if !sclang_installed() {
-        eprintln!("Skipping class_forms_keep_their_meaning: sclang is not installed");
+    if !sclang_or_skip("class_forms_keep_their_meaning") {
         return;
     }
     let forms = forms("classes.forms");
@@ -314,16 +345,26 @@ fn class_forms_keep_their_meaning() {
                 dir.display()
             )
         });
+        // A line is `class <name> <file> ...` or `method <class>:<name>
+        // <file> ...`: the file is its third word.
         let mut files: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for line in lines {
-            let file = line.split(' ').nth(1).unwrap().to_string();
+            let file = line.split(' ').nth(2).unwrap().to_string();
             files.entry(file).or_default().insert(line);
         }
         files
     };
     let original = by_file(&original_dir, &fresh_dir(&work.join("original-work")));
     let formatted = by_file(&formatted_dir, &fresh_dir(&work.join("formatted-work")));
-    for i in 0..forms.len() {
+    for (i, (_, form)) in forms.iter().enumerate() {
+        // A comparison of nothing with nothing proves nothing: every form
+        // but the one that is only a comment must have given sclang a class
+        // or a method to post.
+        if !original.contains_key(&name(i)) && form.contains('{') {
+            faults
+                .entry(i)
+                .or_insert_with(|| "sclang posted nothing for it".to_string());
+        }
         if original.get(&name(i)) != formatted.get(&name(i)) {
             let text = fs::read_to_string(formatted_dir.join(&name(i)[1..])).unwrap();
             faults
@@ -409,17 +450,10 @@ fn production(name: &str, symbols: &[&str]) -> String {
 
 #[test]
 fn every_production_has_a_form() {
-    let bison = manifest_dir()
-        .join(SC_SOURCE)
-        .join("lang/LangSource/Bison/lang11d");
-    let Ok(bison) = fs::read_to_string(&bison) else {
-        eprintln!(
-            "Skipping every_production_has_a_form: no SuperCollider source at {}. \
-             To fetch it: {FETCH}",
-            bison.display()
-        );
+    let Some(source) = common::sc_source("every_production_has_a_form") else {
         return;
     };
+    let bison = fs::read_to_string(source.join("lang/LangSource/Bison/lang11d")).unwrap();
     let productions: BTreeSet<String> = productions(&bison).into_iter().collect();
     let headings: BTreeSet<String> = ["interpreted.forms", "classes.forms"]
         .iter()

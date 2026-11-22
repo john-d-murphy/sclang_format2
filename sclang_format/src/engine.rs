@@ -5,8 +5,6 @@ use tree_sitter::{Language, Node, Parser, Tree};
 pub mod ast;
 pub mod ast_utils;
 pub mod layout;
-pub mod scan;
-pub mod width;
 
 pub use ast::in_string_or_comment;
 
@@ -91,14 +89,6 @@ impl Ctx {
     #[must_use]
     pub const fn indent_style(&self) -> IndentStyle {
         self.indent_style
-    }
-
-    #[must_use]
-    pub fn indent_unit(&self) -> String {
-        match self.indent_style {
-            IndentStyle::Tabs => "\t".to_string(),
-            IndentStyle::Spaces { width } => " ".repeat(width),
-        }
     }
 
     /// The text as it now stands. Borrowed, not copied: rules ask for it once

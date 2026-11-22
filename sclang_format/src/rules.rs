@@ -24,7 +24,6 @@ mod dot_chain_layout;
 mod events_multiline;
 mod expand_if_trailing;
 mod extra_trailing_closures;
-mod indent_style;
 mod inline_comment_spacing;
 mod inline_ws;
 mod keyword_paren;
@@ -60,7 +59,6 @@ pub use dot_chain_layout::DotChainLayout;
 pub use events_multiline::MultiLineEventsOnePerLine;
 pub use expand_if_trailing::ExpandLongIfTrailingClosures;
 pub use extra_trailing_closures::ExtraTrailingClosures;
-pub use indent_style::IndentStyleRule;
 pub use inline_comment_spacing::InlineCommentSpacing;
 pub use inline_ws::InlineWhitespaceFormat;
 pub use keyword_paren::KeywordParenSpacing;
@@ -172,7 +170,3 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
 pub const fn run_post(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }
-
-// re-export if rules want it
-pub use crate::engine::Ctx as _CtxForRules;
-pub use crate::engine::TextEdit as _TextEditForRules;

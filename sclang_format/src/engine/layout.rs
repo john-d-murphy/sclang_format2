@@ -73,17 +73,3 @@ pub fn make_indent(style: IndentStyle, depth: usize) -> String {
         IndentStyle::Spaces { width } => " ".repeat(depth * width),
     }
 }
-
-/// Is this line blank or only whitespace?
-pub fn is_blank_or_ws(line: &LineInfo<'_>, src: &[u8]) -> bool {
-    if line.first_non_ws >= line.end {
-        return true;
-    }
-    // defensive; line.indent already covers [start..first_non_ws]
-    for b in &src[line.first_non_ws..line.end] {
-        if !matches!(*b, b' ' | b'\t') {
-            return false;
-        }
-    }
-    true
-}

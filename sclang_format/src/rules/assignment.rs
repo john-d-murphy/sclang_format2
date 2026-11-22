@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::collections::HashSet;
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 use crate::engine::{Ctx, TextEdit};
 use crate::engine::ast::in_string_or_comment;
@@ -14,19 +14,6 @@ impl AddSpacesAroundAssignment {
         let prev = bytes.get(eq.wrapping_sub(1)).copied().unwrap_or_default();
         let next = bytes.get(eq + 1).copied().unwrap_or_default();
         !(prev == b'=' || next == b'=' || prev == b'<' || prev == b'>' || prev == b'!')
-    }
-
-    #[inline]
-    #[allow(dead_code)] // Kept for potential future use or debugging
-    fn in_pipe_parameter_list(root: Node, byte: usize) -> bool {
-        let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-        while let Some(n) = cur {
-            if n.kind() == "pipe_parameter_list" {
-                return true;
-            }
-            cur = n.parent();
-        }
-        false
     }
 
     #[inline]

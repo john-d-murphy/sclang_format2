@@ -7,8 +7,6 @@ edition = "2024"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 tree-sitter = "0.25"
-# tree-sitter-supercollider = { git = "https://github.com/john-d-murphy/tree-sitter-supercollider"}
-tree-sitter-supercollider = { path = "../vendor/tree-sitter-supercollider" }
 
 [dev-dependencies]
 assert_cmd = "2.0"

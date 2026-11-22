@@ -80,20 +80,12 @@ pub use trailing_closures::TrailingClosures;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
 pub use var_arg::VarAndArgSpacing;
 
-/// The rules that run before the others: none yet.
-///
-/// # Errors
-/// Never.
-pub const fn run_pre(_cx: &mut Ctx) -> Result<()> {
-    Ok(())
-}
-
 /// Every rule, in order.
 ///
 /// # Errors
 /// When the text does not parse, or a rule breaks it; the error names the
 /// rule.
-pub fn run_inline(cx: &mut Ctx) -> Result<()> {
+pub fn run(cx: &mut Ctx) -> Result<()> {
     let rules: Vec<Box<dyn Rule>> = vec![
         // 1. Semantic / AST-level transforms (may fix parse errors)
         Box::new(PipeParamAddMissingCommas),
@@ -176,13 +168,5 @@ pub fn run_inline(cx: &mut Ctx) -> Result<()> {
         }
     }
 
-    Ok(())
-}
-
-/// The rules that run after the others: none yet.
-///
-/// # Errors
-/// Never.
-pub const fn run_post(_cx: &mut Ctx) -> Result<()> {
     Ok(())
 }

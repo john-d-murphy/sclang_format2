@@ -11,27 +11,13 @@ use anyhow::Result;
 
 pub use engine::IndentStyle;
 
-/// `src` formatted. `phase` is `pre`, `inline`, `post` or `all`.
+/// `src` formatted.
 ///
 /// # Errors
 /// When `src` does not parse, or a rule breaks it.
-pub fn format_source_with_indent(
-    src: &str,
-    phase: &str,
-    indent_style: IndentStyle,
-) -> Result<String> {
+pub fn format_source_with_indent(src: &str, indent_style: IndentStyle) -> Result<String> {
     let mut cx = engine::Ctx::new(src.to_string(), &grammar::language(), indent_style)?;
-    match phase {
-        "pre" => rules::run_pre(&mut cx)?,
-        "inline" => rules::run_inline(&mut cx)?,
-        "post" => rules::run_post(&mut cx)?,
-        "all" => {
-            rules::run_pre(&mut cx)?;
-            rules::run_inline(&mut cx)?;
-            rules::run_post(&mut cx)?;
-        }
-        _ => {}
-    }
+    rules::run(&mut cx)?;
     Ok(cx.to_string())
 }
 
@@ -39,6 +25,6 @@ pub fn format_source_with_indent(
 ///
 /// # Errors
 /// When `src` does not parse, or a rule breaks it.
-pub fn format_source(src: &str, phase: &str) -> Result<String> {
-    format_source_with_indent(src, phase, IndentStyle::Spaces { width: 4 })
+pub fn format_source(src: &str) -> Result<String> {
+    format_source_with_indent(src, IndentStyle::Spaces { width: 4 })
 }

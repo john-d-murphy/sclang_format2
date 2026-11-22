@@ -131,9 +131,9 @@ fn formatted(parser: &mut Parser, form: &str) -> Result<String, String> {
             tree.root_node().to_sexp()
         ));
     }
-    let once = sclang_format::format_source(form, "all")
+    let once = sclang_format::format_source(form)
         .map_err(|e| format!("the formatter refuses it: {e:#}"))?;
-    match sclang_format::format_source(&once, "all") {
+    match sclang_format::format_source(&once) {
         Ok(twice) if twice == once => Ok(once),
         Ok(twice) => Err(format!(
             "a second pass changes it: {once:?} becomes {twice:?}"

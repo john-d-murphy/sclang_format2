@@ -16,7 +16,7 @@ fn formatting_keeps_every_token() {
         for path in glob(pattern).unwrap().map(Result::unwrap) {
             let input = std::fs::read_to_string(&path).unwrap();
             // A file the formatter refuses is the other tests' business.
-            let Ok(output) = sclang_format::format_source(&input, "all") else {
+            let Ok(output) = sclang_format::format_source(&input) else {
                 continue;
             };
             checked += 1;

@@ -70,7 +70,7 @@ fn format_and_judge(corpus: &Path, work: &Path) -> Formatted {
     let paths: Vec<&PathBuf> = verdicts.keys().collect();
     let written = par_map(&paths, |path| {
         let text = fs::read_to_string(corpus.join(path)).unwrap();
-        let formatted = sclang_format::format_source(&text, "all").ok()?;
+        let formatted = sclang_format::format_source(&text).ok()?;
         let out = formatted_dir.join(path);
         fs::create_dir_all(out.parent().unwrap()).unwrap();
         let formatted = match &verdicts[*path] {
@@ -245,7 +245,7 @@ fn class_library_keeps_its_meaning() {
         .collect();
     par_map(&files, |path| {
         let text = fs::read_to_string(path).unwrap();
-        let formatted = sclang_format::format_source(&text, "all").unwrap_or(text);
+        let formatted = sclang_format::format_source(&text).unwrap_or(text);
         let out = formatted_dir.join(path.strip_prefix(library).unwrap());
         fs::create_dir_all(out.parent().unwrap()).unwrap();
         fs::write(out, formatted).unwrap();

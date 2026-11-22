@@ -52,14 +52,14 @@ fn files_format_cleanly(root: &str) {
             faults.push(format!("{name}: the grammar does not parse it"));
             continue;
         }
-        let once = match sclang_format::format_source(&input, "all") {
+        let once = match sclang_format::format_source(&input) {
             Ok(out) => out,
             Err(e) => {
                 faults.push(format!("{name}: refused: {e:#}"));
                 continue;
             }
         };
-        match sclang_format::format_source(&once, "all") {
+        match sclang_format::format_source(&once) {
             Ok(twice) if twice != once => faults.push(format!("{name}: a second pass changes it")),
             Ok(_) => {}
             Err(e) => faults.push(format!("{name}: second pass refused: {e:#}")),

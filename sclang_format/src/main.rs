@@ -21,9 +21,6 @@ enum IndentMode {
 struct Args {
     path: Option<String>,
 
-    #[arg(long, default_value="all", value_parser = ["pre","inline","post","all"])]
-    phase: String,
-
     #[arg(long)]
     write: bool,
 
@@ -51,7 +48,7 @@ fn main() -> Result<()> {
         },
     };
 
-    let out = format_source_with_indent(&src, &args.phase, indent_style)?;
+    let out = format_source_with_indent(&src, indent_style)?;
     if args.write
         && let Some(p) = args.path
     {

@@ -362,6 +362,22 @@ impl Rule for ExpandLongIfTrailingClosures {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
+        // A pass expands the outermost if too wide for its line and skips what
+        // it holds, which may be an if too wide on the line it now has: run
+        // passes until none is left.
+        let mut total = 0;
+        loop {
+            let n = Self::run_pass(cx)?;
+            if n == 0 {
+                return Ok(total);
+            }
+            total += n;
+        }
+    }
+}
+
+impl ExpandLongIfTrailingClosures {
+    fn run_pass(cx: &mut Ctx) -> Result<usize> {
         let src = cx.bytes();
         let bytes: &[u8] = src;
         let len = bytes.len();
@@ -443,6 +459,15 @@ mod tests {
         assert_eq!(
             format(&src),
             format!("if (c) {{\n    {a}\n}} {{\n    {b}\n}}")
+        );
+    }
+
+    #[test]
+    fn test_an_if_too_wide_inside_an_expanded_one_is_expanded_too() {
+        let src = "if (a) { if (b) { \"a long enough true branch for the inner if\".postln } { \"and its false one\".postln } } { 3 };";
+        assert_eq!(
+            format(src),
+            "if (a) {\n    if (b) {\n        \"a long enough true branch for the inner if\".postln\n    } {\n        \"and its false one\".postln\n    }\n} {\n    3\n};"
         );
     }
 }

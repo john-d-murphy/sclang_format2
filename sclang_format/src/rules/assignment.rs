@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::HashSet;
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 use crate::engine::{Ctx, TextEdit};
@@ -87,7 +86,6 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
         let src_slice: &[u8] = src; // &[u8] for TS & helpers
 
         let mut edits: Vec<TextEdit> = Vec::new();
-        let mut seen_eq: HashSet<usize> = HashSet::new();
 
         // 1) Use a TS query to capture anonymous '=' tokens anywhere.
         // We'll filter out comparisons and skip strings/comments.
@@ -110,22 +108,6 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             // Pipe parameter defaults like |freq=440| need spacing too.
 
             Self::fix_one(src_slice, eq, &mut edits);
-            seen_eq.insert(eq);
-        }
-
-        // 2) Fallback scan for any '=' the query didn't yield (robust across grammar quirks).
-        for (i, &b) in src_slice.iter().enumerate() {
-            if b != b'=' || seen_eq.contains(&i) {
-                continue;
-            }
-            if !Self::is_assignment_eq(src_slice, i) {
-                continue;
-            }
-            if in_string_or_comment(root, i) {
-                continue;
-            }
-            // Note: We deliberately do NOT skip pipe parameter lists here.
-            Self::fix_one(src_slice, i, &mut edits);
         }
 
         let n = edits.len();
@@ -133,5 +115,30 @@ impl crate::rules::Rule for AddSpacesAroundAssignment {
             cx.apply_edits(edits)?; // returns (), we ignore the unit value
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+    use crate::rules::Rule;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        AddSpacesAroundAssignment.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_character_equals_is_not_an_assignment() {
+        assert_eq!(format("x=$=;"), "x = $=;");
+        assert_eq!(format("kv = line.split($=);"), "kv = line.split($=);");
     }
 }

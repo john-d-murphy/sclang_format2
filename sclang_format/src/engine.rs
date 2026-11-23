@@ -127,13 +127,6 @@ impl Ctx {
         self.tree = tree;
     }
 
-    /// The depth of the line whose first character that is not a blank is
-    /// at `first`.
-    #[must_use]
-    pub fn line_depth(&self, first: usize) -> usize {
-        ast_utils::depth_at(self.tree.root_node(), first, self.bytes())
-    }
-
     #[must_use]
     pub const fn indent_style(&self) -> IndentStyle {
         self.indent_style

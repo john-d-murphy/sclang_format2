@@ -1,6 +1,6 @@
 use crate::engine::ast::{blanks_before, end_of_token_before, next_token};
 use crate::engine::ast_utils::{
-    Brackets, brackets_of, cases_of, is_chain, is_comment, is_region, operators_of,
+    Brackets, Depths, brackets_of, cases_of, is_chain, is_comment, is_region, operators_of,
 };
 use crate::engine::layout::MAX_LINE_WIDTH;
 use crate::engine::{Ctx, TextEdit};
@@ -90,6 +90,7 @@ impl Rule for BreakLines {
 fn check_depths(cx: &Ctx, edits: &[TextEdit], lines: &[(usize, usize)]) -> Result<()> {
     let mut lines = lines.to_vec();
     lines.sort_unstable();
+    let mut depths = Depths::new(cx.bytes());
     // How far the breaks made before a line have moved where it begins.
     let (mut removed, mut added) = (0, 0);
     let mut edits = edits.iter().peekable();
@@ -99,7 +100,7 @@ fn check_depths(cx: &Ctx, edits: &[TextEdit], lines: &[(usize, usize)]) -> Resul
             added += edit.replacement.len();
         }
         let now = at + added - removed;
-        let stands = cx.line_depth(now);
+        let stands = depths.at(cx.tree.root_node(), now);
         if stands != depth {
             let bytes = cx.bytes();
             let text = String::from_utf8_lossy(&bytes[now..]);
@@ -140,6 +141,8 @@ struct Layout<'a> {
     pairs: Vec<Pair<'a>>,
     /// Where each pair that is always open begins and ends, in order.
     always_open: Vec<(usize, usize)>,
+    /// Where each line break of the text is.
+    line_breaks: Vec<usize>,
     edits: Vec<TextEdit>,
     /// Where each line the layout decides on begins, and its depth.
     lines: Vec<(usize, usize)>,
@@ -236,6 +239,9 @@ impl<'a> Layout<'a> {
             bytes: cx.bytes(),
             pairs: Vec::new(),
             always_open: Vec::new(),
+            line_breaks: (0..cx.bytes().len())
+                .filter(|&i| cx.bytes()[i] == b'\n')
+                .collect(),
             edits: Vec::new(),
             lines: Vec::new(),
         };
@@ -311,7 +317,16 @@ impl<'a> Layout<'a> {
             .iter()
             .take_while(|&&(open, _)| open < to)
             .any(|&(_, close)| close <= to)
-            || self.bytes[from..to].contains(&b'\n')
+            || self.line_breaks_in(from, to).next().is_some()
+    }
+
+    /// The line breaks in `from..to`.
+    fn line_breaks_in(&self, from: usize, to: usize) -> impl Iterator<Item = usize> + '_ {
+        let first = self.line_breaks.partition_point(|&at| at < from);
+        self.line_breaks[first..]
+            .iter()
+            .copied()
+            .take_while(move |&at| at < to)
     }
 
     /// The columns `from..to` takes on a line. A tab between two tokens is
@@ -614,11 +629,7 @@ impl<'a> Layout<'a> {
             (brackets.open.start_byte(), brackets.close.end_byte())
         });
         for (end, next) in ends.chain([(to, to)]) {
-            let breaks = self.bytes[start..end]
-                .iter()
-                .enumerate()
-                .filter(|(_, b)| **b == b'\n');
-            cuts.extend(breaks.map(|(i, _)| start + i));
+            cuts.extend(self.line_breaks_in(start, end));
             start = next;
         }
         cuts

@@ -1,3 +1,4 @@
+use crate::engine::ast_utils::Depths;
 use crate::engine::layout::{LineCursor, make_indent};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -19,6 +20,7 @@ impl Rule for IndentByAstLevel {
 
         let mut edits: Vec<TextEdit> = Vec::new();
         let lines = LineCursor::new(bytes);
+        let mut depths = Depths::new(bytes);
 
         for line in lines {
             if line.first_non_ws == line.end {
@@ -42,7 +44,7 @@ impl Rule for IndentByAstLevel {
                 continue;
             }
 
-            let desired_indent = make_indent(cx.indent_style, cx.line_depth(byte));
+            let desired_indent = make_indent(cx.indent_style, depths.at(root, byte));
 
             if &bytes[line.start..line.first_non_ws] != desired_indent.as_bytes() {
                 edits.push(TextEdit {

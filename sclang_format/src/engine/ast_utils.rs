@@ -7,6 +7,7 @@
 //! line at the depth the other gives it.
 
 use crate::engine::text::is_space;
+use std::collections::HashMap;
 use tree_sitter::Node;
 
 /// A pair of brackets that can be opened: what stands between them put on
@@ -25,7 +26,16 @@ impl<'a> Brackets<'a> {
     /// comments and all.
     #[must_use]
     pub fn contents(&self) -> Vec<Node<'a>> {
-        std::iter::successors(self.head.next_sibling(), Node::next_sibling)
+        // (Asked of the node whose brackets they are, in one walk: a node
+        // finds the one after it by looking from the top of the tree.)
+        let Some(owner) = self.head.parent() else {
+            return Vec::new();
+        };
+        let mut cursor = owner.walk();
+        owner
+            .children(&mut cursor)
+            .skip_while(|n| n.id() != self.head.id())
+            .skip(1)
             .take_while(|n| n.id() != self.close.id())
             .collect()
     }
@@ -215,99 +225,121 @@ pub fn begins_line(node: Node, src: &[u8]) -> bool {
     before.is_none_or(|i| src[i] == b'\n')
 }
 
-/// Whether `byte` stands after `comma`, the first of a list, in a list
-/// that runs on: what follows the comma stands on a later line.
-fn runs_on_after(comma: Node, byte: usize) -> bool {
-    comma.end_byte() <= byte
-        && std::iter::successors(comma.next_sibling(), Node::next_sibling)
-            .find(|n| !is_comment(*n))
-            .is_some_and(|n| n.start_position().row > comma.end_position().row)
+/// Where the list whose first comma is `comma` runs on from, when it
+/// does: what follows the comma stands on a later line.
+fn runs_on_after(comma: Node) -> Option<usize> {
+    std::iter::successors(comma.next_sibling(), Node::next_sibling)
+        .find(|n| !is_comment(*n))
+        .filter(|n| n.start_position().row > comma.end_position().row)
+        .map(|_| comma.end_byte())
 }
 
-/// How many levels `node` puts `byte`, which it holds, in. `below` is the
-/// child of `node` that holds `byte`.
-fn levels(node: Node, below: Option<Node>, byte: usize, src: &[u8]) -> usize {
-    let mut levels = 0;
+/// The stretches of `node` that stand one level in, each from where it
+/// begins to where it ends.
+fn stretches_in(node: Node, src: &[u8]) -> Vec<(usize, usize)> {
+    let mut found = Vec::new();
     // What stands between brackets that are opened is one level in. The
     // lines of a region are not.
-    if let Some(brackets) = brackets_of(node)
-        && brackets.hold(byte)
-        && brackets.are_open()
-        && !is_region(node)
-    {
-        levels += 1;
+    let brackets = brackets_of(node);
+    if let Some(brackets) = brackets.filter(|b| b.are_open() && !is_region(node)) {
+        found.push((brackets.open.end_byte(), brackets.close.start_byte()));
     }
+    let mut cursor = node.walk();
     match node.kind() {
         // The lines a chain runs on over are one level in, from its first
         // operator.
         _ if goes_on_with(node, node) && !node.parent().is_some_and(|p| goes_on_with(p, node)) => {
             let operators = operators_of(node);
-            let runs_on = operators.first().is_some_and(|op| op.start_byte() <= byte)
-                && operators.into_iter().any(|op| begins_line(op, src))
-                && !is_item_between_brackets(node);
-            levels += usize::from(runs_on);
+            let runs_on =
+                operators.iter().any(|op| begins_line(*op, src)) && !is_item_between_brackets(node);
+            if let Some(first) = operators.first().filter(|_| runs_on) {
+                found.push((first.start_byte(), node.end_byte()));
+            }
         }
         // So are the declarations after the first, when each has a line,
         // and the comments that stand among them.
         "variable_definition_sequence" => {
-            let mut cursor = node.walk();
             let comma = node.children(&mut cursor).find(|n| n.kind() == ",");
-            levels += usize::from(comma.is_some_and(|comma| runs_on_after(comma, byte)));
+            found.extend(
+                comma
+                    .and_then(runs_on_after)
+                    .map(|from| (from, node.end_byte())),
+            );
         }
-        // And those of a class, whose declarations are its own children.
-        "class_def" if below.is_some_and(|n| n.kind() != "function_block") => {
+        // And those of a class, whose declarations are its own children,
+        // each ended by its semicolon.
+        "class_def" => {
             let mut first_comma = None;
-            let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if child.start_byte() > byte {
-                    break;
-                }
                 match child.kind() {
-                    ";" | "{" => first_comma = None,
+                    ";" => {
+                        let from = first_comma.take().and_then(runs_on_after);
+                        found.extend(from.map(|from| (from, child.end_byte())));
+                    }
+                    "{" | "function_block" => first_comma = None,
                     "," => first_comma = first_comma.or(Some(child)),
                     _ => {}
                 }
             }
-            levels += usize::from(first_comma.is_some_and(|comma| runs_on_after(comma, byte)));
         }
         // A switch between parentheses keeps the value it switches on on
         // its first line, and what follows the comma is one level in.
         "switch" | "case" => {
-            let mut cursor = node.walk();
             let comma = node.children(&mut cursor).find(|n| n.kind() == ",");
-            let inside = brackets_of(node).is_some_and(|b| b.hold(byte) && !b.are_open());
-            levels += usize::from(inside && comma.is_some_and(|comma| runs_on_after(comma, byte)));
+            if let Some(brackets) = brackets.filter(|b| !b.are_open()) {
+                let from = comma.filter(|c| brackets.hold(c.start_byte()));
+                found.extend(
+                    from.and_then(runs_on_after)
+                        .map(|from| (from, brackets.close.start_byte())),
+                );
+            }
             // Written with blocks, each test and its block is one level
             // in when they have lines of their own.
             if let Some(blocks) = cases_of(node)
-                && blocks[0].start_byte() <= byte
                 && begins_line(blocks[0], src)
             {
-                levels += 1;
+                found.push((blocks[0].start_byte(), node.end_byte()));
             }
         }
         _ => {}
     }
-    levels
+    found
 }
 
-/// How deep the line that begins at `byte` stands: one level for each pair
-/// of opened brackets around it, and one where a chain or a list of
-/// declarations runs on.
-#[must_use]
-pub fn depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
-    let Some(mut node) = root.descendant_for_byte_range(byte, byte + 1) else {
-        return 0;
-    };
-    let mut depth = 0;
-    let mut below = None;
-    loop {
-        depth += levels(node, below, byte, src);
-        let Some(parent) = node.parent() else {
-            return depth;
-        };
-        below = Some(node);
-        node = parent;
+/// How deep the lines of a text stand. What each node says of the lines it
+/// holds is worked out once, for all the lines that are asked about.
+pub struct Depths<'a> {
+    src: &'a [u8],
+    stretches: HashMap<usize, Vec<(usize, usize)>>,
+}
+
+impl<'a> Depths<'a> {
+    #[must_use]
+    pub fn new(src: &'a [u8]) -> Self {
+        Self {
+            src,
+            stretches: HashMap::new(),
+        }
+    }
+
+    /// How deep the line that begins at `byte` stands: one level for each
+    /// pair of opened brackets around it, and one where a chain or a list
+    /// of declarations runs on.
+    pub fn at(&mut self, root: Node, byte: usize) -> usize {
+        let mut depth = 0;
+        let mut node = root.descendant_for_byte_range(byte, byte + 1);
+        while let Some(n) = node {
+            let stretches = self
+                .stretches
+                .entry(n.id())
+                .or_insert_with(|| stretches_in(n, self.src));
+            depth += stretches
+                .iter()
+                .filter(|(from, to)| (*from..*to).contains(&byte))
+                .count();
+            node = n.parent();
+        }
+        depth
     }
 }
 
@@ -328,7 +360,7 @@ mod tests {
         for line in src.split_inclusive('\n') {
             let first = start + line.len() - line.trim_start().len();
             if !line.trim().is_empty() {
-                depths.push(depth_at(tree.root_node(), first, src.as_bytes()));
+                depths.push(Depths::new(src.as_bytes()).at(tree.root_node(), first));
             }
             start += line.len();
         }

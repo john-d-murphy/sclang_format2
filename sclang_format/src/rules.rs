@@ -40,6 +40,7 @@ mod pipe_body;
 mod pipe_heads;
 mod pipe_param_commas;
 mod pipe_param_layout;
+mod reflow_comments;
 mod semicolon;
 mod trailing_closures;
 mod trailing_ws;
@@ -74,6 +75,7 @@ pub use pipe_body::PipeBodySpacing;
 pub use pipe_heads::PipeHeadSpacing;
 pub use pipe_param_commas::PipeParamAddMissingCommas;
 pub use pipe_param_layout::PipeParamOnBraceLine;
+pub use reflow_comments::ReflowComments;
 pub use semicolon::NoSpaceBeforeSemicolon;
 pub use trailing_closures::TrailingClosures;
 pub use trailing_ws::TrimTrailingWhitespaceAndEofNewline;
@@ -128,6 +130,8 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(MultiLineArrayElementsPerLine),
         // 5. Indentation / global whitespace
         Box::new(IndentByAstLevel),
+        // 5b. A comment is filled again where it will stand: at its indent.
+        Box::new(ReflowComments),
         Box::new(InlineWhitespaceFormat),
         // 6. Final clean-ups
         Box::new(TrimTrailingWhitespaceAndEofNewline),

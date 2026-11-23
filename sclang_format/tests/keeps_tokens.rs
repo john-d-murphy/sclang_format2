@@ -125,3 +125,27 @@ fn a_comment_between_any_two_tokens_is_kept() {
             .join("\n\n")
     );
 }
+
+/// A paragraph of comments that is filled again has more lines than it had,
+/// and each begins with its slashes: those are not counted. Every word of a
+/// comment still is, so a comment that is deleted, or a word of one, or the
+/// comment at the end of a line of code, is seen.
+#[test]
+fn a_comment_filled_again_keeps_its_tokens_and_one_cut_short_does_not() {
+    let src = "// one two\n// three\nx = 1; // four\n";
+    for filled in [
+        "// one two three\nx = 1; // four\n",
+        "    // one\n    // two\n    // three\nx = 1; // four\n",
+    ] {
+        assert_eq!(changed_tokens(src, filled), Vec::<String>::new());
+    }
+    for cut in [
+        "// one two\nx = 1; // four\n",
+        "// one\n// three\nx = 1; // four\n",
+        "x = 1; // four\n",
+        "// one two\n// three\nx = 1;\n",
+        "// one two\n// three\nx = 1; four\n",
+    ] {
+        assert_ne!(changed_tokens(src, cut), Vec::<String>::new(), "{cut:?}");
+    }
+}

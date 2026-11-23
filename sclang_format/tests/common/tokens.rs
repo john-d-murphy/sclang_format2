@@ -9,21 +9,32 @@ use tree_sitter::{Node, Parser};
 /// pipes. Counted and not kept in order, because that same rule moves the
 /// parameters ahead of a comment that stood before them. A default written
 /// the older way, `name(value)`, counts as the `=` of `name = value`: that
-/// same rule writes it so, and the two mean the same.
+/// same rule writes it so, and the two mean the same. The slashes of a
+/// comment that begins its line are left out too: a paragraph of comments
+/// that is filled again has more lines than it had, each with its slashes,
+/// and every word it had.
 pub fn essence(src: &str) -> BTreeMap<String, usize> {
     let mut counts = BTreeMap::new();
     let mut word = String::new();
-    for c in src.chars().chain(std::iter::once(' ')) {
-        if c.is_alphanumeric() || c == '_' {
-            word.push(c);
-            continue;
-        }
-        if !word.is_empty() && word != "arg" {
-            *counts.entry(std::mem::take(&mut word)).or_insert(0) += 1;
-        }
-        word.clear();
-        if !c.is_whitespace() && !"(),;|".contains(c) {
-            *counts.entry(c.to_string()).or_insert(0) += 1;
+    for line in src.lines() {
+        let text = line.trim_start();
+        let text = if text.starts_with("//") {
+            text.trim_start_matches('/')
+        } else {
+            text
+        };
+        for c in text.chars().chain(std::iter::once(' ')) {
+            if c.is_alphanumeric() || c == '_' {
+                word.push(c);
+                continue;
+            }
+            if !word.is_empty() && word != "arg" {
+                *counts.entry(std::mem::take(&mut word)).or_insert(0) += 1;
+            }
+            word.clear();
+            if !c.is_whitespace() && !"(),;|".contains(c) {
+                *counts.entry(c.to_string()).or_insert(0) += 1;
+            }
         }
     }
     let older_defaults = older_defaults(src);

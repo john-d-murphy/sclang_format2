@@ -22,7 +22,8 @@ if (flag2) {
     "branch two also with a verbose description to keep the whole statement long".postln
 };
 
-// already multi-line (from the previous rule) – should be ignored by the expander
+// already multi-line (from the previous rule) – should be ignored by the
+// expander
 if (flag3) {
     "already multi-line".postln
 } {

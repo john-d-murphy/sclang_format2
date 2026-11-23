@@ -16,8 +16,9 @@ use tree_sitter::Node;
 /// keeps its line, or the end of the line it is on. The inside of a string
 /// is never looked at.
 ///
-/// A blank stands in for each break taken away, and the rules for spacing,
-/// which run after this one, make of it what they make of any blank.
+/// A blank stands in for each break taken away (none inside a parenthesis
+/// or a bracket), and the rules for spacing, which run after this one, make
+/// of it what they make of any blank.
 pub struct JoinLines;
 
 impl Rule for JoinLines {
@@ -61,15 +62,16 @@ fn collect<'a>(
             && !is_comment(node)
             && !begins_a_line_of_its_own(node);
         if joins {
-            // Nothing stands between a pair of brackets that hold nothing.
-            let empty = matches!(
-                (prev.kind(), node.kind()),
-                ("(", ")") | ("[", "]") | ("{", "}")
-            );
+            // No blank stands inside parentheses and brackets, nor between
+            // braces that hold nothing: `paren_bracket_spacing` would only
+            // take it away again.
+            let closed_up = matches!(prev.kind(), "(" | "[")
+                || matches!(node.kind(), ")" | "]")
+                || (prev.kind(), node.kind()) == ("{", "}");
             edits.push(TextEdit {
                 start_byte: from,
                 end_byte: to,
-                replacement: if empty { "" } else { " " }.to_string(),
+                replacement: if closed_up { "" } else { " " }.to_string(),
             });
         }
     }
@@ -123,8 +125,8 @@ mod tests {
     #[test]
     fn test_the_line_breaks_inside_a_statement_are_taken_away() {
         for (src, want) in [
-            ("x = foo(a,\n    b\n);", "x = foo(a, b );"),
-            ("x = [\n    1,\n\n    2\n];", "x = [ 1, 2 ];"),
+            ("x = foo(a,\n    b\n);", "x = foo(a, b);"),
+            ("x = [\n    1,\n\n    2\n];", "x = [1, 2];"),
             ("f =\n{\n    |a|\n    a\n};", "f = { |a| a };"),
             ("if (a)\n{\n    b\n}\n{\n    c\n};", "if (a) { b } { c };"),
             ("x = a\n    .b\n    .c;", "x = a .b .c;"),

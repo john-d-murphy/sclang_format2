@@ -129,6 +129,41 @@ mod tests {
     }
 
     #[test]
+    fn test_the_width_is_counted_in_characters_and_not_in_bytes() {
+        // 80 columns in 81 bytes: the é is two of them.
+        let src = format!(
+            "if (c) {{ \"{}é\" }} {{ {} }}",
+            "a".repeat(36),
+            "b".repeat(25)
+        );
+        assert_eq!((src.chars().count(), src.len()), (80, 81));
+        assert_eq!(format(&src), src);
+    }
+
+    #[test]
+    fn test_the_blanks_that_end_the_line_are_not_counted() {
+        // They will be trimmed: counted, the if would be parted on this
+        // pass and joined again on the next.
+        let line = format!("if (c) {{ {} }} {{ {} }};", "a".repeat(38), "b".repeat(25));
+        assert_eq!(line.len(), 80);
+        let src = format!("{line}   \nx = 1;");
+        assert_eq!(format(&src), src);
+    }
+
+    #[test]
+    fn test_a_tab_of_indent_is_counted_as_a_level_of_four_columns() {
+        // 77 columns of text one level deep: 81 with the indent.
+        let (a, b) = ("a".repeat(36), "b".repeat(25));
+        let src = format!("f = {{\n\tif (c) {{ {a} }} {{ {b} }}\n}}");
+        let mut cx = Ctx::new(src, &grammar::language(), IndentStyle::Tabs).unwrap();
+        ExpandLongIfTrailingClosures.run(&mut cx).unwrap();
+        assert_eq!(
+            cx.to_string(),
+            format!("f = {{\n\tif (c) {{\n\t    {a}\n\t}} {{\n\t    {b}\n\t}}\n}}")
+        );
+    }
+
+    #[test]
     fn test_an_if_too_wide_inside_an_expanded_one_is_expanded_too() {
         let src = "if (a) { if (b) { \"a long enough true branch for the inner if\".postln } { \"and its false one\".postln } } { 3 };";
         assert_eq!(

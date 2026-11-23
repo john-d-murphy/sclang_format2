@@ -1,7 +1,7 @@
 use crate::engine::ast::{contains_comment, descendants_of_kind};
-use crate::engine::layout::MAX_LINE_WIDTH;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
+use crate::rules::width::{is_too_wide, text_end_of_line, text_start_of_line};
 use anyhow::Result;
 use tree_sitter::Node;
 
@@ -180,24 +180,16 @@ impl Rule for CompactShortCollections {
             let inner_joined = parts.join(", ");
             let replacement = format!("[{inner_joined}]");
 
-            // Gate 3: Check line width
-            let open = collection.start_byte();
-            let close = collection.end_byte();
-
-            let mut line_start = open;
-            while line_start > 0 && src[line_start - 1] != b'\n' {
-                line_start -= 1;
-            }
-            let mut line_end = close;
-            while line_end < src.len() && src[line_end] != b'\n' {
-                line_end += 1;
-            }
-
-            let old_collection_len = close - open;
-            let old_line_len = line_end - line_start;
-            let new_line_len = old_line_len - old_collection_len + replacement.len();
-
-            if new_line_len <= MAX_LINE_WIDTH {
+            // Gate 3: the line must not be too wide with the array whole
+            // on it.
+            let (open, close) = (collection.start_byte(), collection.end_byte());
+            let first = text_start_of_line(src, open);
+            let line = [
+                &src[first..open],
+                replacement.as_bytes(),
+                &src[close..text_end_of_line(cx, close)],
+            ];
+            if !is_too_wide(cx, first, &line) {
                 edits.push(TextEdit {
                     start_byte: open,
                     end_byte: close,
@@ -315,6 +307,23 @@ mod tests {
         CompactShortCollections.run(&mut cx).unwrap();
         let output = cx.to_string();
         (output != input).then_some(output)
+    }
+
+    #[test]
+    fn compact_measures_the_line_with_the_indent_it_will_have() {
+        // 59 columns once joined. The line stands at no depth, so the 30
+        // blanks before it will go, and are not counted.
+        let numbers = vec!["1000"; 9].join(",\n");
+        let src = format!("{}x = [\n{numbers}\n];", " ".repeat(30));
+        let joined = run_compact(&src).unwrap();
+        assert_eq!(joined.trim_start().len(), 59);
+        assert!(!joined.contains('\n'));
+
+        // 77 columns once joined, and one level deep: 81 with the indent it
+        // will have, though the line has none now.
+        let numbers = vec!["1000"; 12].join(",\n");
+        let src = format!("f = {{\nx = [\n{numbers}\n];\n}};");
+        assert_eq!(run_compact(&src), None);
     }
 
     #[test]

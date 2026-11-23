@@ -22,6 +22,18 @@ pub enum IndentStyle {
     Spaces { width: usize },
 }
 
+impl IndentStyle {
+    /// The columns a level of indent takes. A tab is counted as the four
+    /// that a level is when it is written in spaces and no width is asked for.
+    #[must_use]
+    pub const fn width(self) -> usize {
+        match self {
+            Self::Tabs => 4,
+            Self::Spaces { width } => width,
+        }
+    }
+}
+
 pub struct Ctx {
     text: String,
     parser: Parser,

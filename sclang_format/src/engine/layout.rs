@@ -1,8 +1,22 @@
 // src/engine/layout.rs
 use crate::engine::IndentStyle;
 
-/// The widest a line may be for a rule to join something into it.
+/// The widest a line may be.
 pub const MAX_LINE_WIDTH: usize = 80;
+
+/// The columns `text` takes on a line: one for a character, and for a tab as
+/// many as a level of indent.
+#[must_use]
+pub fn columns(text: &[u8], style: IndentStyle) -> usize {
+    text.iter()
+        .map(|&b| match b {
+            b'\t' => style.width(),
+            // A byte that continues a character is no column of its own.
+            0x80..=0xBF => 0,
+            _ => 1,
+        })
+        .sum()
+}
 
 /// Info about a single line in the source.
 #[derive(Debug, Clone)]

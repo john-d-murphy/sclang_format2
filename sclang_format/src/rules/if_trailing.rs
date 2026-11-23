@@ -3,9 +3,8 @@
 //! parts one over lines both need to know, read from the tree and said once.
 
 use crate::engine::Ctx;
-use crate::engine::layout::{MAX_LINE_WIDTH, make_indent};
 use crate::engine::text::{is_newline, is_space};
-use crate::rules::ast_indent::line_depth;
+use crate::rules::width::{is_too_wide, text_end_of_line, text_start_of_line};
 use tree_sitter::Node;
 
 pub struct IfWithBlocks<'a> {
@@ -100,31 +99,21 @@ impl<'a> IfWithBlocks<'a> {
         )
     }
 
-    /// Whether the line would be too wide with this written on it whole. The
-    /// line is measured as it will stand: the indent its depth gives it,
+    /// Whether the line would be too wide with this written on it whole:
     /// what is before the `if` on its first line, the `if` on one line, and
     /// what follows it on its last. Both rules ask this and nothing else, so
     /// that one never undoes what the other did.
     pub fn is_too_wide_for_one_line(&self, cx: &Ctx) -> bool {
         let bytes = cx.bytes();
-        let line_start = bytes[..self.start]
-            .iter()
-            .rposition(|&b| is_newline(b))
-            .map_or(0, |at| at + 1);
-        let first = bytes[line_start..self.start]
-            .iter()
-            .position(|&b| !is_space(b))
-            .map_or(self.start, |at| line_start + at);
-        let line_end = bytes[self.end..]
-            .iter()
-            .position(|&b| is_newline(b))
-            .map_or(bytes.len(), |at| self.end + at);
-        let indent = make_indent(
-            cx.indent_style,
-            line_depth(cx.tree.root_node(), bytes, first),
-        );
-        let width =
-            indent.len() + (self.start - first) + self.on_one_line().len() + (line_end - self.end);
-        width > MAX_LINE_WIDTH
+        let first = text_start_of_line(bytes, self.start);
+        is_too_wide(
+            cx,
+            first,
+            &[
+                &bytes[first..self.start],
+                self.on_one_line().as_bytes(),
+                &bytes[self.end..text_end_of_line(cx, self.end)],
+            ],
+        )
     }
 }

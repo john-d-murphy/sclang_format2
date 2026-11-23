@@ -44,6 +44,7 @@ mod semicolon;
 mod trailing_closures;
 mod trailing_ws;
 mod var_arg;
+mod width;
 
 pub use arg_to_pipe::ArgToPipeParams;
 pub use assignment::AddSpacesAroundAssignment;
@@ -97,9 +98,7 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(PipeParamOnBraceLine),
         Box::new(BraceAndPipesSingleLine),
         Box::new(DotChainLayout),
-        // 3. Width-aware 80-col logic (single-line vs multi-line decisions)
-        Box::new(CompactShortCollections),
-        // 4. Local spacing & punctuation
+        // 3. Local spacing & punctuation
         Box::new(VarAndArgSpacing),
         Box::new(AddSpacesAfterCommas),
         Box::new(AddSpacesAroundColons),
@@ -114,14 +113,15 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpacesAroundDot),
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(InlineCommentSpacing),
-        // 4b. The two if rules decide by the width of a line, so they come
-        //     once its text is what it will be: spaced, and without the
-        //     semicolons that end a block. Measured sooner, an if fits on one
-        //     pass and not on the next, or the other way about.
+        // 4. The rules that decide by the width of a line come once its
+        //    text is what it will be: spaced, and without the semicolons that
+        //    end a block. Measured sooner, a thing fits on one pass and not
+        //    on the next, or the other way about.
         Box::new(NoFinalSemicolon),
+        Box::new(CompactShortCollections),
         Box::new(CompactShortIfTrailingClosures),
         Box::new(ExpandLongIfTrailingClosures),
-        // 4c. An array or an event that stands over several lines has one
+        // 4b. An array or an event that stands over several lines has one
         //     element to a line. After the if rules: an if that is parted
         //     makes the array that holds it one of these.
         Box::new(MultiLineEventsOnePerLine),

@@ -7,7 +7,7 @@ use tree_sitter::Node;
 
 /// Check if a node is "literal-ish" (safe to compact).
 /// Based on AST node kinds from tree-sitter-supercollider.
-fn is_literal_ish_node(node: Node) -> bool {
+pub(super) fn is_literal_ish_node(node: Node) -> bool {
     match node.kind() {
         // Direct literals (numbers, strings, symbols) and simple variable
         // references
@@ -50,7 +50,7 @@ fn is_multiline(node: Node) -> bool {
 }
 
 /// Get the element nodes from a collection (skip punctuation)
-fn get_elements(node: Node) -> Vec<Node> {
+pub(super) fn get_elements(node: Node) -> Vec<Node> {
     let mut elements = Vec::new();
     let mut cursor = node.walk();
 

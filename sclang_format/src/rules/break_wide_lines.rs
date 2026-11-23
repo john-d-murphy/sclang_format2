@@ -1,8 +1,10 @@
 use crate::engine::ast::{blanks_before, contains_comment};
+use crate::engine::ast_utils::is_top_level_node;
 use crate::engine::layout::{LineCursor, columns};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::ast_indent::line_depth;
 use crate::rules::block_layout::line_can_take_brace;
+use crate::rules::compact_collections::{get_elements, is_literal_ish_node};
 use crate::rules::if_trailing::IfWithBlocks;
 use crate::rules::width::{is_too_wide, text_end_of_line};
 use crate::rules::{
@@ -21,9 +23,11 @@ use tree_sitter::Node;
 ///    `if` with two blocks is parted as `ExpandLongIfTrailingClosures`
 ///    parts it, by that rule, which is run from here.
 /// 2. What stands between a call's parentheses, or those of an `if`, a
-///    `while` or a `for`, goes on a line of its own, and the closing one on
-///    the line after. Arguments that are too wide on that line get a line
-///    each.
+///    `while` or a `for`, or those that group an expression, goes on a line
+///    of its own, and the closing one on the line after. Arguments that are
+///    too wide on that line get a line each. An event is opened the same
+///    way, and an array that `CompactShortCollections` would not join
+///    again; the rules for those give each of their elements a line.
 /// 3. A chain of binary operators or keyword messages that begins a line
 ///    between such parentheses breaks before each of its operators.
 ///
@@ -31,8 +35,8 @@ use tree_sitter::Node;
 /// move to lines of their own with it; a block passed as an argument
 /// stands as high as the parentheses it is passed in (`foo(a, { |x|`). Of
 /// two that stand side by side the preferred kind wins; of two of a kind,
-/// the last that leaves the line it begins on no wider than it may be, or
-/// else the last.
+/// one that leaves the line it begins on no wider than it may be, then the
+/// one that takes more off the line, then the last.
 ///
 /// Nothing is joined, and no token moves but to another line. What holds a
 /// comment is left as it is (see `contains_comment`), and so is a line that
@@ -132,7 +136,7 @@ struct WideLine {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
     Block,
-    Parentheses,
+    Brackets,
     Arguments,
     Chain,
 }
@@ -141,6 +145,8 @@ struct Break {
     kind: Kind,
     /// Where the line it is made on will end.
     line_end: usize,
+    /// How many bytes it takes off that line, to lines of their own.
+    takes: usize,
     edits: Vec<TextEdit>,
 }
 
@@ -191,8 +197,8 @@ fn code_end(cx: &Ctx, start: usize, mut end: usize) -> usize {
     end
 }
 
-/// The nodes whose parentheses are opened, and are indented when they are
-/// (see `block_depth_at`).
+/// The nodes that take arguments between parentheses, which are opened,
+/// and indented when they are (see `block_depth_at`).
 const WITH_PARENTHESES: [&str; 8] = [
     "function_call",
     "method_call",
@@ -203,6 +209,30 @@ const WITH_PARENTHESES: [&str; 8] = [
     "for",
     "forby",
 ];
+
+/// Whether `node` is parentheses that group an expression. Those that wrap
+/// a whole region of a file are not: what they hold is not indented.
+fn groups(node: Node) -> bool {
+    node.kind() == "code_block" && !is_top_level_node(node)
+}
+
+/// The kinds of the brackets of `node` that are opened like an argument
+/// list, when it has such.
+fn brackets_of(node: Node) -> Option<(&'static str, &'static str)> {
+    match node.kind() {
+        kind if WITH_PARENTHESES.contains(&kind) => Some(("(", ")")),
+        "code_block" if groups(node) => Some(("(", ")")),
+        "event" => Some(("(", ")")),
+        // An array of plain things is joined into one line again by
+        // `CompactShortCollections` whenever its line is not too wide with
+        // it, and what else is broken on that line may make it so: such an
+        // array is left to that rule.
+        "collection" if !get_elements(node).into_iter().all(is_literal_ish_node) => {
+            Some(("[", "]"))
+        }
+        _ => None,
+    }
+}
 
 /// What wraps an argument between a call's parentheses.
 const ARGUMENT_WRAPPERS: [&str; 3] = ["unnamed_argument", "argument_calls", "parameter_call_list"];
@@ -248,7 +278,7 @@ impl Finder<'_> {
             // What it holds is not as far out as it is.
             return;
         }
-        let between = self.parentheses(node);
+        let between = self.brackets(node);
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             let inside = between
@@ -265,7 +295,8 @@ impl Finder<'_> {
         let start = self.lines[line].start;
         let fits = |b: &Break| !is_too_wide(self.cx, start, &[&self.cx.bytes()[start..b.line_end]]);
         let better = self.best[line].as_ref().is_none_or(|best| {
-            (found.kind, !fits(&found), best.line_end) < (best.kind, !fits(best), found.line_end)
+            (found.kind, !fits(&found), best.takes, best.line_end)
+                < (best.kind, !fits(best), found.takes, found.line_end)
         });
         if better {
             self.best[line] = Some(found);
@@ -308,6 +339,7 @@ impl Finder<'_> {
             Break {
                 kind: Kind::Block,
                 line_end: then_block.start_byte() + 1,
+                takes: node.end_byte() - then_block.start_byte(),
                 edits: Vec::new(),
             },
         );
@@ -365,14 +397,15 @@ impl Finder<'_> {
             Break {
                 kind: Kind::Block,
                 line_end: children[open + head].end_byte(),
+                takes: body.len(),
                 edits,
             },
         );
         true
     }
 
-    /// What stands between the parentheses of `node` on a wide line goes on
-    /// a line of its own:
+    /// What stands between the brackets of `node` on a wide line goes on a
+    /// line of its own:
     ///
     /// ```text
     /// foo(a, b).c      foo(
@@ -380,17 +413,15 @@ impl Finder<'_> {
     ///                  ).c
     /// ```
     ///
-    /// A block passed between them is offered beside them, to be opened in
-    /// their place. Where the parentheses are to be opened: the bytes
-    /// between them, in which nothing else is looked for.
-    fn parentheses(&mut self, node: Node) -> Option<(usize, usize)> {
-        if !WITH_PARENTHESES.contains(&node.kind()) {
-            return None;
-        }
+    /// A block passed between parentheses is offered beside them, to be
+    /// opened in their place. Where the brackets are to be opened: the
+    /// bytes between them, in which nothing else is looked for.
+    fn brackets(&mut self, node: Node) -> Option<(usize, usize)> {
+        let (opening, closing) = brackets_of(node)?;
         let mut cursor = node.walk();
         let children: Vec<Node> = node.children(&mut cursor).collect();
-        let open = children.iter().position(|n| n.kind() == "(")?;
-        let close = open + children[open..].iter().position(|n| n.kind() == ")")?;
+        let open = children.iter().position(|n| n.kind() == opening)?;
+        let close = open + children[open..].iter().position(|n| n.kind() == closing)?;
         let (first, last) = (children.get(open + 1)?, children[close - 1]);
         let line = self.line_of(children[open].start_byte(), children[close].end_byte())?;
         if close == open + 1 {
@@ -404,14 +435,21 @@ impl Finder<'_> {
             // Left as it is, with all it holds.
             return Some(inner);
         }
-
-        for block in children[open + 1..close]
-            .iter()
-            .flat_map(|n| blocks_passed(*n))
-        {
-            self.block(block);
+        if WITH_PARENTHESES.contains(&node.kind()) {
+            for block in children[open + 1..close]
+                .iter()
+                .flat_map(|n| blocks_passed(*n))
+            {
+                self.block(block);
+            }
         }
-        if !self.is_narrower(&self.cx.bytes()[inner.0..inner.1], line) {
+        // The widest of what stands between them: when all of it is too
+        // wide for the line it gets, each gets a line.
+        let narrower = children[open + 1..close]
+            .iter()
+            .flat_map(|n| arguments_of(*n))
+            .all(|n| self.is_narrower(&self.cx.bytes()[n.byte_range()], line));
+        if !narrower {
             return None;
         }
         let edits = vec![
@@ -421,8 +459,9 @@ impl Finder<'_> {
         self.offer(
             line,
             Break {
-                kind: Kind::Parentheses,
+                kind: Kind::Brackets,
                 line_end: children[open].end_byte(),
+                takes: inner.1 - inner.0,
                 edits,
             },
         );
@@ -471,6 +510,7 @@ impl Finder<'_> {
             Break {
                 kind: Kind::Arguments,
                 line_end: edits[0].start_byte,
+                takes: 0,
                 edits,
             },
         );
@@ -504,7 +544,7 @@ impl Finder<'_> {
         // nothing follows the opening one on its line.
         let opened = std::iter::successors(chain.parent(), Node::parent)
             .find(|n| !ARGUMENT_WRAPPERS.contains(&n.kind()))
-            .filter(|n| WITH_PARENTHESES.contains(&n.kind()))
+            .filter(|n| WITH_PARENTHESES.contains(&n.kind()) || groups(*n))
             .and_then(|n| {
                 let mut cursor = n.walk();
                 n.children(&mut cursor).find(|n| n.kind() == "(")
@@ -542,6 +582,7 @@ impl Finder<'_> {
             Break {
                 kind: Kind::Chain,
                 line_end: edits[0].start_byte,
+                takes: 0,
                 edits,
             },
         );
@@ -549,21 +590,30 @@ impl Finder<'_> {
     }
 }
 
-/// The blocks passed as arguments in `node`, which stands between a pair
-/// of parentheses: itself, or the values of the arguments of the list it is.
-fn blocks_passed(node: Node) -> Vec<Node> {
+/// The arguments in `node`, which stands between a pair of brackets:
+/// itself, or the arguments of the list it is. A comma is none.
+fn arguments_of(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();
-    let values: Vec<Node> = if node.kind() == "parameter_call_list" {
-        node.children(&mut cursor)
+    match node.kind() {
+        "," => Vec::new(),
+        "parameter_call_list" => node
+            .children(&mut cursor)
             .filter(|n| n.kind() == "argument_calls")
-            .filter_map(|n| n.child(0))
-            .filter_map(|n| n.child(n.child_count().checked_sub(1)?))
-            .collect()
-    } else {
-        vec![node]
-    };
-    values
+            .collect(),
+        _ => vec![node],
+    }
+}
+
+/// The blocks passed as arguments in `node`, which stands between a pair
+/// of parentheses: the values of its arguments that are blocks.
+fn blocks_passed(node: Node) -> Vec<Node> {
+    arguments_of(node)
         .into_iter()
+        .filter_map(|n| match n.kind() {
+            // The argument, named or not, and in it its value.
+            "argument_calls" => n.child(0).and_then(|n| n.child(n.child_count() - 1)),
+            _ => Some(n),
+        })
         .filter(|n| n.kind() == "function_block")
         .collect()
 }
@@ -658,7 +708,72 @@ mod tests {
     }
 
     #[test]
-    fn test_of_two_calls_the_last_whose_parenthesis_ends_a_line_that_fits_is_opened() {
+    fn test_of_two_calls_the_one_that_takes_more_off_the_line_is_opened() {
+        assert_eq!(
+            format(
+                "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25)).string_(l[i]).align_(\\center);\n"
+            ),
+            "q = StaticText(\n    n, n.bounds.moveTo(0, 0).insetBy(25)\n).string_(l[i]).align_(\\center);\n"
+        );
+    }
+
+    #[test]
+    fn test_parentheses_that_group_an_expression_are_opened_like_a_call() {
+        assert_eq!(
+            format(
+                "x = (firstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain) * fourthOperand;\n"
+            ),
+            "x = (\n    firstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain\n) * fourthOperand;\n"
+        );
+        assert_eq!(
+            format(
+                "x = (firstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain + more) * fourthOperand;\n"
+            ),
+            "x = (\n    firstOperandOfTheChain\n    + secondOperandOfTheChain\n    - thirdOperandOfTheChain\n    + more\n) * fourthOperand;\n"
+        );
+        // Those that wrap a region of a file are not: its lines have no
+        // indent of their own.
+        let src = "(\nfirstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain * fourthOperandOfTheChain;\n)\n";
+        assert_eq!(format(src), src);
+    }
+
+    #[test]
+    fn test_an_array_and_an_event_are_opened_and_get_an_element_to_a_line() {
+        assert_eq!(
+            format(
+                "x = [Color.black, Color.green(0.8), Color.white, Color.red(0.5), Color.blue(0.25), Color.yellow];\n"
+            ),
+            "x = [\n    Color.black,\n    Color.green(0.8),\n    Color.white,\n    Color.red(0.5),\n    Color.blue(0.25),\n    Color.yellow\n];\n"
+        );
+        assert_eq!(
+            format(
+                "x = (freq: 440, amp: 0.1, pan: 0, instrument: \\default, sustain: 1.5, legato: 0.8, stretch: 1.0);\n"
+            ),
+            "x = (\n    freq: 440,\n    amp: 0.1,\n    pan: 0,\n    instrument: \\default,\n    sustain: 1.5,\n    legato: 0.8,\n    stretch: 1.0\n);\n"
+        );
+    }
+
+    #[test]
+    fn test_an_array_of_plain_things_is_left_to_the_rule_that_joins_them() {
+        // Opened, it would be one that rule joins again whenever its line
+        // has room, and that is not for this rule to know.
+        let src = "x = [\\alpha, \\beta, \\gamma, \\delta, \\epsilon, \\zeta, \\eta, \\theta, \\iota, \\kappa, \\lambda, \\mu];\n";
+        assert_eq!(format(src), src);
+    }
+
+    #[test]
+    fn test_brackets_are_opened_when_each_thing_in_them_is_narrower_than_the_line() {
+        // All of it on one line would be wider than the line was, and each
+        // of the two on its own is not.
+        let (a, b) = ("a".repeat(40), "b".repeat(40));
+        assert_eq!(
+            format(&format!("f({a}, {b})\n")),
+            format!("f(\n    {a},\n    {b}\n)\n")
+        );
+    }
+
+    #[test]
+    fn test_of_two_calls_one_whose_parenthesis_ends_a_line_that_fits_is_opened() {
         // The second call's parenthesis is past column 80: opening it would
         // leave the line as wide as it was.
         let (a, b) = ("a".repeat(35), "b".repeat(35));
@@ -739,11 +854,25 @@ mod tests {
 
     #[test]
     fn test_an_array_a_break_leaves_over_several_lines_has_an_element_to_a_line() {
+        // The array is opened, and the rule for arrays gives each element
+        // a line; the block, still too wide on its own, is opened then.
         assert_eq!(
             format(
                 "x = [1, 2, { |a| a.someMethod(1) + a.someOtherMethod(2) + a.yetAnotherMethodToCall(3) }, 4];\n"
             ),
-            "x = [1,\n    2,\n    { |a|\n        a.someMethod(1) + a.someOtherMethod(2) + a.yetAnotherMethodToCall(3)\n    },\n    4];\n"
+            "x = [\n    1,\n    2,\n    { |a|\n        a.someMethod(1) + a.someOtherMethod(2) + a.yetAnotherMethodToCall(3)\n    },\n    4\n];\n"
+        );
+        // An array of plain things is not opened, and the block in it is:
+        // then the array stands over several lines.
+        assert_eq!(
+            format(&format!(
+                "x = [1, 2, 3].collect {{ |a| {} }};\n",
+                "a".repeat(70)
+            )),
+            format!(
+                "x = [1, 2, 3].collect {{ |a|\n    {}\n}};\n",
+                "a".repeat(70)
+            )
         );
     }
 

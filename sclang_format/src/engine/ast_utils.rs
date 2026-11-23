@@ -6,7 +6,7 @@ use tree_sitter::Node;
 /// A node is top-level if its ancestry chain to `source_file` consists ONLY
 /// of "transparent" wrapper nodes. If we hit a functional block, definition,
 /// or assignment, we are NOT top-level.
-fn is_top_level_node(node: Node) -> bool {
+pub(crate) fn is_top_level_node(node: Node) -> bool {
     let mut curr = node.parent();
     while let Some(n) = curr {
         let k = n.kind();

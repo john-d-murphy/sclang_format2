@@ -5,17 +5,11 @@ expression: out
 (
 // block brace spacing – messy on purpose
 
-[1, 2, 3].do { |x|
-    x.postln
-};
+[1, 2, 3].do { |x| x.postln };
 
-if (true) {
-    "ok".postln
-};
+if (true) { "ok".postln };
 
-while (false) {
-    "nope".postln
-};
+while (false) { "nope".postln };
 
 // already good spacing should stay the same
 [1, 2, 3].collect { |x| x * 2 };

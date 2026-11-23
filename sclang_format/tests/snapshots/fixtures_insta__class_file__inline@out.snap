@@ -11,9 +11,7 @@ Voice : Object {
 
     *initClass { all = IdentityDictionary.new }
 
-    *new { |name, medium, level = 0.5|
-        ^super.new.init(name, medium, level)
-    }
+    *new { |name, medium, level = 0.5| ^super.new.init(name, medium, level) }
 
     init { |aName, aMedium, aLevel|
         name = aName;

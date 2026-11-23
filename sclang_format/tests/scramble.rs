@@ -50,7 +50,9 @@ enum Way {
     /// A blank in place of every line break.
     Joined,
     /// A line break, and an indent that means nothing, wherever blanks
-    /// stand and beside every bracket, comma and semicolon.
+    /// stand, inside every bracket and after every semicolon. (Not where
+    /// two tokens touch otherwise: a break there puts a blank where the
+    /// writer had none, and whether `x.if(a)` has one is not layout.)
     Broken,
 }
 
@@ -65,7 +67,8 @@ fn scrambled(parser: &mut Parser, src: &str, way: Way) -> Option<String> {
     let mut all = Vec::new();
     tokens(tree.root_node(), &mut all);
     let is_comment = |n: &Node| matches!(n.kind(), "line_comment" | "block_comment");
-    let is_mark = |n: &Node| matches!(n.kind(), "(" | ")" | "[" | "]" | "{" | "}" | "," | ";");
+    let opens = |n: &Node| matches!(n.kind(), "(" | "[" | "{" | ";");
+    let closes = |n: &Node| matches!(n.kind(), ")" | "]" | "}");
     // The gaps to write anew: where, and what goes there.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     for (i, pair) in all.windows(2).enumerate() {
@@ -79,7 +82,7 @@ fn scrambled(parser: &mut Parser, src: &str, way: Way) -> Option<String> {
         }
         let new = match way {
             Way::Joined if gap.contains('\n') => " ".to_string(),
-            Way::Broken if !gap.is_empty() || is_mark(&pair[0]) || is_mark(&pair[1]) => {
+            Way::Broken if !gap.is_empty() || opens(&pair[0]) || closes(&pair[1]) => {
                 format!("\n{}", " ".repeat(i * 7 % 5))
             }
             _ => continue,
@@ -180,7 +183,7 @@ fn the_scrambler_joins_and_breaks_and_leaves_what_is_the_writers() {
         "f = { |a| foo(a, \"b\n c\"); // why\n\n    a };\n"
     );
     let broken = scrambled(&mut parser, src, Way::Broken).unwrap();
-    assert!(broken.contains("foo\n"), "{broken:?}");
+    assert!(broken.contains("foo(\n"), "{broken:?}");
     assert!(broken.contains("\"b\n c\"\n"), "{broken:?}");
     assert!(broken.contains("; // why\n\n    a\n"), "{broken:?}");
     let bare = |text: &str| text.split_whitespace().collect::<String>();

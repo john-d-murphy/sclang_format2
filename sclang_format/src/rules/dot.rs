@@ -46,7 +46,8 @@ impl crate::rules::Rule for NoSpacesAroundDot {
                 continue;
             }
 
-            // Skip dots that are at the start of a line (already in desired format by dot_chain_layout)
+            // A dot that begins its line stays there: only a comment on
+            // the line above keeps one from being joined to it.
             if Self::is_dot_at_line_start(src, dot) {
                 continue;
             }

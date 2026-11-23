@@ -9,9 +9,6 @@ expression: out
 // is 81 so, though 79 as it is written here, and keeps its lines.
 theFirstOfTheTwoArraysHere = [10000000, 20000000, 30000000, 40000000, 50000000];
 theSecondOfTheTwoArraysHere = [
-    10000000,
-    20000000,
-    30000000,
-    40000000,
-    50000000];
+    10000000, 20000000, 30000000, 40000000, 50000000
+];
 )

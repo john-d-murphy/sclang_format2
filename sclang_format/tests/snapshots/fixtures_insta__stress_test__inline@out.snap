@@ -26,11 +26,7 @@ SynthDef(\stressC, { |freq = 220, amp = 0.05|
 });
 
 // 2. If / else and else-if combinations for K&R + "} else {"
-if (Synth(\dummy).notNil) {
-    "dummy exists".postln
-} {
-    "no dummy".postln
-};
+if (Synth(\dummy).notNil) { "dummy exists".postln } { "no dummy".postln };
 
 
 // 3. Blocks with and without pipe args
@@ -46,31 +42,19 @@ if (Synth(\dummy).notNil) {
 
 // 4. Pipe header that *in the source* might start on its own line;
 // here we show the desired final layout on the brace line.
-f = { |foo = 3, bar = 4|
-    foo + bar
-};
+f = { |foo = 3, bar = 4| foo + bar };
 
 // Another one that could have come from:
 // {
 //     |  a, b, c  |
 //     a + b + c;
 // }
-g = { |a, b, c|
-    a + b + c
-};
+g = { |a, b, c| a + b + c };
 
 // 5. Method chains and dot layout
-"hello".asSymbol()
-.asString
-.toUpper
-.postln;
+"hello".asSymbol().asString.toUpper.postln;
 
-Button()
-.states_([
-    ["one", nil, nil],
-    ["two", nil, nil]
-])
-.action_({
+Button().states_([["one", nil, nil], ["two", nil, nil]]).action_({
     "clicked".postln
 });
 

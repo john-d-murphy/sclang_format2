@@ -6,12 +6,7 @@ expression: out
 // event / keyword colon spacing – messy on purpose
 
 // plain event
-(
-    freq: 440,
-    amp : 0.1,
-    pan : -0.5,
-    out: 0
-).play;
+(freq: 440, amp : 0.1, pan : -0.5, out: 0).play;
 
 // nested event, mixed spacing
 (
@@ -22,10 +17,7 @@ expression: out
 );
 
 // array of events
-[
-    (freq : 220, amp: 0.1),
-    (freq: 440, amp : 0.2)
-].do { |ev| ev.play };
+[(freq : 220, amp: 0.1), (freq: 440, amp : 0.2)].do { |ev| ev.play };
 
 // strings/comments with ':' should be untouched
 "This:should:not:change".postln;

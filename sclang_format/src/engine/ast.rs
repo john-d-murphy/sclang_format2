@@ -114,6 +114,23 @@ pub fn end_of_token_before(node: Node) -> usize {
     }
 }
 
+/// The token after `node` in the text: the first leaf of what follows it.
+#[must_use]
+pub fn next_token(node: Node) -> Option<Node> {
+    let mut n = node;
+    loop {
+        if let Some(next) = n.next_sibling() {
+            n = next;
+            break;
+        }
+        n = n.parent()?;
+    }
+    while let Some(first) = n.child(0) {
+        n = first;
+    }
+    Some(n)
+}
+
 /// Whether `node` is a default that sclang stores with the function as it
 /// stands.
 ///

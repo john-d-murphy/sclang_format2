@@ -1,338 +1,323 @@
 // src/engine/ast_utils.rs
+//! The brackets the tree holds, and how deep a line stands among them.
+//!
+//! `break_lines` lays code out and `indent_by_ast_level` indents what it
+//! made. Both ask here what a pair of brackets is and where a chain of
+//! operators or a list of declarations runs on, so that the one measures a
+//! line at the depth the other gives it.
+
+use crate::engine::text::is_space;
 use tree_sitter::Node;
 
-/// Helper to determine if a node is "top-level" in the file.
-///
-/// A node is top-level if its ancestry chain to `source_file` consists ONLY
-/// of "transparent" wrapper nodes. If we hit a functional block, definition,
-/// or assignment, we are NOT top-level.
-pub(crate) fn is_top_level_node(node: Node) -> bool {
-    let mut curr = node.parent();
-    while let Some(n) = curr {
-        let k = n.kind();
-        if k == "source_file" {
-            return true;
-        }
-        // These are "transparent" structure nodes
-        if matches!(
-            k,
-            "_expression_sequence"
-                | "_expression"
-                | "expression_statement"
-                | "_expression_statement"
-                | "_paren_expression_list"
-        ) {
-            curr = n.parent();
-        } else {
-            // We hit a logic block (like function_definition, function_block, etc.)
-            // So we are definitely NOT top level.
-            return false;
-        }
-    }
-    false
+/// A pair of brackets that can be opened: what stands between them put on
+/// lines of its own, one level in, and the closing one on the line after.
+#[derive(Clone, Copy)]
+pub struct Brackets<'a> {
+    pub open: Node<'a>,
+    /// The last thing that stays on the opening bracket's line: the bracket
+    /// itself, or the parameters of a block.
+    pub head: Node<'a>,
+    pub close: Node<'a>,
 }
 
-/// Count enclosing nodes that represent block-like scopes.
+impl<'a> Brackets<'a> {
+    /// What stands between the brackets, after the parameters of a block,
+    /// comments and all.
+    #[must_use]
+    pub fn contents(&self) -> Vec<Node<'a>> {
+        std::iter::successors(self.head.next_sibling(), Node::next_sibling)
+            .take_while(|n| n.id() != self.close.id())
+            .collect()
+    }
+
+    /// Whether they are opened: what follows the opening bracket's line
+    /// begins a later one.
+    #[must_use]
+    pub fn are_open(&self) -> bool {
+        let first = std::iter::successors(self.head.next_sibling(), Node::next_sibling)
+            .find(|n| !is_comment(*n));
+        first.is_some_and(|n| n.start_position().row > self.head.end_position().row)
+    }
+
+    /// Whether `byte` stands between them, the closing bracket apart.
+    #[must_use]
+    pub fn hold(&self, byte: usize) -> bool {
+        self.open.end_byte() <= byte && byte < self.close.start_byte()
+    }
+}
+
 #[must_use]
-pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
-    let mut depth = 0usize;
+pub fn is_comment(node: Node) -> bool {
+    matches!(node.kind(), "line_comment" | "block_comment")
+}
 
-    // The blocks and collections that hold `byte`, innermost first. The
-    // parentheses of a call ask the outermost of those they hold whether
-    // it carries the indent through them.
-    let mut holders: Vec<Node> = Vec::new();
+/// The brackets of `node`, when it has a pair that can be opened.
+///
+/// Those are a block's, a call's or a control structure's parentheses,
+/// those that group, an event's, an array's, an index's, and the braces of
+/// a class's body.
+#[must_use]
+pub fn brackets_of(node: Node) -> Option<Brackets> {
+    let (opening, closing) = match node.kind() {
+        "function_block" | "class_def" => ("{", "}"),
+        "function_call"
+        | "method_call"
+        | "apply_call"
+        | "instance_variable_setter_call"
+        | "if"
+        | "while"
+        | "for"
+        | "forby"
+        | "switch"
+        | "code_block"
+        | "event" => ("(", ")"),
+        "collection" | "indexed_collection" => ("[", "]"),
+        _ => return None,
+    };
+    let mut cursor = node.walk();
+    let open = node.children(&mut cursor).find(|n| n.kind() == opening)?;
+    // The bracket that closes it is the node's last child, or, where
+    // blocks follow a call's parentheses, the first of its kind.
+    let last = node.child(node.child_count() - 1)?;
+    let close = if last.kind() == closing {
+        last
+    } else {
+        std::iter::successors(open.next_sibling(), Node::next_sibling)
+            .find(|n| n.kind() == closing)?
+    };
+    let head = open
+        .next_sibling()
+        .filter(|n| n.kind() == "parameter_list")
+        .unwrap_or(open);
+    Some(Brackets { open, head, close })
+}
 
+/// Whether `node` is the parentheses around a region of a file: what the
+/// interpreter runs as one. Its lines stand as deep as the parentheses.
+#[must_use]
+pub fn is_region(node: Node) -> bool {
+    node.kind() == "code_block" && node.parent().is_some_and(|p| p.kind() == "source_file")
+}
+
+/// Whether `node` is a link of a chain of operators.
+///
+/// The operators are the binary ones, the keyword messages, and those
+/// that ask for nil. An assignment to what a message names (`a.b = c`) is
+/// written with an operator and is no link.
+#[must_use]
+pub fn is_chain(node: Node) -> bool {
+    match node.kind() {
+        "nil_check" => true,
+        "binary_expression" => operator_of(node).is_some_and(|op| op.kind() != "="),
+        _ => false,
+    }
+}
+
+/// The operator of one link of a chain.
+#[must_use]
+pub fn operator_of(node: Node) -> Option<Node> {
+    node.child_by_field_name("operator").or_else(|| {
+        let mut cursor = node.walk();
+        node.children(&mut cursor)
+            .find(|n| matches!(n.kind(), "?" | "??" | "!?"))
+    })
+}
+
+/// The operators of the chain whose outermost link is `chain`, in order.
+///
+/// sclang has no precedence among binary operators, and the tree nests
+/// them any way: the chain is every operator of the links that stand
+/// straight under one another.
+#[must_use]
+pub fn operators_of(chain: Node) -> Vec<Node> {
+    let mut operators = Vec::new();
+    let mut pending = vec![chain];
+    while let Some(node) = pending.pop() {
+        operators.extend(operator_of(node));
+        let mut cursor = node.walk();
+        pending.extend(node.children(&mut cursor).filter(|n| is_chain(*n)));
+    }
+    operators.sort_by_key(Node::start_byte);
+    operators
+}
+
+/// The first thing a chain is of: where its first operand ends.
+fn first_operand_end(chain: Node) -> usize {
+    let mut node = chain;
+    while let Some(left) = node.child(0).filter(|n| is_chain(*n)) {
+        node = left;
+    }
+    node.child(0)
+        .map_or_else(|| chain.start_byte(), |n| n.end_byte())
+}
+
+/// The one thing that stands between `brackets`, when one thing does: no
+/// comma beside it. A call's list of arguments is looked into.
+#[must_use]
+pub fn sole_content<'a>(brackets: &Brackets<'a>) -> Option<Node<'a>> {
+    let mut found = None;
+    for node in brackets.contents() {
+        if is_comment(node) {
+            continue;
+        }
+        if found.is_some() || matches!(node.kind(), "," | ";") {
+            return None;
+        }
+        found = Some(node);
+    }
+    let node = found?;
+    if node.kind() != "parameter_call_list" {
+        return Some(node);
+    }
+    let mut cursor = node.walk();
+    let mut arguments = node.children(&mut cursor).filter(|n| !is_comment(*n));
+    let only = arguments.next()?;
+    arguments.next().is_none().then_some(only)
+}
+
+/// Whether `chain` is all that stands between a pair of parentheses or
+/// brackets.
+///
+/// Such a chain breaks level with its first operand: the brackets have
+/// indented it already. A block and a region of a file hold statements, and
+/// a chain that is one runs on like any other.
+#[must_use]
+pub fn is_all_between_brackets(chain: Node) -> bool {
+    let holder = std::iter::successors(chain.parent(), Node::parent)
+        .find(|n| !matches!(n.kind(), "unnamed_argument" | "argument_calls"))
+        .filter(|n| n.kind() != "function_block" && !is_region(*n))
+        .and_then(|n| {
+            if n.kind() == "parameter_call_list" {
+                n.parent()
+            } else {
+                Some(n)
+            }
+        });
+    holder
+        .and_then(brackets_of)
+        .and_then(|brackets| sole_content(&brackets))
+        .is_some_and(|only| only.byte_range() == chain.byte_range())
+}
+
+/// The blocks of a `case`, or of a `switch` written with blocks, when it
+/// has a test and a block at least: each test and its block get a line.
+#[must_use]
+pub fn cases_of(node: Node) -> Option<Vec<Node>> {
+    if !matches!(node.kind(), "case" | "switch") {
+        return None;
+    }
+    let mut cursor = node.walk();
+    let blocks: Vec<Node> = node
+        .children(&mut cursor)
+        .filter(|n| n.kind() == "function_block")
+        .collect();
+    let first = blocks.first()?.start_byte();
+    let between_parentheses = brackets_of(node).is_some_and(|b| b.hold(first));
+    (blocks.len() > 1 && !between_parentheses).then_some(blocks)
+}
+
+/// Whether `node` begins its line.
+#[must_use]
+pub fn begins_line(node: Node, src: &[u8]) -> bool {
+    let before = src[..node.start_byte()].iter().rposition(|&b| !is_space(b));
+    before.is_none_or(|i| src[i] == b'\n')
+}
+
+/// Whether `byte` stands after `comma`, the first of a list, in a list
+/// that runs on: what follows the comma stands on a later line.
+fn runs_on_after(comma: Node, byte: usize) -> bool {
+    comma.end_byte() <= byte
+        && std::iter::successors(comma.next_sibling(), Node::next_sibling)
+            .find(|n| !is_comment(*n))
+            .is_some_and(|n| n.start_position().row > comma.end_position().row)
+}
+
+/// How many levels `node` puts `byte`, which it holds, in. `below` is the
+/// child of `node` that holds `byte`.
+fn levels(node: Node, below: Option<Node>, byte: usize, src: &[u8]) -> usize {
+    let mut levels = 0;
+    // What stands between brackets that are opened is one level in. The
+    // lines of a region are not.
+    if let Some(brackets) = brackets_of(node)
+        && brackets.hold(byte)
+        && brackets.are_open()
+        && !is_region(node)
+    {
+        levels += 1;
+    }
+    match node.kind() {
+        // The lines a chain runs on over are one level in, from where its
+        // first operand ends.
+        _ if is_chain(node) && !node.parent().is_some_and(is_chain) => {
+            let runs_on = byte >= first_operand_end(node)
+                && operators_of(node)
+                    .into_iter()
+                    .any(|op| begins_line(op, src))
+                && !is_all_between_brackets(node);
+            levels += usize::from(runs_on);
+        }
+        // So are the declarations after the first, when each has a line,
+        // and the comments that stand among them.
+        "variable_definition_sequence" => {
+            let mut cursor = node.walk();
+            let comma = node.children(&mut cursor).find(|n| n.kind() == ",");
+            levels += usize::from(comma.is_some_and(|comma| runs_on_after(comma, byte)));
+        }
+        // And those of a class, whose declarations are its own children.
+        "class_def" if below.is_some_and(|n| n.kind() != "function_block") => {
+            let mut first_comma = None;
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.start_byte() > byte {
+                    break;
+                }
+                match child.kind() {
+                    ";" | "{" => first_comma = None,
+                    "," => first_comma = first_comma.or(Some(child)),
+                    _ => {}
+                }
+            }
+            levels += usize::from(first_comma.is_some_and(|comma| runs_on_after(comma, byte)));
+        }
+        // A switch between parentheses keeps the value it switches on on
+        // its first line, and what follows the comma is one level in.
+        "switch" | "case" => {
+            let mut cursor = node.walk();
+            let comma = node.children(&mut cursor).find(|n| n.kind() == ",");
+            let inside = brackets_of(node).is_some_and(|b| b.hold(byte) && !b.are_open());
+            levels += usize::from(inside && comma.is_some_and(|comma| runs_on_after(comma, byte)));
+            // Written with blocks, each test and its block is one level
+            // in when they have lines of their own.
+            if let Some(blocks) = cases_of(node)
+                && blocks[0].start_byte() <= byte
+                && begins_line(blocks[0], src)
+            {
+                levels += 1;
+            }
+        }
+        _ => {}
+    }
+    levels
+}
+
+/// How deep the line that begins at `byte` stands: one level for each pair
+/// of opened brackets around it, and one where a chain or a list of
+/// declarations runs on.
+#[must_use]
+pub fn depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
     let Some(mut node) = root.descendant_for_byte_range(byte, byte + 1) else {
         return 0;
     };
-
+    let mut depth = 0;
+    let mut below = None;
     loop {
-        match node.kind() {
-            // Function blocks indent their content (but not the opening brace itself)
-            "function_block" => {
-                // Only count if we're past the opening brace
-                if byte > node.start_byte() {
-                    depth += 1;
-                    holders.push(node);
-                }
-            }
-
-            // Class definitions have their own body delimited by { }
-            // Only count if we're inside the braces (after the opening {)
-            "class_def" => {
-                // Find the opening brace
-                for i in 0..node.child_count() {
-                    if let Some(child) = node.child(i)
-                        && child.kind() == "{"
-                    {
-                        // Only count if byte is after the opening brace
-                        if byte > child.start_byte() {
-                            depth += 1;
-                        }
-                        break;
-                    }
-                }
-            }
-
-            // Events and indexed collections indent their content (but not
-            // the opening bracket itself)
-            "event" | "indexed_collection" => {
-                if byte > node.start_byte() {
-                    depth += 1;
-                }
-            }
-
-            // Grouping parens `( ... )`.
-            // Count these UNLESS they are the top-level wrapper of the file.
-            "code_block" => {
-                if !is_top_level_node(node) && byte > node.start_byte() {
-                    depth += 1;
-                }
-            }
-
-            // Collections `[ ... ]` or `( ... )` add structural depth
-            "collection" => {
-                if byte > node.start_byte()
-                    && let Some(first) = src.get(node.start_byte())
-                {
-                    if *first == b'[' {
-                        // Array literals
-                        depth += 1;
-                        holders.push(node);
-                    } else if *first == b'(' {
-                        // Arithmetic series `(1..10)` or other paren-like collections.
-                        // Count unless top-level.
-                        if !is_top_level_node(node) {
-                            depth += 1;
-                            holders.push(node);
-                        }
-                    }
-                }
-            }
-
-            // The parentheses of a call, or of a control structure, that
-            // span lines: `Pbind(\n    \degree, ...\n)`. What stands between
-            // them is one level deeper, and so is the closing parenthesis,
-            // which the indent rule takes back out as it does every line that
-            // begins with a closing bracket. Not when a block or a collection
-            // that holds `byte` carries the indent through the parentheses
-            // (`foo(a, { |x|`): then that one does the indenting. (A switch
-            // indents what it holds by a rule of its own, in
-            // visual_block_depth_at.)
-            "function_call"
-            | "method_call"
-            | "apply_call"
-            | "instance_variable_setter_call"
-            | "if"
-            | "while"
-            | "for"
-            | "forby"
-            | "case"
-            | "protect"
-            | "try" => {
-                let mut cursor = node.walk();
-                let children: Vec<Node> = node.children(&mut cursor).collect();
-                for (i, open) in children.iter().enumerate() {
-                    let Some(close) = children[i..].iter().find(|c| c.kind() == ")") else {
-                        break;
-                    };
-                    if open.kind() == "("
-                        && byte > open.start_byte()
-                        && byte <= close.start_byte()
-                        && open.start_position().row != close.start_position().row
-                    {
-                        let carried = holders
-                            .last()
-                            .is_some_and(|holder| carries_indent(*holder, node, *open, src));
-                        if !carried {
-                            depth += 1;
-                        }
-                    }
-                }
-            }
-
-            _ => {}
-        }
-
-        if let Some(parent) = node.parent() {
-            node = parent;
-        } else {
-            break;
-        }
+        depth += levels(node, below, byte, src);
+        let Some(parent) = node.parent() else {
+            return depth;
+        };
+        below = Some(node);
+        node = parent;
     }
-
-    depth
-}
-
-/// Whether `holder`, a block or a collection between the parentheses of
-/// `call` that `open` opens, carries the indent through them, so that what
-/// it holds is one level in and not two.
-///
-/// It does when it began on the line of the opening parenthesis
-/// (`foo(a, { |x|`), or on a line that begins with the close of one that
-/// carries the indent (`}, {`). One that begins among arguments on lines of
-/// their own does not: it stands one level in itself.
-fn carries_indent(holder: Node, call: Node, open: Node, src: &[u8]) -> bool {
-    if holder.start_position().row == open.start_position().row {
-        return true;
-    }
-    let line_start = src[..holder.start_byte()]
-        .iter()
-        .rposition(|&b| b == b'\n')
-        .map_or(0, |i| i + 1);
-    let first = src[line_start..holder.start_byte()]
-        .iter()
-        .position(|&b| b != b' ' && b != b'\t')
-        .map_or_else(|| holder.start_byte(), |i| line_start + i);
-    if first == holder.start_byte() || first <= open.start_byte() {
-        return false;
-    }
-    // What the line begins with: the outermost block or collection between
-    // the parentheses that holds it, if one does.
-    let mut before = None;
-    let mut node = call.descendant_for_byte_range(first, first + 1);
-    while let Some(n) = node.filter(|n| n.id() != call.id()) {
-        if matches!(n.kind(), "function_block" | "collection") && first > n.start_byte() {
-            before = Some(n);
-        }
-        node = n.parent();
-    }
-    before.is_some_and(|before| carries_indent(before, call, open, src))
-}
-
-/// Returns a visual indentation depth (AST block depth adjusted for layout rules).
-#[must_use]
-pub fn visual_block_depth_at(root: Node, byte: usize, bytes: &[u8]) -> usize {
-    let depth = block_depth_at(root, byte, bytes);
-    let mut visual_depth = depth;
-
-    // Find the smallest node covering this byte.
-    let Some(node) = root.descendant_for_byte_range(byte, byte + 1) else {
-        return visual_depth;
-    };
-
-    // Its ancestors, innermost first.
-    let ancestors: Vec<Node> = std::iter::successors(Some(node), Node::parent).collect();
-    let nearest = |kind: &str| ancestors.iter().copied().find(|n| n.kind() == kind);
-
-    // Flags for layout adjustments
-    let has_fn_block = nearest("function_block").is_some();
-    let collection_ancestor = nearest("collection");
-    let event_ancestor = nearest("event");
-    let has_collection = collection_ancestor.is_some();
-    let has_event = event_ancestor.is_some();
-
-    let is_collection_receiver = collection_ancestor
-        .and_then(|collection| collection.parent())
-        .is_some_and(|parent| parent.kind() == "function_call");
-
-    // 1. Check for multiline grouping parens that need flattening: the
-    //    nearest one that is not at the top level (whose depth is already 0
-    //    via block_depth_at).
-    let paren_group_ancestor = ancestors.iter().copied().find(|n| {
-        matches!(n.kind(), "collection" | "code_block")
-            && bytes.get(n.start_byte()) == Some(&b'(')
-            && !is_top_level_node(*n)
-            && n.end_position().row > n.start_position().row
-    });
-
-    let mut flattened_for_paren_group = false;
-
-    if let Some(paren_group) = paren_group_ancestor {
-        let innermost = ancestors[0];
-
-        // Don't flatten the paren group wrapper itself
-        let is_the_wrapper_token = (innermost.start_byte() == paren_group.start_byte())
-            || (innermost.end_byte() == paren_group.end_byte());
-
-        // Only flatten for events inside paren groups, not collections
-        // Collections are handled separately by single-line flattening
-        // IMPORTANT: Only flatten if we're actually inside the event (not at its opening paren)
-        if !is_the_wrapper_token
-            && visual_depth > 0
-            && let Some(ev) = event_ancestor
-            && byte > ev.start_byte()
-        {
-            visual_depth -= 1;
-            flattened_for_paren_group = true;
-        }
-    }
-
-    // 2. Indent `switch` cases
-    let innermost = ancestors[0];
-    if innermost.kind() != "switch"
-        && ancestors
-            .iter()
-            .any(|n| n.kind() == "switch" && n.child_count() > 0)
-    {
-        visual_depth += 1;
-    }
-
-    // 3. Flatten inline arrays of events
-    // Only flatten if we're inside the event (not at its opening paren)
-    if has_collection
-        && has_event
-        && !has_fn_block
-        && let Some(ev) = event_ancestor
-        && byte > ev.start_byte()
-    {
-        let start_row = ev.start_position().row;
-        let end_row = ev.end_position().row;
-        if start_row == end_row && visual_depth > 0 {
-            visual_depth -= 1;
-        }
-    }
-
-    // 4. Flatten single-line collections and indexed_collections
-    // Single-line brackets don't add visual indent
-    // But skip if we already flattened for paren group
-    // IMPORTANT: Only flatten if the collection actually contributed to depth
-    // (i.e., we're inside it, not at its opening bracket)
-    let mut flattened_single_line = false;
-
-    if !flattened_for_paren_group && let Some(coll) = collection_ancestor {
-        // Only flatten if we're INSIDE the collection (not at the opening bracket)
-        if byte > coll.start_byte() {
-            let start_row = coll.start_position().row;
-            let end_row = coll.end_position().row;
-            if start_row == end_row && visual_depth > 0 {
-                visual_depth -= 1;
-                flattened_single_line = true;
-            }
-        }
-    }
-
-    if !flattened_single_line && !flattened_for_paren_group {
-        for n in &ancestors {
-            if n.kind() == "indexed_collection" {
-                // Only flatten if we're INSIDE the indexed_collection
-                if byte > n.start_byte() {
-                    let start_row = n.start_position().row;
-                    let end_row = n.end_position().row;
-                    if start_row == end_row && visual_depth > 0 {
-                        visual_depth -= 1;
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    // 5. Flatten collection receivers (e.g. `[1, 2].do`) at top level
-    // Only flatten when NOT inside a function_block AND not already flattened
-    // AND we're actually inside the collection (not at its opening bracket)
-    if is_collection_receiver
-        && !has_event
-        && !has_fn_block
-        && !flattened_single_line
-        && visual_depth > 0
-        && let Some(coll) = collection_ancestor
-        && byte > coll.start_byte()
-    {
-        visual_depth -= 1;
-    }
-
-    visual_depth
 }
 
 #[cfg(test)]
@@ -340,332 +325,107 @@ mod tests {
     use super::*;
     use tree_sitter::Parser;
 
-    fn parse_source(src: &str) -> (tree_sitter::Tree, Vec<u8>) {
+    /// The depth of each line of `src`, which is written with the indent
+    /// its depth gives it.
+    fn depths(src: &str) -> Vec<usize> {
         let mut parser = Parser::new();
-        parser
-            .set_language(&crate::grammar::language())
-            .expect("set_language");
-        let bytes = src.as_bytes().to_vec();
-        let tree = parser.parse(&bytes, None).expect("parse");
-        (tree, bytes)
-    }
-
-    fn dump_node_stack(root: Node, byte: usize, src: &[u8], label: &str) {
-        if let Some(mut node) = root.descendant_for_byte_range(byte, byte + 1) {
-            let block_depth = super::block_depth_at(root, byte, src);
-            let visual_depth = super::visual_block_depth_at(root, byte, src);
-            eprintln!(
-                "=== {label} at byte {byte} (block={block_depth}, visual={visual_depth}) ==="
-            );
-            loop {
-                eprintln!(
-                    "  kind={:<20} [{}..{}]",
-                    node.kind(),
-                    node.start_byte(),
-                    node.end_byte()
-                );
-                if let Some(parent) = node.parent() {
-                    node = parent;
-                } else {
-                    break;
-                }
+        parser.set_language(&crate::grammar::language()).unwrap();
+        let tree = parser.parse(src, None).unwrap();
+        assert!(!tree.root_node().has_error(), "{src}");
+        let mut depths = Vec::new();
+        let mut start = 0;
+        for line in src.split_inclusive('\n') {
+            let first = start + line.len() - line.trim_start().len();
+            if !line.trim().is_empty() {
+                depths.push(depth_at(tree.root_node(), first, src.as_bytes()));
             }
+            start += line.len();
         }
+        depths
     }
 
-    fn dump_tree(node: Node, src: &[u8], indent: usize) {
-        let text = if node.child_count() == 0 {
-            let start = node.start_byte();
-            let end = node.end_byte();
-            if end <= src.len() {
-                format!(" {:?}", String::from_utf8_lossy(&src[start..end]))
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
+    /// The depths the indents of `src` say.
+    fn written(src: &str) -> Vec<usize> {
+        src.lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| (line.len() - line.trim_start().len()) / 4)
+            .collect()
+    }
 
-        eprintln!(
-            "{:indent$}{} [{}-{}]{}",
-            "",
-            node.kind(),
-            node.start_byte(),
-            node.end_byte(),
-            text,
-            indent = indent
-        );
-
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            dump_tree(child, src, indent + 2);
+    #[test]
+    fn what_opened_brackets_hold_is_one_level_in() {
+        for src in [
+            "x = {\n    1\n};\n",
+            "x = { |a|\n    a;\n    b\n}.value;\n",
+            "x = foo(\n    1, 2\n);\n",
+            "x = foo(\n    [\n        1,\n        2\n    ],\n    (\n        a: 1\n    )\n);\n",
+            "x = (\n    a + b\n) * c[\n    1\n];\n",
+            "if (\n    a\n) {\n    b\n} {\n    c\n};\n",
+            "Foo {\n    bar { |a|\n        ^a\n    }\n}\n",
+            "f = { // why\n    1\n};\n",
+            "f = {\n    // nothing\n};\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
         }
     }
 
     #[test]
-    fn depth_outside_any_block_is_zero() {
-        let src = "1 + 2;\n";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-        let byte = src.find('1').unwrap();
-        assert_eq!(block_depth_at(root, byte, &bytes), 0);
-    }
-
-    #[test]
-    fn depth_inside_simple_block_is_one() {
-        let src = "x = {\n    1\n};\n";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-        let byte_one = src.find("\n    1").unwrap() + 5;
-        assert_eq!(block_depth_at(root, byte_one, &bytes), 1);
-    }
-
-    #[test]
-    fn depth_inside_nested_blocks_increases() {
-        let src =
-            r#" ( var a = 1; if (a > 0) { "level 1".postln; { "level 2".postln; }.value };) "#;
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // top level parens -> depth 0
-        let byte_if = src.find("if (a > 0)").unwrap();
-        assert_eq!(
-            block_depth_at(root, byte_if, &bytes),
-            0,
-            "if header should be at depth 0"
-        );
-
-        // inside first brace -> depth 1
-        let byte_l1 = src.find(r#""level 1""#).unwrap();
-        assert_eq!(block_depth_at(root, byte_l1, &bytes), 1);
-
-        // inside second brace -> depth 2
-        let byte_l2 = src.find(r#""level 2""#).unwrap();
-        assert_eq!(block_depth_at(root, byte_l2, &bytes), 2);
-    }
-
-    #[test]
-    fn depth_paren_wrapped_code_block_ignores_code_block() {
-        let src = "( x = 1; { x }.value );";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // 'x' in "x = 1" -> top level parens ignored -> depth 0
-        let byte_header_x = src.find("x = 1").unwrap();
-        assert_eq!(block_depth_at(root, byte_header_x, &bytes), 0);
-
-        // 'x' in "{ x }" -> function block -> depth 1
-        let byte_block_x = src.find("{ x").unwrap() + 2;
-        assert_eq!(block_depth_at(root, byte_block_x, &bytes), 1);
-    }
-
-    #[test]
-    fn depth_inside_indexed_collection() {
-        let src = "( var arr = [10, 20, 30]; arr[ 2 ];)";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // 2 is inside arr[...]. Outer parens ( ... ) are top-level -> 0.
-        // indexed_collection -> 1.
-        let byte_index = src.find("arr[ 2").map(|i| i + 5).unwrap();
-        assert_eq!(block_depth_at(root, byte_index, &bytes), 1);
-    }
-
-    #[test]
-    fn debug_section7_grouping_parens() {
-        let src = r#"
-(
-// SECTION 7
-(
-    "this: is in a string",
-    [1, 2, 3],
-    (foo: "bar")
-);
-)
-"#;
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        let byte_string = src.find("\"this: is in a string\"").unwrap();
-        let byte_array = src.find("[1, 2, 3]").unwrap();
-        let byte_event = src.find("(foo: \"bar\")").unwrap();
-
-        // Debug: dump ancestry for [1, 2, 3]
-        eprintln!("=== DEBUG section7 ===");
-        eprintln!("byte_array = {byte_array}");
-        if let Some(mut node) = root.descendant_for_byte_range(byte_array, byte_array + 1) {
-            eprintln!("Node ancestry for '[1, 2, 3]':");
-            loop {
-                eprintln!(
-                    "  {} [{}-{}]",
-                    node.kind(),
-                    node.start_byte(),
-                    node.end_byte()
-                );
-                if let Some(parent) = node.parent() {
-                    node = parent;
-                } else {
-                    break;
-                }
-            }
+    fn a_region_of_a_file_is_not_indented_and_one_in_it_is() {
+        for src in [
+            "(\nvar a = 1;\nx = {\n    a\n};\n)\n",
+            "(\n(\n    a;\n    b\n);\n)\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
         }
-
-        let array_block = block_depth_at(root, byte_array, &bytes);
-        let array_visual = visual_block_depth_at(root, byte_array, &bytes);
-        eprintln!("Array: block_depth={array_block}, visual_depth={array_visual}");
-
-        // Outer ( ... ) ignored.
-        // Inner ( ... ) is nested -> code_block -> depth 1.
-        // Items inside are at depth 1.
-
-        assert_eq!(
-            visual_block_depth_at(root, byte_string, &bytes),
-            1,
-            "String depth"
-        );
-        assert_eq!(
-            visual_block_depth_at(root, byte_array, &bytes),
-            1,
-            "Array depth"
-        );
-        assert_eq!(
-            visual_block_depth_at(root, byte_event, &bytes),
-            1,
-            "Event depth"
-        );
     }
 
     #[test]
-    fn depth_pipe_param_function_block() {
-        let src = "x = { |a=1, b=2| a + b };";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // a + b inside function block -> depth 1
-        let byte_body = src.find("a + b").unwrap();
-        assert_eq!(visual_block_depth_at(root, byte_body, &bytes), 1);
+    fn brackets_that_are_not_opened_indent_nothing() {
+        // A block that hugs its call: the parentheses are not opened.
+        for src in [
+            "foo(a, { |x|\n    x\n});\n",
+            "foo(bar(\n    1\n), { |x|\n    x\n});\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
+        }
     }
 
     #[test]
-    fn debug_exact_snapshot_case() {
-        let src = r"// pipe param missing commas – ORIGINAL
-
-
-// no comma between foo and bar
-x = { |foo = 3, bar = (4.dbamp)|
-    foo + bar
-};";
-
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        let first_foo = src.find("foo =").unwrap();
-        let body_foo = src[first_foo + 1..]
-            .find("foo")
-            .map(|i| i + first_foo + 1)
-            .unwrap();
-
-        eprintln!("\n=== DEBUG SNAPSHOT CASE ===");
-        dump_node_stack(root, body_foo, &bytes, "Body Foo");
-
-        let v_depth = visual_block_depth_at(root, body_foo, &bytes);
-        assert_eq!(v_depth, 1, "Should be indented depth 1");
+    fn a_chain_that_runs_on_is_one_level_in_and_one_between_brackets_is_not() {
+        for src in [
+            "x = a\n    + b\n    - c;\n",
+            "a\n    and: { b }\n    and: {\n        c;\n        d\n    };\n",
+            "^a\n    ?? { b };\n",
+            "x.y = a\n    * b;\n",
+            "x = foo(\n    a\n) + b;\n",
+            "if (\n    a\n    and: { b }\n) { c };\n",
+            "x = (\n    a\n    + b\n) * c;\n",
+            "f = {\n    a\n        + b\n};\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
+        }
     }
 
     #[test]
-    fn debug_ast_indent_case_1() {
-        let src = r#"// 1. Standard Block Nesting
-(
-    var a = 1;
-    if (a > 0) {
-        "level 1".postln;
-    };
-)"#;
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // 'var' line
-        let var_pos = src.find("var a").unwrap();
-        eprintln!("\n=== INDENT CASE 1 DEBUG ===");
-        dump_node_stack(root, var_pos, &bytes, "var a");
-
-        let v = visual_block_depth_at(root, var_pos, &bytes);
-        assert_eq!(v, 0, "Top level var should be depth 0");
+    fn declarations_after_the_first_are_one_level_in() {
+        for src in [
+            "var a = 1,\n    b = foo(\n        2\n    ),\n    c;\n",
+            "var a = {\n    1\n};\n",
+            "Foo {\n    var a,\n        b = 2;\n    classvar c;\n    foo { ^a }\n}\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
+        }
     }
 
     #[test]
-    fn debug_add_missing_commas_full() {
-        // This mirrors fixtures/add_missing_commas/input.scd EXACTLY
-        // 1. Outer parens (Code Block) -> Should be Depth 0
-        // 2. x = { ... } (Function Block) -> Should be Depth 1
-        let src = r"(
-// pipe param missing commas
-x = { |foo = 3, bar = (4.dbamp)|
-    foo + bar;
-};
-)";
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        // Find 'foo + bar' inside the function
-        // It is the second 'foo' in the string
-        let first_foo = src.find("foo =").unwrap();
-        let body_pos = src[first_foo + 1..]
-            .find("foo")
-            .map(|i| i + first_foo + 1)
-            .unwrap();
-
-        eprintln!("\n=== DEBUG ADD MISSING COMMAS FULL ===");
-        dump_node_stack(root, body_pos, &bytes, "foo + bar");
-
-        // Check for ERROR nodes which would silently break indentation
-        let has_error = root.has_error();
-        eprintln!("Tree has error: {has_error}");
-
-        let v = visual_block_depth_at(root, body_pos, &bytes);
-        eprintln!("Visual Depth: {v}");
-
-        // We expect Depth 1:
-        // - SourceFile
-        // - CodeBlock (Top Level) -> Ignored (+0)
-        // - FunctionDefinition
-        // - FunctionBlock -> Counted (+1)
-        assert_eq!(
-            v, 1,
-            "Function body inside top-level parens should be Depth 1"
-        );
-    }
-
-    #[test]
-    fn test_multiline_function_call_indent() {
-        // This is the Pbind case - multi-line function call should indent its arguments
-        let src = r"e.stream = Pbind(
-    \degree, Pseq([0, 1, 2], inf),
-    \dur, 0.5
-).asStream;";
-
-        let (tree, bytes) = parse_source(src);
-        let root = tree.root_node();
-
-        eprintln!("\n=== MULTILINE FUNCTION CALL ===");
-        eprintln!("Source:\n{src}");
-        eprintln!("Tree has error: {}", root.has_error());
-
-        // Dump full tree
-
-        dump_tree(root, &bytes, 0);
-
-        // Find the \degree position
-        let degree_pos = src.find("\\degree").unwrap();
-        eprintln!("\n\\degree at byte {degree_pos}");
-
-        let v = visual_block_depth_at(root, degree_pos, &bytes);
-        eprintln!("Visual depth at \\degree: {v}");
-
-        // The \degree line should be indented 1 level (inside Pbind's multi-line param list)
-        assert_eq!(
-            v, 1,
-            "Arguments inside multi-line function call should be depth 1"
-        );
+    fn the_tests_of_a_switch_and_of_a_case_are_one_level_in() {
+        for src in [
+            "switch (x,\n    0, { a },\n    1, {\n        b;\n        c\n    },\n    { d }\n);\n",
+            "switch (x)\n    { 0 } { a }\n    { 1 } {\n        b;\n        c\n    }\n    { d };\n",
+            "x = case\n    { a } { b }\n    { c } { d };\n",
+            "case\n    { a } {\n        b;\n        c\n    };\n",
+        ] {
+            assert_eq!(depths(src), written(src), "{src}");
+        }
     }
 }

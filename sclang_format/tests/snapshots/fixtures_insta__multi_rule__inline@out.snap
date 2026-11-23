@@ -34,9 +34,7 @@ c = (a + b) * (c - 1);
 d = a * -1 + b.neg;
 
 // control keywords
-if (a > 0) {
-    "a>0".postln
-};
+if (a > 0) { "a>0".postln };
 /*
 for(0,10,1,{ |i|i.postln;});*/
 

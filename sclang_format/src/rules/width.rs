@@ -5,7 +5,6 @@
 use crate::engine::Ctx;
 use crate::engine::layout::{MAX_LINE_WIDTH, columns};
 use crate::engine::text::{is_newline, is_space};
-use crate::rules::ast_indent::line_depth;
 
 /// Where the text of the line that holds `at` begins: its first character
 /// that is not a blank.
@@ -51,7 +50,7 @@ pub(super) fn text_end_of_line(cx: &Ctx, at: usize) -> usize {
 /// `text` is that text, in as many pieces as the rule that asks has it in.
 pub(super) fn is_too_wide(cx: &Ctx, first: usize, text: &[&[u8]]) -> bool {
     let style = cx.indent_style;
-    let indent = line_depth(cx.tree.root_node(), cx.bytes(), first) * style.width();
+    let indent = cx.line_depth(first) * style.width();
     let width: usize = text.iter().map(|part| columns(part, style)).sum();
     indent + width > MAX_LINE_WIDTH
 }

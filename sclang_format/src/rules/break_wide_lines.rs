@@ -2,7 +2,6 @@ use crate::engine::ast::{blanks_before, contains_comment};
 use crate::engine::ast_utils::is_top_level_node;
 use crate::engine::layout::{LineCursor, columns};
 use crate::engine::{Ctx, TextEdit};
-use crate::rules::ast_indent::line_depth;
 use crate::rules::block_layout::line_can_take_brace;
 use crate::rules::compact_collections::{get_elements, is_literal_ish_node};
 use crate::rules::if_trailing::IfWithBlocks;
@@ -108,7 +107,7 @@ fn attach_braces(cx: &mut Ctx) -> Result<usize> {
         let above_text = bytes[closing..above.end].trim_ascii_end();
         let chained = above_text == b"}"
             && is_token(closing, "}")
-            && line_depth(root, bytes, closing) == line_depth(root, bytes, brace);
+            && cx.line_depth(closing) == cx.line_depth(brace);
         if chained || line_can_take_brace(root, &bytes[above.start..above.end], above.start) {
             edits.push(TextEdit {
                 start_byte: closing + above_text.len(),

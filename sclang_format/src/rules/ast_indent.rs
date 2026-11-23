@@ -1,4 +1,3 @@
-use crate::engine::ast_utils::visual_block_depth_at;
 use crate::engine::layout::{LineCursor, make_indent};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -39,9 +38,7 @@ impl Rule for IndentByAstLevel {
                 continue;
             }
 
-            let depth = line_depth(root, bytes, byte);
-
-            let desired_indent = make_indent(cx.indent_style, depth);
+            let desired_indent = make_indent(cx.indent_style, cx.line_depth(byte));
 
             if &bytes[line.start..line.first_non_ws] != desired_indent.as_bytes() {
                 edits.push(TextEdit {
@@ -72,23 +69,10 @@ fn is_inside_block_comment(node: &Node) -> bool {
     false
 }
 
-/// The depth of the line whose first character that is not a blank is at
-/// `first`: what the tree says, less one for a line that begins with a
-/// closing bracket (`};`, `).play;`, `}.value;`), which stands level with
-/// the line its bracket was opened on.
-pub(super) fn line_depth(root: Node, bytes: &[u8], first: usize) -> usize {
-    let depth = visual_block_depth_at(root, first, bytes);
-    if matches!(bytes[first], b'}' | b']' | b')') {
-        depth.saturating_sub(1)
-    } else {
-        depth
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::ast_utils::block_depth_at;
+    use crate::engine::ast_utils::{block_depth_at, visual_block_depth_at};
     use crate::engine::{Ctx, IndentStyle};
     use crate::grammar;
     use tree_sitter::Parser;

@@ -1,4 +1,6 @@
 use anyhow::{Context, Result, anyhow};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 use tree_sitter::{Language, Node, Parser, Tree};
 
@@ -41,6 +43,11 @@ pub struct Ctx {
     pub indent_style: IndentStyle,
     pub current_rule_name: Option<&'static str>,
     pub debug_edits: bool,
+    /// The depth of each line asked about since the text last changed, by
+    /// where the line's text begins. The rule that breaks wide lines and
+    /// the rule that indents ask about every line, one after the other,
+    /// and on a text that needs no break they ask about the same text.
+    line_depths: RefCell<HashMap<usize, usize>>,
 }
 
 impl fmt::Display for Ctx {
@@ -99,7 +106,29 @@ impl Ctx {
             indent_style,
             current_rule_name: None,
             debug_edits: std::env::var("DEBUG_EDITS").is_ok(),
+            line_depths: RefCell::default(),
         })
+    }
+
+    /// The depth of the line whose first character that is not a blank is
+    /// at `first`: what the tree says, less one for a line that begins with
+    /// a closing bracket (`};`, `).play;`, `}.value;`), which stands level
+    /// with the line its bracket was opened on.
+    #[must_use]
+    pub fn line_depth(&self, first: usize) -> usize {
+        *self
+            .line_depths
+            .borrow_mut()
+            .entry(first)
+            .or_insert_with(|| {
+                let bytes = self.bytes();
+                let depth = ast_utils::visual_block_depth_at(self.tree.root_node(), first, bytes);
+                if matches!(bytes[first], b'}' | b']' | b')') {
+                    depth.saturating_sub(1)
+                } else {
+                    depth
+                }
+            })
     }
 
     #[must_use]
@@ -200,6 +229,7 @@ impl Ctx {
             self.text
                 .replace_range(e.start_byte..e.end_byte, &e.replacement);
         }
+        self.line_depths.get_mut().clear();
 
         self.parser
             .parse(&self.text, None)

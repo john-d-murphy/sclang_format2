@@ -685,10 +685,13 @@ impl<'a> Layout<'a> {
     }
 
     /// Whether the pair `i` can be opened to any use on a line of
-    /// `columns`: it holds something, and each thing it holds would be
-    /// narrower one level in than the line is, or it must be opened anyway.
+    /// `columns`: it holds something, and it must be opened anyway, or each
+    /// thing it holds would be narrower one level in than the line is, or
+    /// what it holds can be broken in its turn to the same end.
     fn is_worth_opening(&self, i: usize, columns: usize) -> bool {
-        let brackets = self.pairs[i].brackets;
+        let Pair {
+            owner, brackets, ..
+        } = self.pairs[i];
         let contents = brackets.contents();
         let (Some(first), Some(last)) = (contents.first(), contents.last()) else {
             return false;
@@ -696,9 +699,10 @@ impl<'a> Layout<'a> {
         if self.must_break(brackets.open.start_byte(), brackets.close.end_byte()) {
             return true;
         }
+        let (from, to) = (first.start_byte(), last.end_byte());
         let items = items_of(&brackets);
-        let widest = if self.pairs[i].owner.kind() == "function_block" {
-            self.columns(first.start_byte(), last.end_byte())
+        let widest = if owner.kind() == "function_block" {
+            self.columns(from, to)
         } else {
             items
                 .iter()
@@ -706,7 +710,15 @@ impl<'a> Layout<'a> {
                 .max()
                 .unwrap_or(0)
         };
-        self.cx.indent_style.width() + widest < columns
+        // One level in, on a line of `widest` columns.
+        let inside = self.cx.indent_style.width() + widest;
+        let is_chain = items.len() == 1 && !operators_of(unwrapped(items[0].0)).is_empty();
+        inside < columns
+            || is_chain
+            || self
+                .pairs_in(from, to)
+                .into_iter()
+                .any(|inner| self.is_worth_opening(inner, widest))
     }
 
     /// The block that hugs the call whose parentheses are the pair `i`:
@@ -1471,6 +1483,20 @@ mod tests {
                 "x = this.someMethod(firstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain * fourthOperand);\n"
             ),
             "x = this.someMethod(\n    firstOperandOfTheChain\n    + secondOperandOfTheChain\n    - thirdOperandOfTheChain\n    * fourthOperand\n);\n"
+        );
+        // Opened, the parentheses leave the chain no narrower, but it can
+        // then be broken; and a block likewise.
+        assert_eq!(
+            format(
+                "f = {\n    ^((this.prune(inMin, inMax, clip) - inMin) / (inMax - inMin) * (outMax - outMin) + outMin)\n};\n"
+            ),
+            "f = {\n    ^(\n        (this.prune(inMin, inMax, clip) - inMin)\n        / (inMax - inMin)\n        * (outMax - outMin)\n        + outMin\n    )\n};\n"
+        );
+        assert_eq!(
+            format(
+                "x = [1, { ((key == keyPlus) && modifier) || ((key == keyK) && mods.isShift) || (aaa + bbb) }];\n"
+            ),
+            "x = [\n    1,\n    {\n        ((key == keyPlus) && modifier)\n            || ((key == keyK) && mods.isShift)\n            || (aaa + bbb)\n    }\n];\n"
         );
         // An assignment between parentheses is no chain.
         assert_eq!(

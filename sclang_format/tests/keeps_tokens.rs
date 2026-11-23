@@ -127,25 +127,37 @@ fn a_comment_between_any_two_tokens_is_kept() {
 }
 
 /// A paragraph of comments that is filled again has more lines than it had,
-/// and each begins with its slashes: those are not counted. Every word of a
-/// comment still is, so a comment that is deleted, or a word of one, or the
-/// comment at the end of a line of code, is seen.
+/// and each begins with its slashes: the slashes that open a comment are not
+/// counted. Every word of a comment still is, so a comment that is deleted,
+/// or a word of one, is seen, wherever the comment stands. And a comment
+/// that moves from the end of a line of code to a line of its own, as one
+/// after `arg a;` does, is no change.
 #[test]
 fn a_comment_filled_again_keeps_its_tokens_and_one_cut_short_does_not() {
     let src = "// one two\n// three\nx = 1; // four\n";
-    for filled in [
+    for kept in [
         "// one two three\nx = 1; // four\n",
         "    // one\n    // two\n    // three\nx = 1; // four\n",
+        "// one two\n// three\nx = 1;\n// four\n",
     ] {
-        assert_eq!(changed_tokens(src, filled), Vec::<String>::new());
+        assert_eq!(changed_tokens(src, kept), Vec::<String>::new());
     }
     for cut in [
         "// one two\nx = 1; // four\n",
         "// one\n// three\nx = 1; // four\n",
         "x = 1; // four\n",
         "// one two\n// three\nx = 1;\n",
-        "// one two\n// three\nx = 1; four\n",
+        "// one two\n// three\nx = 1; //\n",
     ] {
         assert_ne!(changed_tokens(src, cut), Vec::<String>::new(), "{cut:?}");
     }
+    // A slash that is no comment's is counted as it was.
+    assert_ne!(
+        changed_tokens("x = 1 / 2;", "x = 1 2;"),
+        Vec::<String>::new()
+    );
+    assert_ne!(
+        changed_tokens("/* a */ x", "/* a * x"),
+        Vec::<String>::new()
+    );
 }

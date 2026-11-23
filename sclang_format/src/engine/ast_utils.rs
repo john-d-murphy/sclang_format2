@@ -163,38 +163,15 @@ pub fn operators_of(whole: Node) -> Vec<Node> {
     operators
 }
 
-/// The one thing that stands between `brackets`, when one thing does: no
-/// comma beside it. A call's list of arguments is looked into.
-#[must_use]
-pub fn sole_content<'a>(brackets: &Brackets<'a>) -> Option<Node<'a>> {
-    let mut found = None;
-    for node in brackets.contents() {
-        if is_comment(node) {
-            continue;
-        }
-        if found.is_some() || matches!(node.kind(), "," | ";") {
-            return None;
-        }
-        found = Some(node);
-    }
-    let node = found?;
-    if node.kind() != "parameter_call_list" {
-        return Some(node);
-    }
-    let mut cursor = node.walk();
-    let mut arguments = node.children(&mut cursor).filter(|n| !is_comment(*n));
-    let only = arguments.next()?;
-    arguments.next().is_none().then_some(only)
-}
-
-/// Whether `chain` is all that stands between a pair of parentheses or
-/// brackets.
+/// Whether `chain` is an item between a pair of parentheses or brackets:
+/// all that stands between them, or one of the things their commas part.
 ///
 /// Such a chain breaks level with its first operand: the brackets have
-/// indented it already. A block and a region of a file hold statements, and
-/// a chain that is one runs on like any other.
+/// indented it already. A block, a region of a file and parentheses with
+/// semicolons between them hold statements, and a chain that is one runs
+/// on like any other.
 #[must_use]
-pub fn is_all_between_brackets(chain: Node) -> bool {
+pub fn is_item_between_brackets(chain: Node) -> bool {
     let holder = std::iter::successors(chain.parent(), Node::parent)
         .find(|n| !matches!(n.kind(), "unnamed_argument" | "argument_calls"))
         .filter(|n| n.kind() != "function_block" && !is_region(*n))
@@ -205,10 +182,13 @@ pub fn is_all_between_brackets(chain: Node) -> bool {
                 Some(n)
             }
         });
-    holder
-        .and_then(brackets_of)
-        .and_then(|brackets| sole_content(&brackets))
-        .is_some_and(|only| only.byte_range() == chain.byte_range())
+    holder.and_then(brackets_of).is_some_and(|brackets| {
+        let holds_statements = brackets
+            .contents()
+            .iter()
+            .any(|n| matches!(n.kind(), ";" | "variable_definition_sequence"));
+        brackets.hold(chain.start_byte()) && !holds_statements
+    })
 }
 
 /// The blocks of a `case`, or of a `switch` written with blocks, when it
@@ -264,7 +244,7 @@ fn levels(node: Node, below: Option<Node>, byte: usize, src: &[u8]) -> usize {
             let operators = operators_of(node);
             let runs_on = operators.first().is_some_and(|op| op.start_byte() <= byte)
                 && operators.into_iter().any(|op| begins_line(op, src))
-                && !is_all_between_brackets(node);
+                && !is_item_between_brackets(node);
             levels += usize::from(runs_on);
         }
         // So are the declarations after the first, when each has a line,
@@ -413,6 +393,9 @@ mod tests {
             "x = foo(\n    a\n) + b;\n",
             "if (\n    a\n    and: { b }\n) { c };\n",
             "x = (\n    a\n    + b\n) * c;\n",
+            "foo(\n    a\n    + b,\n    c\n    - d\n);\n",
+            "x = [\n    a\n    + b.c(\n        d\n    ),\n    e\n];\n",
+            "x = (\n    a\n        + b;\n    c\n);\n",
             "f = {\n    a\n        + b\n};\n",
         ] {
             assert_eq!(depths(src), written(src), "{src}");

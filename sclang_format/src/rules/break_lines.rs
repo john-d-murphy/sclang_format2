@@ -33,9 +33,10 @@ use tree_sitter::Node;
 ///    be; a block that ends a line too wide is opened whatever stands
 ///    before it, and that is then broken in its turn. What parentheses or
 ///    brackets hold stands on one line when it fits there, and otherwise
-///    has an item to a line (a key and its value together), or, with no
-///    comma in it, breaks before the operators of the chain it is. The
-///    statements of a block get a line each.
+///    has an item to a line (a key and its value together). An item still
+///    too wide that is a chain breaks before its operators, level with its
+///    first operand, as Black breaks one; then its brackets are opened.
+///    The statements of a block get a line each.
 ///
 /// A block that is the last argument of a call, and the only block among
 /// the arguments, is opened in the parentheses' place when all that stands
@@ -895,9 +896,10 @@ impl<'a> Layout<'a> {
     }
 
     /// What `brackets` hold, on lines at `depth` that begin after `head`:
-    /// on one line when it fits there; otherwise an item to a line, or,
-    /// when it is one chain, a line to each operator. The items of a
-    /// `switch`, whose value stays on its first line, always get lines.
+    /// on one line when it fits there; otherwise an item to a line, and an
+    /// item that is a chain and too wide for its line, a line to each
+    /// operator. The items of a `switch`, whose value stays on its first
+    /// line, always get lines.
     fn items(&mut self, brackets: &Brackets<'a>, head: Node<'a>, is_switch: bool, depth: usize) {
         self.break_after(head, depth);
         let mut items = items_of(brackets);
@@ -909,16 +911,6 @@ impl<'a> Layout<'a> {
         };
         let (from, to) = (first.0.start_byte(), last.1.end_byte());
         let stays_open = stays_open(brackets);
-        if items.len() == 1 && !stays_open {
-            let only = unwrapped(first.0);
-            if !self.fits(from, to, depth)
-                && only.end_byte() == to
-                && self.chain(only, from, to, depth, depth, true)
-            {
-                return;
-            }
-            return self.line(from, to, depth);
-        }
         if !is_switch && !stays_open && self.fits(from, to, depth) {
             return;
         }
@@ -936,7 +928,16 @@ impl<'a> Layout<'a> {
             if let Some(above) = above {
                 self.break_after(above, depth);
             }
-            self.line(first.start_byte(), last.end_byte(), depth);
+            // An item too wide for its line that is a chain breaks before
+            // its operators, level with it: its brackets come after.
+            let (from, to) = (first.start_byte(), last.end_byte());
+            let is_one = group.len() == 1 && (first.id() == last.id() || last.kind() == ",");
+            if !is_one
+                || self.fits(from, to, depth)
+                || !self.chain(unwrapped(first), from, to, depth, depth, true)
+            {
+                self.line(from, to, depth);
+            }
             above = Some(last);
         }
     }
@@ -1435,6 +1436,14 @@ mod tests {
                 "var relay = super.newCopyArgs(name, Medium.default, TempoClock.default, MBState.new, false, List.new,\n    List.new, IdentityDictionary.new, false, nil, nil, Dictionary.new, List.new);\n"
             ),
             "var relay = super.newCopyArgs(\n    name,\n    Medium.default,\n    TempoClock.default,\n    MBState.new,\n    false,\n    List.new,\n    List.new,\n    IdentityDictionary.new,\n    false,\n    nil,\n    nil,\n    Dictionary.new,\n    List.new\n);\n"
+        );
+        // An argument too wide for its own line that is a chain breaks
+        // before its operators, level with it.
+        assert_layout(
+            "unixCmd(\n    theProgramToRun\n    + \" -N\"\n    + theFileOfTheScore.quote\n    + theFileOfTheOutput.quote\n    + theOptionsOfTheServer.asOptionsString,\n    action\n);\n",
+        );
+        assert_layout(
+            "x = [\n    firstElementOfAll,\n    rect.width\n    - labelBounds.width\n    - unitBounds.width\n    - numBounds.width\n    - gap1.x\n    - gap2.x\n    - gap3.x\n];\n",
         );
         // An argument too wide for its own line is opened in its turn.
         assert_layout(

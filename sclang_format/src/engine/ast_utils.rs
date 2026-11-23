@@ -116,9 +116,10 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
             // them is one level deeper, and so is the closing parenthesis,
             // which the indent rule takes back out as it does every line that
             // begins with a closing bracket. Not when a block or a collection
-            // that holds `byte` began on the line the arguments begin on:
-            // then that one does the indenting. (A switch indents what it
-            // holds by a rule of its own, in visual_block_depth_at.)
+            // that holds `byte` began on the line of the opening parenthesis
+            // (`foo(a, { |x|`): then that one does the indenting. (A switch
+            // indents what it holds by a rule of its own, in
+            // visual_block_depth_at.)
             "function_call"
             | "method_call"
             | "apply_call"
@@ -141,9 +142,9 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
                         && byte <= close.start_byte()
                         && open.start_position().row != close.start_position().row
                     {
-                        let start_row = children[i + 1].start_position().row;
-                        let block_on_same_line = function_block_start_rows.contains(&start_row)
-                            || collection_start_rows.contains(&start_row);
+                        let open_row = open.start_position().row;
+                        let block_on_same_line = function_block_start_rows.contains(&open_row)
+                            || collection_start_rows.contains(&open_row);
                         if !block_on_same_line {
                             depth += 1;
                         }

@@ -126,6 +126,25 @@ mod tests {
         }
     }
 
+    /// A block or an array that begins on the line of the call's opening
+    /// parenthesis does the indenting for what it holds. One that begins
+    /// among arguments that stand on lines of their own is one level deeper
+    /// than they are, like anything else there.
+    #[test]
+    fn test_a_block_among_arguments_on_their_own_lines_is_indented_under_them() {
+        for src in [
+            "foo(a, { |x|\n    body\n}, b);",
+            "foo(a, [\n    1,\n    2\n]);",
+            "foo(\n    a, { |x|\n        body\n    }\n);",
+            "foo(\n    { |x|\n        x\n    }.value(1, 2),\n    b\n);",
+            "foo(\n    [\n        1,\n        2\n    ], b\n);",
+            "f = {\n    if (\n        { |x|\n            x\n        }.value(a)\n    ) { b };\n};",
+        ] {
+            let flat: Vec<&str> = src.lines().map(str::trim_start).collect();
+            assert_eq!(format(&flat.join("\n")), src);
+        }
+    }
+
     #[test]
     fn test_simple_if_block() {
         let src = r"if (x > 0) {

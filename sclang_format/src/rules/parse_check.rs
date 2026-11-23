@@ -17,8 +17,8 @@ impl Rule for ParseCheck {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        if cx.tree.root_node().has_error() {
-            bail!("parse error in source");
+        if let Some(line) = cx.error_line() {
+            bail!("parse error at line {line}");
         }
         Ok(0)
     }

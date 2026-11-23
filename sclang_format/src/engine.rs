@@ -328,6 +328,22 @@ impl Ctx {
         }
         false
     }
+
+    /// The line, counted from 1, where the text first fails to parse;
+    /// `None` where it parses.
+    #[must_use]
+    pub fn error_line(&self) -> Option<usize> {
+        fn first(n: Node) -> Option<Node> {
+            if n.is_error() || n.is_missing() {
+                return Some(n);
+            }
+            let mut w = n.walk();
+            n.children(&mut w).filter(Node::has_error).find_map(first)
+        }
+        let root = self.tree.root_node();
+        root.has_error()
+            .then(|| first(root).map_or(1, |n| n.start_position().row + 1))
+    }
 }
 
 /// Collect byte ranges of all comment and string nodes in the tree.

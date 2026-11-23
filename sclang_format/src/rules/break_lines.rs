@@ -421,8 +421,7 @@ impl<'a> Layout<'a> {
                 return self.declarations(start, end, &commas, depth);
             }
         }
-        let value = value_of(node);
-        if is_chain(value) && self.chain(value, start, end, depth, depth + 1, false) {
+        if self.chain(value_of(node), start, end, depth, depth + 1, false) {
             return;
         }
         self.line(start, end, depth);
@@ -492,7 +491,8 @@ impl<'a> Layout<'a> {
     }
 
     /// Breaks `chain`, which is the value of the statement `from..to` or
-    /// all that stands between a pair of brackets, before its operators.
+    /// all that stands between a pair of brackets, before its operators,
+    /// when it has any.
     /// The lines after the first stand at `runs_on`. Whether it did: a
     /// chain of one operator in a statement is left whole when opening a
     /// pair of brackets serves.
@@ -506,6 +506,9 @@ impl<'a> Layout<'a> {
         between_brackets: bool,
     ) -> bool {
         let all = operators_of(chain);
+        if all.is_empty() {
+            return false;
+        }
         // Keyword messages bind loosest: the chain breaks at them first.
         let keywords: Vec<Node> = all
             .iter()
@@ -520,12 +523,13 @@ impl<'a> Layout<'a> {
         // A chain with a comment in it, or a line break that stays, is
         // broken whatever it is.
         let pairs = self.pairs_in(from, to);
-        let whole = self
-            .always_open
-            .binary_search(&(chain.start_byte(), chain.end_byte()));
+        let holds_comment = all.iter().filter_map(Node::parent).any(|link| {
+            let mut cursor = link.walk();
+            link.children(&mut cursor).any(is_comment)
+        });
         if !between_brackets
             && breaks.len() == 1
-            && whole.is_err()
+            && !holds_comment
             && self.cuts(from, to, &pairs).is_empty()
             && self.brackets_serve(chain, from, to, depth, &pairs)
         {
@@ -896,7 +900,6 @@ impl<'a> Layout<'a> {
         if items.len() == 1 && !stays_open {
             let only = unwrapped(first.0);
             if !self.fits(from, to, depth)
-                && is_chain(only)
                 && only.end_byte() == to
                 && self.chain(only, from, to, depth, depth, true)
             {
@@ -1173,6 +1176,31 @@ mod tests {
                 "var x = firstOperandOfTheChain + secondOperandOfTheChain - thirdOperandOfTheChain * fourthOperand;\n"
             ),
             "var x = firstOperandOfTheChain\n    + secondOperandOfTheChain\n    - thirdOperandOfTheChain\n    * fourthOperand;\n"
+        );
+    }
+
+    #[test]
+    fn test_a_chain_is_all_its_operators_however_the_tree_nests_them() {
+        // The tree reads `a << b.c(d)` as `(a << b).c(d)`: the operators
+        // before a message are the chain's all the same.
+        assert_eq!(
+            format(
+                "stream << \"<div class=codeMirrorContainer>\" << \"<textarea>\" << this.escapeSpecialChars(node.text) << \"</div>\";\n"
+            ),
+            "stream\n    << \"<div class=codeMirrorContainer>\"\n    << \"<textarea>\"\n    << this.escapeSpecialChars(node.text)\n    << \"</div>\";\n"
+        );
+        assert_eq!(
+            format(
+                "x = firstOperandOfTheChain + secondOperandOfTheChain.someMessage(withAnArgument) + third.other(1);\n"
+            ),
+            "x = firstOperandOfTheChain\n    + secondOperandOfTheChain.someMessage(withAnArgument)\n    + third.other(1);\n"
+        );
+        // One operator, and the brackets of the message that ends it serve.
+        assert_eq!(
+            format(
+                "y = aFirstOperandOfSomeLengthHere + anotherOperand.someMessageToIt(firstArgument, secondOne);\n"
+            ),
+            "y = aFirstOperandOfSomeLengthHere + anotherOperand.someMessageToIt(\n    firstArgument, secondOne\n);\n"
         );
     }
 

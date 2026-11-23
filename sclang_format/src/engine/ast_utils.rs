@@ -123,32 +123,44 @@ pub fn operator_of(node: Node) -> Option<Node> {
     })
 }
 
-/// The operators of the chain whose outermost link is `chain`, in order.
+/// Whether `node` goes on with the expression its child `part` is of:
+/// it is a link of a chain, or a message to what `part` is, and `part`
+/// does not stand between its brackets.
+///
+/// The tree reads `a + b.c(d)` as `(a + b).c(d)`, which sclang does not:
+/// the operators of a chain are found through the messages that the tree
+/// hangs on it.
+fn goes_on_with(node: Node, part: Node) -> bool {
+    let carries = is_chain(node)
+        || matches!(
+            node.kind(),
+            "function_call" | "method_call" | "indexed_collection"
+        );
+    carries && !brackets_of(node).is_some_and(|b| b.hold(part.start_byte()))
+}
+
+/// The operators of the chain that the expression `whole` is, in order:
+/// those that stand in it outside every pair of brackets. None, when it
+/// is no chain.
 ///
 /// sclang has no precedence among binary operators, and the tree nests
-/// them any way: the chain is every operator of the links that stand
-/// straight under one another.
+/// them any way: the chain is every one of them.
 #[must_use]
-pub fn operators_of(chain: Node) -> Vec<Node> {
+pub fn operators_of(whole: Node) -> Vec<Node> {
     let mut operators = Vec::new();
-    let mut pending = vec![chain];
+    let mut pending = vec![whole];
     while let Some(node) = pending.pop() {
-        operators.extend(operator_of(node));
+        if is_chain(node) {
+            operators.extend(operator_of(node));
+        }
         let mut cursor = node.walk();
-        pending.extend(node.children(&mut cursor).filter(|n| is_chain(*n)));
+        pending.extend(
+            node.children(&mut cursor)
+                .filter(|part| goes_on_with(node, *part) && goes_on_with(*part, *part)),
+        );
     }
     operators.sort_by_key(Node::start_byte);
     operators
-}
-
-/// The first thing a chain is of: where its first operand ends.
-fn first_operand_end(chain: Node) -> usize {
-    let mut node = chain;
-    while let Some(left) = node.child(0).filter(|n| is_chain(*n)) {
-        node = left;
-    }
-    node.child(0)
-        .map_or_else(|| chain.start_byte(), |n| n.end_byte())
 }
 
 /// The one thing that stands between `brackets`, when one thing does: no
@@ -246,13 +258,12 @@ fn levels(node: Node, below: Option<Node>, byte: usize, src: &[u8]) -> usize {
         levels += 1;
     }
     match node.kind() {
-        // The lines a chain runs on over are one level in, from where its
-        // first operand ends.
-        _ if is_chain(node) && !node.parent().is_some_and(is_chain) => {
-            let runs_on = byte >= first_operand_end(node)
-                && operators_of(node)
-                    .into_iter()
-                    .any(|op| begins_line(op, src))
+        // The lines a chain runs on over are one level in, from its first
+        // operator.
+        _ if goes_on_with(node, node) && !node.parent().is_some_and(|p| goes_on_with(p, node)) => {
+            let operators = operators_of(node);
+            let runs_on = operators.first().is_some_and(|op| op.start_byte() <= byte)
+                && operators.into_iter().any(|op| begins_line(op, src))
                 && !is_all_between_brackets(node);
             levels += usize::from(runs_on);
         }
@@ -394,6 +405,8 @@ mod tests {
     fn a_chain_that_runs_on_is_one_level_in_and_one_between_brackets_is_not() {
         for src in [
             "x = a\n    + b\n    - c;\n",
+            "x = a\n    + b.c(d)\n    + e;\n",
+            "x = a\n    << b.c { |y|\n        y;\n        z\n    }\n    << e.f(\n        g\n    );\n",
             "a\n    and: { b }\n    and: {\n        c;\n        d\n    };\n",
             "^a\n    ?? { b };\n",
             "x.y = a\n    * b;\n",

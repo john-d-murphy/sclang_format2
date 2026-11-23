@@ -15,8 +15,9 @@ pub use engine::IndentStyle;
 /// `src` formatted, with no line wider than `line_width` that can be broken.
 ///
 /// A file that is no one program is taken as a file of regions (see
-/// `regions`): each region is formatted as the program it is, and what
-/// stands between the regions is left as it is written.
+/// `regions`): each region is formatted as the program it is. So are the
+/// lines between two regions where they are a program; where they are not
+/// one, they are left as they are written.
 ///
 /// # Errors
 /// When `src` does not parse, or a rule breaks it.
@@ -44,10 +45,42 @@ pub fn format_source_with(
     if regions.is_empty() {
         bail!("parse error at line {line}");
     }
+    // Loose lines written out formatted, the blank lines before and after
+    // them kept, where they are a program; `false`, and nothing written,
+    // where they are not one or may be lines to evaluate one at a time.
+    let formatted = |text: &str, out: &mut String| -> Result<bool> {
+        let code = text.trim();
+        let formatted = match program(code)? {
+            Ok(formatted) if !code.is_empty() && !regions::reads_two_ways(code)? => formatted,
+            _ => return Ok(false),
+        };
+        let from = text.len() - text.trim_start().len();
+        let from = text[..from].rfind('\n').map_or(0, |at| at + 1);
+        let to = text.trim_end().len();
+        let to = text[to..].find('\n').map_or(text.len(), |at| to + at);
+        out.push_str(&text[..from]);
+        out.push_str(formatted.trim_end_matches('\n'));
+        out.push_str(&text[to..]);
+        Ok(true)
+    };
+    // The lines between two regions: formatted whole if they can be, and
+    // if not, each paragraph of them that can be. The rest is left as it
+    // is written.
+    let loose = |text: &str, out: &mut String| -> Result<()> {
+        if !formatted(text, out)? {
+            for paragraph in regions::paragraphs(text) {
+                if !formatted(paragraph, out)? {
+                    out.push_str(paragraph);
+                }
+            }
+        }
+        Ok(())
+    };
+
     let mut out = String::with_capacity(src.len());
     let mut done = 0;
     for region in regions {
-        out.push_str(&src[done..region.start]);
+        loose(&src[done..region.start], &mut out)?;
         match program(&src[region.clone()])? {
             // Without the line break that ends a program.
             Ok(formatted) => out.push_str(formatted.trim_end_matches('\n')),
@@ -56,9 +89,11 @@ pub fn format_source_with(
                 line + src[..region.start].matches('\n').count()
             ),
         }
-        done = region.end;
+        // What shares the line of the `)` is left as it is written.
+        done = regions::line_end(src, region.end);
+        out.push_str(&src[region.end..done]);
     }
-    out.push_str(&src[done..]);
+    loose(&src[done..], &mut out)?;
     Ok(out)
 }
 

@@ -4,9 +4,16 @@
 //! stretches of code, each in parentheses of its own, to be evaluated one at
 //! a time from the editor. sclang refuses such a file read whole, at the
 //! second `(`. Each region is a program, and is formatted as one.
+//!
+//! The lines between two regions are loose code, evaluated a line or a
+//! selection at a time. Where they are a program they are formatted as one.
+//! Often they are not (`x = Synth(\a)` and under it `x.free`, with no
+//! semicolon), and then they are left as they are written.
 
+use crate::grammar;
 use anyhow::{Result, bail};
 use std::ops::Range;
+use tree_sitter::Parser;
 
 /// The regions of `src`, each from its `(` to its `)`.
 ///
@@ -100,6 +107,19 @@ fn not_code(bytes: &[u8], at: usize) -> Option<usize> {
     }
 }
 
+/// Where the line that `from` stands in ends, its line break with it. A line
+/// break inside a comment or a string does not end it.
+pub fn line_end(src: &str, mut from: usize) -> usize {
+    let bytes = src.as_bytes();
+    while from < bytes.len() {
+        if bytes[from] == b'\n' {
+            return from + 1;
+        }
+        from = not_code(bytes, from).unwrap_or(from + 1);
+    }
+    bytes.len()
+}
+
 /// Whether no token stands between `from` and the end of its line, or the
 /// first that does is a `;`.
 fn ends_its_line(bytes: &[u8], mut from: usize) -> bool {
@@ -108,11 +128,73 @@ fn ends_its_line(bytes: &[u8], mut from: usize) -> bool {
             None | Some(b'\n' | b';') => return true,
             Some(b' ' | b'\t' | b'\r') => from += 1,
             Some(_) => match not_code(bytes, from) {
-                Some(end) if bytes[from] == b'/' => from = end,
+                // A comment that runs past the line ends it.
+                Some(end) if bytes[from] == b'/' => {
+                    if bytes[from..end].contains(&b'\n') {
+                        return true;
+                    }
+                    from = end;
+                }
                 _ => return false,
             },
         }
     }
+}
+
+/// Whether `code`, which parses, may be lines written to be evaluated one at
+/// a time: a statement of it runs over several lines, and each of those
+/// lines is a program too. `a = 5` and `-3.postln` are two programs, and
+/// another one together.
+///
+/// # Errors
+/// When the grammar cannot be loaded.
+pub fn reads_two_ways(code: &str) -> Result<bool> {
+    let mut parser = Parser::new();
+    parser.set_language(&grammar::language())?;
+    let mut parsed = |text: &str| {
+        parser
+            .parse(text, None)
+            .filter(|tree| !tree.root_node().has_error())
+    };
+    let Some(tree) = parsed(code) else {
+        return Ok(false);
+    };
+    let lines: Vec<&str> = code.lines().collect();
+    let root = tree.root_node();
+    let mut cursor = root.walk();
+    Ok(root
+        .named_children(&mut cursor)
+        .filter(|node| !node.kind().ends_with("comment"))
+        .map(|node| node.start_position().row..=node.end_position().row)
+        .any(|rows| {
+            // A line that is indented goes on from the line before it.
+            rows.start() != rows.end()
+                && lines[rows]
+                    .iter()
+                    .all(|line| !line.starts_with([' ', '\t']) && parsed(line).is_some())
+        }))
+}
+
+/// `text` in paragraphs, which together are `text`: each runs to the end of
+/// the blank lines after it. A blank line inside a comment or a string
+/// parts nothing.
+pub fn paragraphs(text: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    // Where the paragraph and the line begin, and whether the line before
+    // was blank.
+    let (mut paragraph, mut line, mut after_blank) = (0, 0, false);
+    while line < text.len() {
+        let end = line_end(text, line);
+        let blank = text[line..end].trim().is_empty();
+        if after_blank && !blank {
+            found.push(&text[paragraph..line]);
+            paragraph = line;
+        }
+        after_blank = blank;
+        line = end;
+    }
+    found.push(&text[paragraph..]);
+    found
 }
 
 #[cfg(test)]
@@ -183,6 +265,91 @@ mod tests {
         let formatted = format_source(&file(first, second)).unwrap();
         assert_eq!(formatted, file(&alone(first), &alone(second)));
         assert_eq!(format_source(&formatted).unwrap(), formatted);
+    }
+
+    const REGION: &str = "(\nvar a=1;\na.postln;\n)";
+
+    fn region_formatted() -> String {
+        format_source(REGION).unwrap().trim_end().to_string()
+    }
+
+    #[test]
+    fn test_loose_code_that_is_a_program_is_formatted_as_one() {
+        let file = |region: &str, first: &str, second: &str, last: &str| {
+            format!("{first}\n\n{region} // c\n\n{second}\n\n\n{region};\n{last}\n")
+        };
+        let src = file(
+            REGION,
+            "s.boot ;",
+            "  x=Synth(\\ping,[freq:440]);\nx.free ;  ",
+            "y=1 ;",
+        );
+        let want = file(
+            &region_formatted(),
+            "s.boot;",
+            "x = Synth(\\ping, [freq: 440]);\nx.free;",
+            "y = 1;",
+        );
+        assert_eq!(format_source(&src).unwrap(), want);
+        assert_eq!(format_source(&want).unwrap(), want);
+    }
+
+    #[test]
+    fn test_what_shares_the_line_of_the_closing_paren_is_left() {
+        // The comment that begins on that line ends on the next, and what
+        // follows it there is part of no loose program.
+        let file = |region: &str, loose: &str| {
+            format!("{region} /* note\nx */ y=1 ;\n{loose}\n{region}\n")
+        };
+        assert_eq!(
+            format_source(&file(REGION, "z=2 ;")).unwrap(),
+            file(&region_formatted(), "z = 2;")
+        );
+    }
+
+    /// One paragraph that is no program does not keep the paragraphs around
+    /// it from being formatted. A blank line inside a comment parts nothing.
+    #[test]
+    fn test_loose_code_is_formatted_a_paragraph_at_a_time_where_it_is_no_program_whole() {
+        let file = |region: &str, tidy: &str, commented: &str| {
+            format!("{tidy}\n\nx=Synth(\\ping)\nx.free ;\n\n\n{commented}\n{region}\n\n{region}\n")
+        };
+        let src = file(REGION, "  y=1 ;\nz=2 ;", "/* a\n\nb=1 ; */\nc=3 ;");
+        let want = file(
+            &region_formatted(),
+            "y = 1;\nz = 2;",
+            "/* a\n\nb=1 ; */\nc = 3;",
+        );
+        assert_eq!(format_source(&src).unwrap(), want);
+        assert_eq!(format_source(&want).unwrap(), want);
+    }
+
+    /// The formatter's own broken lines are not lines to evaluate one at a
+    /// time, though each may parse alone: the later ones are indented.
+    #[test]
+    fn test_only_lines_that_begin_in_the_first_column_are_lines_of_their_own() {
+        assert!(super::reads_two_ways("a = b\n- c;").unwrap());
+        assert!(!super::reads_two_ways("a = b\n    - c;").unwrap());
+        assert!(!super::reads_two_ways("a = b - c;\nd = 1;").unwrap());
+    }
+
+    /// Lines written to be evaluated one at a time may parse together as
+    /// something else: `x.play` and `(1..3).do { ... }` as one call. Joined,
+    /// they would no longer be two lines to evaluate. They are left.
+    #[test]
+    fn test_loose_lines_that_read_another_way_together_are_left() {
+        for loose in [
+            "a=5\n-3.postln",
+            "x.play\n(1..3).do{|i|i.postln}",
+            "a=[1,2,3]\n[0].postln",
+        ] {
+            let file = |region: &str| format!("{loose}\n{region}\n\n{region}\n");
+            assert_eq!(
+                format_source(&file(REGION)).unwrap(),
+                file(&region_formatted()),
+                "{loose:?}"
+            );
+        }
     }
 
     #[test]

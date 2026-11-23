@@ -9,7 +9,7 @@ Out.ar(0,snd*amp!2)
 }).add;
 )
 
-// What stands between the regions is left as it is written.
+// Loose lines that are no program together are left as they are written.
 x=Synth(\ping)
 x.free ;
 
@@ -17,6 +17,14 @@ x.free ;
 var notes=[60,62,64,65,67,69,71,72],wait=0.25;
 Routine({notes.do{|note|Synth(\ping,[freq:note.midicps,amp:0.2]);wait.wait}}).play;
 );
+
+// Loose lines that are a program are formatted as one.
+y=Synth(\ping,[freq:660,amp:0.2]);
+  y.free ;
+
+// Two lines to evaluate one at a time, which read together as one call: left.
+z.play
+(1..3).do{|i|i.postln}
 
 (
 // A `(` that begins a line inside a region opens no region of its own.

@@ -145,6 +145,21 @@ mod tests {
         }
     }
 
+    /// A block or an array that begins on the line where the one before it
+    /// closes carries the indent as that one did.
+    #[test]
+    fn test_blocks_passed_one_after_another_are_each_one_level_in() {
+        for src in [
+            "x.either({\n    a\n}, {\n    b\n});",
+            "foo(1, {\n    a\n}, [\n    b,\n    c + 1\n], {\n    d\n});",
+            "f = {\n    x.either({\n        a\n    }, {\n        b\n    }, c);\n};",
+            "foo(\n    1,\n    {\n        a\n    }, {\n        b\n    }\n);",
+        ] {
+            let flat: Vec<&str> = src.lines().map(str::trim_start).collect();
+            assert_eq!(format(&flat.join("\n")), src);
+        }
+    }
+
     #[test]
     fn test_simple_if_block() {
         let src = r"if (x > 0) {

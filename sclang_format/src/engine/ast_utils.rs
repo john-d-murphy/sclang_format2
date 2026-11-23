@@ -37,11 +37,10 @@ fn is_top_level_node(node: Node) -> bool {
 pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
     let mut depth = 0usize;
 
-    // Track the start rows of ALL enclosing block types.
-    // When we reach a parameter_call_list, we skip it if ANY
-    // function_block or collection started on the same line.
-    let mut function_block_start_rows: Vec<usize> = Vec::new();
-    let mut collection_start_rows: Vec<usize> = Vec::new();
+    // The blocks and collections that hold `byte`, innermost first. The
+    // parentheses of a call ask the outermost of those they hold whether
+    // it carries the indent through them.
+    let mut holders: Vec<Node> = Vec::new();
 
     let Some(mut node) = root.descendant_for_byte_range(byte, byte + 1) else {
         return 0;
@@ -54,7 +53,7 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
                 // Only count if we're past the opening brace
                 if byte > node.start_byte() {
                     depth += 1;
-                    function_block_start_rows.push(node.start_position().row);
+                    holders.push(node);
                 }
             }
 
@@ -99,13 +98,13 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
                     if *first == b'[' {
                         // Array literals
                         depth += 1;
-                        collection_start_rows.push(node.start_position().row);
+                        holders.push(node);
                     } else if *first == b'(' {
                         // Arithmetic series `(1..10)` or other paren-like collections.
                         // Count unless top-level.
                         if !is_top_level_node(node) {
                             depth += 1;
-                            collection_start_rows.push(node.start_position().row);
+                            holders.push(node);
                         }
                     }
                 }
@@ -116,7 +115,7 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
             // them is one level deeper, and so is the closing parenthesis,
             // which the indent rule takes back out as it does every line that
             // begins with a closing bracket. Not when a block or a collection
-            // that holds `byte` began on the line of the opening parenthesis
+            // that holds `byte` carries the indent through the parentheses
             // (`foo(a, { |x|`): then that one does the indenting. (A switch
             // indents what it holds by a rule of its own, in
             // visual_block_depth_at.)
@@ -142,10 +141,10 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
                         && byte <= close.start_byte()
                         && open.start_position().row != close.start_position().row
                     {
-                        let open_row = open.start_position().row;
-                        let block_on_same_line = function_block_start_rows.contains(&open_row)
-                            || collection_start_rows.contains(&open_row);
-                        if !block_on_same_line {
+                        let carried = holders
+                            .last()
+                            .is_some_and(|holder| carries_indent(*holder, node, *open, src));
+                        if !carried {
                             depth += 1;
                         }
                     }
@@ -163,6 +162,42 @@ pub fn block_depth_at(root: Node, byte: usize, src: &[u8]) -> usize {
     }
 
     depth
+}
+
+/// Whether `holder`, a block or a collection between the parentheses of
+/// `call` that `open` opens, carries the indent through them, so that what
+/// it holds is one level in and not two.
+///
+/// It does when it began on the line of the opening parenthesis
+/// (`foo(a, { |x|`), or on a line that begins with the close of one that
+/// carries the indent (`}, {`). One that begins among arguments on lines of
+/// their own does not: it stands one level in itself.
+fn carries_indent(holder: Node, call: Node, open: Node, src: &[u8]) -> bool {
+    if holder.start_position().row == open.start_position().row {
+        return true;
+    }
+    let line_start = src[..holder.start_byte()]
+        .iter()
+        .rposition(|&b| b == b'\n')
+        .map_or(0, |i| i + 1);
+    let first = src[line_start..holder.start_byte()]
+        .iter()
+        .position(|&b| b != b' ' && b != b'\t')
+        .map_or(holder.start_byte(), |i| line_start + i);
+    if first == holder.start_byte() || first <= open.start_byte() {
+        return false;
+    }
+    // What the line begins with: the outermost block or collection between
+    // the parentheses that holds it, if one does.
+    let mut before = None;
+    let mut node = call.descendant_for_byte_range(first, first + 1);
+    while let Some(n) = node.filter(|n| n.id() != call.id()) {
+        if matches!(n.kind(), "function_block" | "collection") && first > n.start_byte() {
+            before = Some(n);
+        }
+        node = n.parent();
+    }
+    before.is_some_and(|before| carries_indent(before, call, open, src))
 }
 
 /// Returns a visual indentation depth (AST block depth adjusted for layout rules).

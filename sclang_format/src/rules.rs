@@ -115,6 +115,10 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(NoSpacesAroundDot),
         Box::new(NoSpaceBeforeSemicolon),
         Box::new(InlineCommentSpacing),
+        // One space each side of every binary operator and `=`. With the
+        // other spacing rules and not, as it was, after the indent: the
+        // rules below measure the line these spaces are on.
+        Box::new(InlineWhitespaceFormat),
         // 4. The rules that decide by the width of a line come once its
         //    text is what it will be: spaced, and without the semicolons that
         //    end a block. Measured sooner, a thing fits on one pass and not
@@ -132,7 +136,6 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(IndentByAstLevel),
         // 5b. A comment is filled again where it will stand: at its indent.
         Box::new(ReflowComments),
-        Box::new(InlineWhitespaceFormat),
         // 6. Final clean-ups
         Box::new(TrimTrailingWhitespaceAndEofNewline),
     ];

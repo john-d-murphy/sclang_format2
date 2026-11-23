@@ -164,6 +164,22 @@ mod tests {
     }
 
     #[test]
+    fn test_the_width_is_measured_once_every_operator_has_its_spaces() {
+        // 79 columns as written, and 81 once `===` has a space each side,
+        // which no rule gave it until after this one had measured the line:
+        // the if stayed on its line, and was parted on the next pass.
+        let (a, b) = ("a".repeat(34), "b".repeat(24));
+        let src = format!("if (c===d) {{ {a} }} {{ {b} }};\n");
+        assert_eq!(src.trim_end().len(), 79);
+        let once = crate::format_source(&src).unwrap();
+        assert_eq!(
+            once,
+            format!("if (c === d) {{\n    {a}\n}} {{\n    {b}\n}};\n")
+        );
+        assert_eq!(crate::format_source(&once).unwrap(), once);
+    }
+
+    #[test]
     fn test_an_if_too_wide_inside_an_expanded_one_is_expanded_too() {
         let src = "if (a) { if (b) { \"a long enough true branch for the inner if\".postln } { \"and its false one\".postln } } { 3 };";
         assert_eq!(

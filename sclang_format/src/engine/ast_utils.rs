@@ -183,7 +183,7 @@ fn carries_indent(holder: Node, call: Node, open: Node, src: &[u8]) -> bool {
     let first = src[line_start..holder.start_byte()]
         .iter()
         .position(|&b| b != b' ' && b != b'\t')
-        .map_or(holder.start_byte(), |i| line_start + i);
+        .map_or_else(|| holder.start_byte(), |i| line_start + i);
     if first == holder.start_byte() || first <= open.start_byte() {
         return false;
     }

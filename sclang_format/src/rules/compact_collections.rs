@@ -313,7 +313,7 @@ mod tests {
     fn compact_measures_the_line_with_the_indent_it_will_have() {
         // 59 columns once joined. The line stands at no depth, so the 30
         // blanks before it will go, and are not counted.
-        let numbers = vec!["1000"; 9].join(",\n");
+        let numbers = ["1000"; 9].join(",\n");
         let src = format!("{}x = [\n{numbers}\n];", " ".repeat(30));
         let joined = run_compact(&src).unwrap();
         assert_eq!(joined.trim_start().len(), 59);
@@ -321,7 +321,7 @@ mod tests {
 
         // 77 columns once joined, and one level deep: 81 with the indent it
         // will have, though the line has none now.
-        let numbers = vec!["1000"; 12].join(",\n");
+        let numbers = ["1000"; 12].join(",\n");
         let src = format!("f = {{\nx = [\n{numbers}\n];\n}};");
         assert_eq!(run_compact(&src), None);
     }

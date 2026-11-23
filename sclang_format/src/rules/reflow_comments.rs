@@ -195,7 +195,7 @@ fn paragraphs(block: &[Line], parser: &mut Parser) -> Vec<Paragraph> {
 }
 
 /// For each line of a block, whether it is commented-out code: it parses as
-/// SuperCollider, alone or together with the lines around it up to the
+/// `SuperCollider`, alone or together with the lines around it up to the
 /// nearest empty ones, and is more than one token. (A sentence of two words
 /// or more does not parse. A single name, number or string does, and is as
 /// likely to be a word of prose.)

@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use std::fmt;
 use tree_sitter::{Language, Node, Parser, Tree};
 
+pub mod as_written;
 pub mod ast;
 pub mod ast_utils;
 pub mod layout;
@@ -41,6 +42,9 @@ pub struct Ctx {
     pub indent_style: IndentStyle,
     pub current_rule_name: Option<&'static str>,
     pub debug_edits: bool,
+    /// The stretches of the text the writer asks to be left as written
+    /// (see `as_written`), for the tree as it now stands.
+    kept: Vec<(usize, usize)>,
 }
 
 impl fmt::Display for Ctx {
@@ -92,6 +96,7 @@ impl Ctx {
         parser.set_language(lang).context("set_language failed")?;
         let tree = parser.parse(src.as_str(), None).context("parse failed")?;
 
+        let kept = as_written::kept_as_written(tree.root_node(), src.as_bytes());
         Ok(Self {
             text: src,
             parser,
@@ -99,7 +104,27 @@ impl Ctx {
             indent_style,
             current_rule_name: None,
             debug_edits: std::env::var("DEBUG_EDITS").is_ok(),
+            kept,
         })
+    }
+
+    /// Whether an edit of `from..to` would change text the writer asks to
+    /// be left as written. Such an edit is never made.
+    #[must_use]
+    pub fn is_kept(&self, from: usize, to: usize) -> bool {
+        as_written::touches(&self.kept, from, to)
+    }
+
+    /// Whether the text at `at` is to be left as written.
+    #[must_use]
+    pub fn keeps(&self, at: usize) -> bool {
+        as_written::holds(&self.kept, at)
+    }
+
+    /// Takes `tree` for the text as it now stands.
+    fn take(&mut self, tree: Tree) {
+        self.kept = as_written::kept_as_written(tree.root_node(), self.text.as_bytes());
+        self.tree = tree;
     }
 
     /// The depth of the line whose first character that is not a blank is
@@ -123,7 +148,8 @@ impl Ctx {
 
     /// Makes the edits in the text and parses it: the new tree, which is not
     /// yet the text's own, or nothing when no edit was made. Edits inside a
-    /// string, a symbol or the words of a comment are dropped.
+    /// string, a symbol or the words of a comment are dropped, and edits of
+    /// what the writer asks to be left as written.
     fn splice(&mut self, mut edits: Vec<TextEdit>) -> Result<Option<Tree>> {
         if edits.is_empty() {
             return Ok(None);
@@ -190,6 +216,13 @@ impl Ctx {
             }
         }
 
+        // What the writer asks to be left as written is left: an edit that
+        // would change any of it is dropped whole.
+        edits.retain(|e| !self.is_kept(e.start_byte, e.end_byte));
+        if edits.is_empty() {
+            return Ok(None);
+        }
+
         edits.sort_by_key(|e| e.start_byte);
         // Two edits over the same bytes would each be applied to text the other
         // has already changed. Refuse them, rather than write whatever results.
@@ -229,7 +262,7 @@ impl Ctx {
         // between two tokens cannot change unless the tokens are read anew.
         let kept = new_tree.root_node().to_sexp() == self.tree.root_node().to_sexp();
         if kept {
-            self.tree = new_tree;
+            self.take(new_tree);
         } else {
             self.text = text;
         }
@@ -277,7 +310,7 @@ impl Ctx {
             ));
         }
 
-        self.tree = new_tree;
+        self.take(new_tree);
         Ok(())
     }
 

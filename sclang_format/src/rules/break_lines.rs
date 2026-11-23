@@ -330,6 +330,10 @@ impl<'a> Layout<'a> {
     /// A line break before `node`, which begins a line at `depth`.
     fn break_before(&mut self, node: Node<'a>, depth: usize) {
         let (blanks, at) = (blanks_before(self.bytes, node), node.start_byte());
+        // What is left as written keeps its lines.
+        if self.cx.is_kept(blanks, at) {
+            return;
+        }
         self.lines.push((at, depth));
         if self.bytes[end_of_token_before(node)..at].contains(&b'\n') {
             return;
@@ -354,7 +358,7 @@ impl<'a> Layout<'a> {
             if self.bytes[end_of_token_before(token)..at].contains(&b'\n') {
                 // (A closing bracket there begins its own line, at the
                 // depth of the line its pair was opened on.)
-                if !matches!(token.kind(), "}" | ")" | "]") {
+                if !self.cx.keeps(at) && !matches!(token.kind(), "}" | ")" | "]") {
                     self.lines.push((at, depth));
                 }
                 return;
@@ -404,7 +408,7 @@ impl<'a> Layout<'a> {
             _ => {}
         }
         let start = node.start_byte();
-        if self.fits(start, end, depth) {
+        if self.cx.keeps(start) || self.fits(start, end, depth) {
             return;
         }
         if node.kind() == "variable_definition_sequence" {
@@ -447,7 +451,9 @@ impl<'a> Layout<'a> {
             }
             let (from, to) = (member[0].start_byte(), node.end_byte());
             let commas: Vec<Node> = member.iter().copied().filter(|n| n.kind() == ",").collect();
-            if node.kind() == ";" && !commas.is_empty() && !self.fits(from, to, depth + 1) {
+            if self.cx.keeps(from) {
+                // Left as written.
+            } else if node.kind() == ";" && !commas.is_empty() && !self.fits(from, to, depth + 1) {
                 self.declarations(from, to, &commas, depth + 1);
             } else {
                 self.line(from, to, depth + 1);

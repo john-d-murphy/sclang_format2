@@ -1,3 +1,4 @@
+use crate::engine::as_written::marker;
 use crate::engine::layout::{LineCursor, MAX_LINE_WIDTH, columns};
 use crate::engine::text::is_space;
 use crate::engine::{Ctx, IndentStyle, TextEdit};
@@ -169,7 +170,9 @@ fn paragraphs(block: &[Line], parser: &mut Parser) -> Vec<Paragraph> {
     // Whether the last paragraph can take the next line.
     let mut open = false;
     for (i, line) in block.iter().enumerate() {
-        if line.text.is_empty() || code[i] {
+        // A comment that turns the formatter off or on keeps its line.
+        let is_marker = marker(format!("//{}", line.text).as_bytes()).is_some();
+        if line.text.is_empty() || code[i] || is_marker {
             open = false;
             continue;
         }

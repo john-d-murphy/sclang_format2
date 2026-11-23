@@ -1,0 +1,34 @@
+(
+// What stands between `fmt: off` and `fmt: on` is left byte for byte as it
+// was written, and so is the statement a `fmt: skip` trails.
+~table = { |me|
+    var   untidy=1;
+    // fmt: off
+    var notes = [
+        60,  62,  64,
+        65,  67,  69,
+        71,  72
+    ];
+    var   kept=me.value( 1,2 );   
+    // fmt: on
+    var   tidied=me.value( 1,2 );
+    notes
+};
+
+// A region with no `fmt: on` runs to the end of the block it is in.
+~rest = { |x|
+    x=x+1;
+    // fmt: off
+    y   =   [ 1,
+              2 ];
+    z=y
+};
+after=1;
+
+matrix = [1,0,0,  0,1,0,  0,0,1]; // fmt: skip
+next=matrix.size;
+
+// fmt: off
+last  =  [ 1,2,
+           3 ];
+)

@@ -11,12 +11,16 @@
 //! - where a comment stands: the gap before a comment and the gap after it
 //!   (a comment at the end of its line stays there, and one on a line of its
 //!   own keeps it);
-//! - the inside of a string, a symbol, a character and a comment.
+//! - the inside of a string, a symbol, a character and a comment;
+//! - what the writer asks to be left as written: a region between
+//!   `// fmt: off` and `// fmt: on`, and a statement that `// fmt: skip`
+//!   trails. Not a byte of those is the formatter's.
 
 mod common;
 
 use common::judge::par_map;
 use glob::glob;
+use sclang_format::engine::as_written::{kept_as_written, touches};
 use tree_sitter::{Node, Parser};
 
 /// The tokens of `node`, in order. A string, a symbol, a character and a
@@ -64,6 +68,7 @@ fn scrambled(parser: &mut Parser, src: &str, way: Way) -> Option<String> {
         return None;
     }
     let shape = tree.root_node().to_sexp();
+    let kept = kept_as_written(tree.root_node(), src.as_bytes());
     let mut all = Vec::new();
     tokens(tree.root_node(), &mut all);
     let is_comment = |n: &Node| matches!(n.kind(), "line_comment" | "block_comment");
@@ -73,7 +78,7 @@ fn scrambled(parser: &mut Parser, src: &str, way: Way) -> Option<String> {
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     for (i, pair) in all.windows(2).enumerate() {
         let (from, to) = (pair[0].end_byte(), pair[1].start_byte());
-        if to < from || is_comment(&pair[0]) || is_comment(&pair[1]) {
+        if to < from || is_comment(&pair[0]) || is_comment(&pair[1]) || touches(&kept, from, to) {
             continue;
         }
         let gap = &src[from..to];

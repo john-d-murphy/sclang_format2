@@ -2,7 +2,6 @@ use crate::engine::ast::{blanks_before, end_of_token_before, next_token};
 use crate::engine::ast_utils::{
     Brackets, Depths, brackets_of, cases_of, is_chain, is_comment, is_region, operators_of,
 };
-use crate::engine::layout::MAX_LINE_WIDTH;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::{Result, anyhow};
@@ -340,7 +339,7 @@ impl<'a> Layout<'a> {
     /// Whether `from..to` can stand on one line at `depth`.
     fn fits(&self, from: usize, to: usize, depth: usize) -> bool {
         !self.must_break(from, to)
-            && depth * self.cx.indent_style.width() + self.columns(from, to) <= MAX_LINE_WIDTH
+            && depth * self.cx.indent_style.width() + self.columns(from, to) <= self.cx.line_width
     }
 
     /// A line break before `node`, which begins a line at `depth`.
@@ -971,6 +970,7 @@ impl<'a> Layout<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::layout::DEFAULT_LINE_WIDTH;
     use crate::format_source;
 
     /// `src` formatted by every rule, so that the lines this rule makes are
@@ -1398,9 +1398,34 @@ mod tests {
     }
 
     #[test]
+    fn test_the_width_is_the_one_asked_for() {
+        let at = |width: usize, src: &str| {
+            let style = crate::IndentStyle::Spaces { width: 4 };
+            let once = crate::format_source_with(src, style, width).unwrap();
+            let twice = crate::format_source_with(&once, style, width).unwrap();
+            assert_eq!(twice, once, "a second pass at {width}");
+            once
+        };
+        // A comment of 92 columns and a statement of 91.
+        let (a, b) = ("a".repeat(40), "b".repeat(39));
+        let comment = format!("// {}", ["word"; 18].join(" "));
+        let src = format!("{comment}\nx = foo({a}, {b});\n");
+        assert_eq!(at(100, &src), src);
+        assert_eq!(
+            at(80, &src),
+            format!(
+                "// {}\n// {}\nx = foo(\n    {a},\n    {b}\n);\n",
+                ["word"; 15].join(" "),
+                ["word"; 3].join(" ")
+            )
+        );
+    }
+
+    #[test]
     fn test_a_tab_of_indent_is_counted_as_four_columns() {
-        let tabs =
-            |src: &str| crate::format_source_with_indent(src, crate::IndentStyle::Tabs).unwrap();
+        let tabs = |src: &str| {
+            crate::format_source_with(src, crate::IndentStyle::Tabs, DEFAULT_LINE_WIDTH).unwrap()
+        };
         // 78 columns of text one level deep.
         let src = format!("f = {{\n\tx = foo({});\n\ty\n}};\n", "a".repeat(68));
         assert_eq!(

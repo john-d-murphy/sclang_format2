@@ -40,6 +40,8 @@ pub struct Ctx {
     parser: Parser,
     pub tree: Tree,
     pub indent_style: IndentStyle,
+    /// The widest a line may be.
+    pub line_width: usize,
     pub current_rule_name: Option<&'static str>,
     pub debug_edits: bool,
     /// The stretches of the text the writer asks to be left as written
@@ -102,6 +104,7 @@ impl Ctx {
             parser,
             tree,
             indent_style,
+            line_width: layout::DEFAULT_LINE_WIDTH,
             current_rule_name: None,
             debug_edits: std::env::var("DEBUG_EDITS").is_ok(),
             kept,

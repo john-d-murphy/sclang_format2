@@ -8,7 +8,7 @@ use clap::{Parser, ValueEnum};
 use std::fs;
 use std::io::{self, Read};
 
-use sclang_format::{IndentStyle, format_source_with_indent};
+use sclang_format::{IndentStyle, format_source_with};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum IndentMode {
@@ -29,6 +29,10 @@ struct Args {
 
     #[arg(long, default_value_t = 4)]
     indent_width: usize,
+
+    /// The widest a line may be (as Black's --line-length)
+    #[arg(long, default_value_t = 80)]
+    line_length: usize,
 }
 
 fn main() -> Result<()> {
@@ -48,7 +52,7 @@ fn main() -> Result<()> {
         },
     };
 
-    let out = format_source_with_indent(&src, indent_style)?;
+    let out = format_source_with(&src, indent_style, args.line_length)?;
     if args.write
         && let Some(p) = args.path
     {

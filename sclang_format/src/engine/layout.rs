@@ -1,8 +1,8 @@
 // src/engine/layout.rs
 use crate::engine::IndentStyle;
 
-/// The widest a line may be.
-pub const MAX_LINE_WIDTH: usize = 80;
+/// The widest a line may be, where no other width is asked for.
+pub const DEFAULT_LINE_WIDTH: usize = 80;
 
 /// The columns `text` takes on a line: one for a character, and for a tab as
 /// many as a level of indent.

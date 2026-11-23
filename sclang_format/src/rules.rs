@@ -126,7 +126,7 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         // the layout, which measures the line without it.
         Box::new(NoFinalSemicolon),
         // 4. The layout, second half: each statement on a line, and one
-        //    that does not fit in 80 columns broken, the outermost thing
+        //    that does not fit in the line width broken, the outermost thing
         //    first. It measures the text the rules above leave.
         Box::new(BreakLines),
         // 5. Each line is indented as deep as the tree says it stands.

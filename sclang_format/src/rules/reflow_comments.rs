@@ -1,5 +1,5 @@
 use crate::engine::as_written::marker;
-use crate::engine::layout::{LineCursor, MAX_LINE_WIDTH, columns};
+use crate::engine::layout::{LineCursor, columns};
 use crate::engine::text::is_space;
 use crate::engine::{Ctx, IndentStyle, TextEdit};
 use crate::grammar;
@@ -62,7 +62,10 @@ fn collect(cx: &Ctx) -> Vec<TextEdit> {
         }
         let block = &lines[from..to];
         from = to;
-        if !block.iter().any(|line| line.overflows(style)) {
+        if !block
+            .iter()
+            .any(|line| line.overflows(style, cx.line_width))
+        {
             continue;
         }
         let parser = parser.get_or_insert_with(|| {
@@ -73,7 +76,8 @@ fn collect(cx: &Ctx) -> Vec<TextEdit> {
             parser
         });
         for paragraph in paragraphs(block, parser) {
-            refill(&block[paragraph.lines], &paragraph.hang, style, &mut edits);
+            let lines = &block[paragraph.lines];
+            refill(lines, &paragraph.hang, style, cx.line_width, &mut edits);
         }
     }
     edits
@@ -101,9 +105,9 @@ impl Line<'_> {
     /// one word, or a list item's mark and one word, cannot be broken, and
     /// is not counted as overflowing, or it would be filled again on every
     /// pass.
-    fn overflows(&self, style: IndentStyle) -> bool {
+    fn overflows(&self, style: IndentStyle, line_width: usize) -> bool {
         let width = columns(self.prefix().as_bytes(), style) + columns(self.text.as_bytes(), style);
-        width > MAX_LINE_WIDTH && units(&[self]).len() > 1
+        width > line_width && units(&[self]).len() > 1
     }
 }
 
@@ -304,8 +308,15 @@ fn units<'a>(lines: &[&Line<'a>]) -> Vec<Unit<'a>> {
 /// Fills a paragraph again from its first line that overflows to its end,
 /// with as many words to a line as fit, breaking only where a blank stood.
 /// A word too long for a line gets a line to itself.
-fn refill(paragraph: &[Line], hang: &str, style: IndentStyle, edits: &mut Vec<TextEdit>) {
-    let Some(first) = paragraph.iter().position(|line| line.overflows(style)) else {
+fn refill(
+    paragraph: &[Line],
+    hang: &str,
+    style: IndentStyle,
+    line_width: usize,
+    edits: &mut Vec<TextEdit>,
+) {
+    let overflows = |line: &Line| line.overflows(style, line_width);
+    let Some(first) = paragraph.iter().position(overflows) else {
         return;
     };
     let lines: Vec<&Line> = paragraph[first..].iter().collect();
@@ -317,7 +328,7 @@ fn refill(paragraph: &[Line], hang: &str, style: IndentStyle, edits: &mut Vec<Te
     let mut begins_line = true;
     for unit in units(&lines) {
         let more = width(unit.blanks) + width(&unit.text);
-        if !begins_line && used + more > MAX_LINE_WIDTH {
+        if !begins_line && used + more > line_width {
             filled.push('\n');
             filled.push_str(&hanging);
             used = width(&hanging);

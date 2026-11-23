@@ -16,7 +16,9 @@ if (flag) {
 if (flag2) { "already short".postln } { "still short".postln };
 
 // long condition/bodies – should *not* compact
-if (reallyLongConditionNameThatKeepsGrowingAndGrowingBeyondReasonableWidth > 0) {
+if (
+    reallyLongConditionNameThatKeepsGrowingAndGrowingBeyondReasonableWidth > 0
+) {
     "true branch with enough words to push us well over the eighty-character limit".postln
 } {
     "false branch similarly verbose to ensure the collapsed form would be too wide".postln

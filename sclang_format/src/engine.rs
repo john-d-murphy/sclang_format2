@@ -114,15 +114,12 @@ impl Ctx {
         self.text.as_bytes()
     }
 
-    /// Makes the edits and parses the text again. Edits inside a string, a
-    /// symbol or the words of a comment are dropped.
-    ///
-    /// # Errors
-    /// When two edits overlap, or when the text does not parse after them:
-    /// a rule has broken it.
-    pub fn apply_edits(&mut self, mut edits: Vec<TextEdit>) -> Result<()> {
+    /// Makes the edits in the text and parses it: the new tree, which is not
+    /// yet the text's own, or nothing when no edit was made. Edits inside a
+    /// string, a symbol or the words of a comment are dropped.
+    fn splice(&mut self, mut edits: Vec<TextEdit>) -> Result<Option<Tree>> {
         if edits.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
 
         if self.debug_edits {
@@ -182,7 +179,7 @@ impl Ctx {
                 eprintln!("  Dropped {dropped} edits inside comments/strings");
             }
             if edits.is_empty() {
-                return Ok(());
+                return Ok(None);
             }
         }
 
@@ -204,13 +201,46 @@ impl Ctx {
                 .replace_range(e.start_byte..e.end_byte, &e.replacement);
         }
 
+        self.parser
+            .parse(&self.text, None)
+            .context("reparse failed")
+            .map(Some)
+    }
+
+    /// Makes edits that only move where lines break, when the text parses to
+    /// the same tree after them; when it does not, leaves the text as it
+    /// was. Whether the edits were made. For a rule that lays code out anew
+    /// and must never be the reason a text is refused.
+    ///
+    /// # Errors
+    /// When two edits overlap.
+    pub fn apply_edits_that_keep_the_tree(&mut self, edits: Vec<TextEdit>) -> Result<bool> {
+        let text = self.text.clone();
+        let Some(new_tree) = self.splice(edits)? else {
+            return Ok(false);
+        };
+        // Named nodes, fields and errors, in order: what a line break
+        // between two tokens cannot change unless the tokens are read anew.
+        let kept = new_tree.root_node().to_sexp() == self.tree.root_node().to_sexp();
+        if kept {
+            self.tree = new_tree;
+        } else {
+            self.text = text;
+        }
+        Ok(kept)
+    }
+
+    /// Makes the edits and parses the text again. Edits inside a string, a
+    /// symbol or the words of a comment are dropped.
+    ///
+    /// # Errors
+    /// When two edits overlap, or when the text does not parse after them:
+    /// a rule has broken it.
+    pub fn apply_edits(&mut self, edits: Vec<TextEdit>) -> Result<()> {
+        let Some(new_tree) = self.splice(edits)? else {
+            return Ok(());
+        };
         let source_string = &self.text;
-
-        let new_tree = self
-            .parser
-            .parse(source_string, None)
-            .context("reparse failed")?;
-
         // A rule that leaves text that does not parse has broken it. No
         // rule is given text that does not parse to begin with (parse_check
         // is the first), so there is nothing here to forgive.
@@ -300,5 +330,44 @@ fn collect_protected_ranges_inner(node: Node, src: &[u8], ranges: &mut Vec<(usiz
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_protected_ranges_inner(child, src, ranges);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_edits_that_would_change_the_tree_are_not_made() {
+        let src = "x = foo(a, b);";
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &crate::grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        let edit = |at: usize, replacement: &str| TextEdit {
+            start_byte: at,
+            end_byte: at,
+            replacement: replacement.to_string(),
+        };
+        // A line break between two tokens changes nothing the tree holds.
+        assert!(
+            cx.apply_edits_that_keep_the_tree(vec![edit(8, "\n")])
+                .unwrap()
+        );
+        assert_eq!(cx.to_string(), "x = foo(\na, b);");
+        // One in the middle of a name makes two names of it, and one that
+        // leaves text that does not parse makes an error.
+        for (at, replacement) in [(5, "\n"), (9, ")")] {
+            assert!(
+                !cx.apply_edits_that_keep_the_tree(vec![edit(at, replacement)])
+                    .unwrap()
+            );
+            assert_eq!(cx.to_string(), "x = foo(\na, b);");
+            assert!(!cx.tree.root_node().has_error());
+        }
+        // Nothing to make is nothing made.
+        assert!(!cx.apply_edits_that_keep_the_tree(Vec::new()).unwrap());
     }
 }

@@ -18,7 +18,7 @@ const fn is_line_comment(line: &[u8]) -> bool {
 /// The character the line ends with must be that token: `=`, `)` or `]` as
 /// the last character of a comment, a string or a character (`$=`) is not a
 /// place for a brace. `line` begins at byte `start` of the text.
-fn line_can_take_brace(root: Node, line: &[u8], start: usize) -> bool {
+pub(super) fn line_can_take_brace(root: Node, line: &[u8], start: usize) -> bool {
     if is_line_comment(line) {
         return false;
     }

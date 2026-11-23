@@ -18,6 +18,7 @@ mod binary_ops;
 mod block_brace;
 mod block_layout;
 mod brace_pipes;
+mod break_wide_lines;
 mod call_index_paren;
 mod colons;
 mod comma;
@@ -54,6 +55,7 @@ pub use binary_ops::AddSpacesAroundBinaryOps;
 pub use block_brace::BlockBraceSpacing;
 pub use block_layout::BlockLayoutKAndR;
 pub use brace_pipes::BraceAndPipesSingleLine;
+pub use break_wide_lines::BreakWideLines;
 pub use call_index_paren::CallIndexParenSpacing;
 pub use colons::AddSpacesAroundColons;
 pub use comma::AddSpacesAfterCommas;
@@ -126,12 +128,17 @@ pub fn run(cx: &mut Ctx) -> Result<()> {
         Box::new(NoFinalSemicolon),
         Box::new(CompactShortCollections),
         Box::new(CompactShortIfTrailingClosures),
-        Box::new(ExpandLongIfTrailingClosures),
         // 4b. An array or an event that stands over several lines has one
-        //     element to a line. After the if rules: an if that is parted
-        //     makes the array that holds it one of these.
+        //     element to a line.
         Box::new(MultiLineEventsOnePerLine),
         Box::new(MultiLineArrayElementsPerLine),
+        // 4c. A line too wide is broken. Last of the rules that lay code
+        //     out, so that it measures what they leave. It runs
+        //     ExpandLongIfTrailingClosures, so that an if in something
+        //     wider is parted after that is broken and not before, and the
+        //     two rules above again on what the breaks leave: a break makes
+        //     the array that holds it one that stands over several lines.
+        Box::new(BreakWideLines),
         // 5. Indentation / global whitespace
         Box::new(IndentByAstLevel),
         // 5b. A comment is filled again where it will stand: at its indent.

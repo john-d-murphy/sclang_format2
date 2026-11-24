@@ -173,6 +173,55 @@ pub fn operators_of(whole: Node) -> Vec<Node> {
     operators
 }
 
+/// What a call is sent to, when `node` is a call with a receiver.
+fn receiver_of(node: Node) -> Option<Node> {
+    Some(node)
+        .filter(|n| n.kind() == "function_call")
+        .and_then(|n| n.child_by_field_name("receiver"))
+}
+
+/// The dots a chain of messages can be broken before, in order.
+///
+/// They are those of `chain`, a call whose receiver is a call, and so on
+/// down. Where a bare name begins the chain, the first dot is left out:
+/// `LFSaw.ar(freq)` reads as one thing, and keeps its line.
+///
+/// Empty unless `chain` is the outermost call of its chain.
+#[must_use]
+pub fn dots_of<'a>(chain: Node<'a>, src: &[u8]) -> Vec<Node<'a>> {
+    let goes_on = chain
+        .parent()
+        .and_then(receiver_of)
+        .is_some_and(|inner| inner.id() == chain.id());
+    if goes_on {
+        return Vec::new();
+    }
+    let mut dots = Vec::new();
+    let mut link = chain;
+    while let Some(inner) = receiver_of(link) {
+        let mut cursor = link.walk();
+        let dot = link
+            .children(&mut cursor)
+            .find_map(|part| match part.kind() {
+                "." => Some(part),
+                "method_call" | "apply_call" => part.child(0).filter(|first| first.kind() == "."),
+                _ => None,
+            });
+        let Some(dot) = dot else { break };
+        dots.push(dot);
+        link = inner;
+    }
+    // `link` is now what begins the chain.
+    let is_bare_name = !src[link.start_byte()..link.end_byte()]
+        .iter()
+        .any(|b| b"([{".contains(b));
+    if is_bare_name {
+        dots.pop();
+    }
+    dots.reverse();
+    dots
+}
+
 /// Whether `chain` is an item between a pair of parentheses or brackets:
 /// all that stands between them, or one of the things their commas part.
 ///
@@ -243,6 +292,16 @@ fn stretches_in(node: Node, src: &[u8]) -> Vec<(usize, usize)> {
     let brackets = brackets_of(node);
     if let Some(brackets) = brackets.filter(|b| b.are_open() && !is_region(node)) {
         found.push((brackets.open.end_byte(), brackets.close.start_byte()));
+    }
+    // The lines a chain of messages runs on over are one level in, from its
+    // first dot that a line can begin with.
+    if node.kind() == "function_call" {
+        let dots = dots_of(node, src);
+        let runs_on =
+            dots.iter().any(|dot| begins_line(*dot, src)) && !is_item_between_brackets(node);
+        if let Some(first) = dots.first().filter(|_| runs_on) {
+            found.push((first.start_byte(), node.end_byte()));
+        }
     }
     let mut cursor = node.walk();
     match node.kind() {

@@ -1,6 +1,6 @@
 use crate::engine::ast::{blanks_before, end_of_token_before, next_token};
 use crate::engine::ast_utils::{
-    Brackets, Depths, brackets_of, cases_of, is_chain, is_comment, is_region, operators_of,
+    Brackets, Depths, brackets_of, cases_of, dots_of, is_chain, is_comment, is_region, operators_of,
 };
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -436,7 +436,10 @@ impl<'a> Layout<'a> {
                 return self.declarations(start, end, &commas, depth);
             }
         }
-        if self.chain(value_of(node), start, end, depth, depth + 1, false) {
+        let value = value_of(node);
+        if self.chain(value, start, end, depth, depth + 1, false)
+            || self.messages(value, start, end, depth, depth + 1)
+        {
             return;
         }
         self.line(start, end, depth);
@@ -564,6 +567,58 @@ impl<'a> Layout<'a> {
         }
         self.links(from, to, at, runs_on, &all);
         true
+    }
+
+    /// Breaks `chain`, a chain of messages that is the value of the
+    /// statement `from..to` or an item between brackets, before each of
+    /// its dots, when that serves: it has two dots or more to break at, a
+    /// line of it is too wide, and what stands before the first dot fits on
+    /// its line (were that to be opened itself, the messages would hang
+    /// under its closing bracket). The lines after the first stand at
+    /// `runs_on`. Whether it did.
+    fn messages(
+        &mut self,
+        chain: Node<'a>,
+        from: usize,
+        to: usize,
+        depth: usize,
+        runs_on: usize,
+    ) -> bool {
+        let dots = dots_of(chain, self.bytes);
+        if dots.len() < 2
+            || !self.is_too_wide(from, to, depth)
+            || !self.fits(from, self.code_end(from, dots[0].start_byte()), depth)
+        {
+            return false;
+        }
+        let (mut from, mut at) = (from, depth);
+        for dot in dots {
+            self.line(from, self.code_end(from, dot.start_byte()), at);
+            self.break_before(dot, runs_on);
+            (from, at) = (dot.start_byte(), runs_on);
+        }
+        self.line(from, to, at);
+        true
+    }
+
+    /// Whether a line of `from..to` is too wide at `depth`, as it stands:
+    /// what a pair of brackets holds that must be open anyway is on lines
+    /// of its own and is not counted. Such text is long, and not wide.
+    fn is_too_wide(&self, from: usize, to: usize, depth: usize) -> bool {
+        let wide = |from: usize, to: usize| {
+            depth * self.cx.indent_style.width() + self.columns(from, to) > self.cx.line_width
+        };
+        let mut start = from;
+        for i in self.pairs_in(from, to) {
+            let brackets = self.pairs[i].brackets;
+            if self.must_break(brackets.open.end_byte(), brackets.close.start_byte()) {
+                if wide(start, brackets.open.end_byte()) {
+                    return true;
+                }
+                start = brackets.close.start_byte();
+            }
+        }
+        wide(start, to)
     }
 
     /// A stretch of a chain between two of the operators it broke at: when
@@ -944,7 +999,8 @@ impl<'a> Layout<'a> {
             let is_one = group.len() == 1 && (first.id() == last.id() || last.kind() == ",");
             if !is_one
                 || self.fits(from, to, depth)
-                || !self.chain(unwrapped(first), from, to, depth, depth, true)
+                || !(self.chain(unwrapped(first), from, to, depth, depth, true)
+                    || self.messages(unwrapped(first), from, to, depth, depth))
             {
                 self.line(from, to, depth);
             }
@@ -1277,6 +1333,59 @@ mod tests {
     }
 
     #[test]
+    fn test_a_chain_of_messages_too_wide_breaks_before_each_dot() {
+        // A name that begins the chain keeps its first message.
+        assert_layout(
+            "f = { |duration, minFreq, maxFreq|\n    var freq;\n    freq = LFSaw.ar(ExpRand(10, 200) / duration)\n        .linlin(-1, 1, 0, 1)\n        .pow(3)\n        .linexp(0, 1, minFreq, maxFreq);\n    freq\n};\n",
+        );
+        // A call that begins it is followed by a line for every message.
+        assert_layout(
+            "x = Pbind(\\freq, Pseq([440, 550, 660], inf), \\dur, 0.25)\n    .collect { |event| event }\n    .trace\n    .play;\n",
+        );
+        assert_layout(
+            "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25))\n    .string_(l[i])\n    .align_(\\center);\n",
+        );
+        // A message too wide for its line opens its own brackets there.
+        assert_layout(
+            "x = Foo.bar(1)\n    .baz(\n        argumentNumberOne, argumentNumberTwo, argumentNumberThree, argumentFour\n    )\n    .qux;\n",
+        );
+        // Between brackets it breaks level with its first line: the
+        // brackets have indented it already.
+        assert_layout(
+            "foo(\n    LFSaw.ar(ExpRand(10, 200) / duration)\n    .linlin(-1, 1, 0, 1)\n    .pow(3)\n    .linexp(0, 1, lowestFrequency, highestFrequency),\n    second\n);\n",
+        );
+    }
+
+    #[test]
+    fn test_a_chain_of_messages_is_left_whole_where_breaking_it_serves_nothing() {
+        // It fits.
+        assert_stays("x = a.b(1).c(2).d(3);\n");
+        // One message after the first is no chain: the brackets open.
+        let one = format(
+            "x = SomeClass.method(argumentNumberOne, argumentNumberTwo, argumentNumberThree, four).finish;\n",
+        );
+        assert!(
+            !one.lines().any(|line| line.trim_start().starts_with('.')),
+            "{one}"
+        );
+        // No line of it is too wide: a block that is open makes it long, not
+        // wide.
+        assert_stays("x = a.b(1).c { |y|\n    y.postln;\n    y\n}.d;\n");
+        assert_stays(
+            "r = rects.collect { |rect|\n    rect.postln;\n    rect\n}.flatten.reverse;\n",
+        );
+        // What begins it has to be opened itself: lines of messages under
+        // its closing bracket would hang from nothing.
+        let hung = format(
+            "x = Pbind(\\freq, Pseq([440, 550, 660, 770, 880, 990], inf), \\dur, 0.25, \\amp, 0.1, \\pan, 0).trace.play;\n",
+        );
+        assert!(
+            !hung.lines().any(|line| line.trim_start().starts_with('.')),
+            "{hung}"
+        );
+    }
+
+    #[test]
     fn test_a_block_after_a_call_is_opened_whatever_stands_before_it() {
         assert_eq!(
             format(
@@ -1489,11 +1598,13 @@ mod tests {
 
     #[test]
     fn test_of_the_brackets_on_a_line_the_last_that_leaves_its_line_within_80_is_opened() {
+        // (With one message after the call: two would be a chain of
+        // messages, which breaks before its dots.)
         assert_eq!(
             format(
-                "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25)).string_(l[i]).align_(\\center);\n"
+                "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25)).string_(labels[index], \\center);\n"
             ),
-            "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25)).string_(l[i]).align_(\n    \\center\n);\n"
+            "q = StaticText(n, n.bounds.moveTo(0, 0).insetBy(25)).string_(\n    labels[index], \\center\n);\n"
         );
         // The second call's parenthesis is past column 80: opening it would
         // leave the line as wide as it was.

@@ -54,9 +54,9 @@ g = { |a, b, c| a + b + c };
 // 5. Method chains and dot layout
 "hello".asSymbol().asString.toUpper.postln;
 
-Button().states_([["one", nil, nil], ["two", nil, nil]]).action_({
-    "clicked".postln
-});
+Button()
+    .states_([["one", nil, nil], ["two", nil, nil]])
+    .action_({ "clicked".postln });
 
 // 6. Arrays / collections and inline blocks
 x = ["foo", "bar", "baz"];

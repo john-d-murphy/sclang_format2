@@ -293,14 +293,18 @@ fn stretches_in(node: Node, src: &[u8]) -> Vec<(usize, usize)> {
     if let Some(brackets) = brackets.filter(|b| b.are_open() && !is_region(node)) {
         found.push((brackets.open.end_byte(), brackets.close.start_byte()));
     }
-    // The lines a chain of messages runs on over are one level in, from its
-    // first dot that a line can begin with.
+    // The lines a chain of messages runs on over are one level in, from the
+    // end of what stands before its first dot that a line can begin with: a
+    // comment between the two goes in with the messages.
     if node.kind() == "function_call" {
         let dots = dots_of(node, src);
         let runs_on =
             dots.iter().any(|dot| begins_line(*dot, src)) && !is_item_between_brackets(node);
         if let Some(first) = dots.first().filter(|_| runs_on) {
-            found.push((first.start_byte(), node.end_byte()));
+            let from = std::iter::successors(first.parent(), Node::parent)
+                .find_map(receiver_of)
+                .map_or_else(|| first.start_byte(), |before| before.end_byte());
+            found.push((from, node.end_byte()));
         }
     }
     let mut cursor = node.walk();

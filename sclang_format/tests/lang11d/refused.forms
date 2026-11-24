@@ -40,9 +40,9 @@ f = { |a ; b| a };
 
 f = { |a @ b = 2| a };
 
-== sclang refuses it; the formatter takes it and writes text sclang still refuses
-
 var a=-1; a
+
+== sclang refuses it; the formatter takes it and writes text sclang still refuses
 
 x = a <- b;
 

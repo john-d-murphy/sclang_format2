@@ -1,6 +1,7 @@
 use crate::engine::ast::{blanks_before, end_of_token_before, next_token};
 use crate::engine::ast_utils::{
-    Brackets, Depths, brackets_of, cases_of, dots_of, is_chain, is_comment, is_region, operators_of,
+    Brackets, Depths, begins_line, brackets_of, cases_of, dots_of, is_chain, is_comment, is_region,
+    operators_of,
 };
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
@@ -574,7 +575,8 @@ impl<'a> Layout<'a> {
     /// its dots, when that serves: it has two dots or more to break at, a
     /// line of it is too wide, and what stands before the first dot fits on
     /// its line (were that to be opened itself, the messages would hang
-    /// under its closing bracket). The lines after the first stand at
+    /// under its closing bracket). A chain broken already is broken before
+    /// each dot whatever else is so. The lines after the first stand at
     /// `runs_on`. Whether it did.
     fn messages(
         &mut self,
@@ -585,10 +587,16 @@ impl<'a> Layout<'a> {
         runs_on: usize,
     ) -> bool {
         let dots = dots_of(chain, self.bytes);
-        if dots.len() < 2
-            || !self.is_too_wide(from, to, depth)
-            || !self.fits(from, self.code_end(from, dots[0].start_byte()), depth)
-        {
+        // A line break that stays before one of its dots (a comment ends
+        // the line above) leaves no choice: the chain is broken already,
+        // and is broken before every dot.
+        let is_broken = dots.iter().any(|dot| begins_line(*dot, self.bytes));
+        let serves = || {
+            dots.len() >= 2
+                && self.is_too_wide(from, to, depth)
+                && self.fits(from, self.code_end(from, dots[0].start_byte()), depth)
+        };
+        if !is_broken && !serves() {
             return false;
         }
         let (mut from, mut at) = (from, depth);
@@ -1366,6 +1374,19 @@ mod tests {
         // brackets have indented it already.
         assert_layout(
             "foo(\n    LFSaw.ar(ExpRand(10, 200) / duration)\n    .linlin(-1, 1, 0, 1)\n    .pow(3)\n    .linexp(0, 1, lowestFrequency, highestFrequency),\n    second\n);\n",
+        );
+    }
+
+    #[test]
+    fn test_a_chain_of_messages_with_a_line_break_that_stays_breaks_before_each_dot() {
+        // A comment keeps the line break after it, whatever the width and
+        // whatever begins the chain: every dot then begins a line, and what
+        // a block of the chain holds stands a level in from its message.
+        assert_stays(
+            "x = list.sort  // sort it\n    .do { |n|\n        n.name.post;\n        n.postln\n    };\n",
+        );
+        assert_stays(
+            "x = Foo(1)\n    // .font_(a)\n    .align_(b)\n    .handler_ { |obj|\n        obj.postln;\n        obj\n    };\n",
         );
     }
 

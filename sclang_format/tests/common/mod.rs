@@ -46,12 +46,21 @@ pub fn sc_source(test: &str) -> Option<PathBuf> {
 pub fn run_cli_on_str(input: &str) -> Result<String> {
     // ✅ macro form (not deprecated)
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sclang_format"));
-    cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+    // What the formatter says of a text it refuses goes into the error, not
+    // onto the terminal: a refusal that a test expects is no news.
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     let mut child = cmd.spawn()?;
     child.stdin.as_mut().unwrap().write_all(input.as_bytes())?;
     let out = child.wait_with_output()?;
 
-    anyhow::ensure!(out.status.success(), "formatter non-zero: {}", out.status);
+    anyhow::ensure!(
+        out.status.success(),
+        "formatter non-zero: {}: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr).trim()
+    );
     Ok(String::from_utf8(out.stdout)?)
 }

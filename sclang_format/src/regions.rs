@@ -175,6 +175,74 @@ pub fn reads_two_ways(code: &str) -> Result<bool> {
         }))
 }
 
+/// Whether loose `code` is a program to format, compile or evaluate whole:
+/// it parses, and its lines are not lines to evaluate one at a time.
+///
+/// # Errors
+/// When the grammar cannot be loaded.
+pub fn is_program(code: &str) -> Result<bool> {
+    let mut parser = Parser::new();
+    parser.set_language(&grammar::language())?;
+    let sound = parser
+        .parse(code, None)
+        .is_some_and(|tree| !tree.root_node().has_error());
+    Ok(!code.trim().is_empty() && sound && !reads_two_ways(code)?)
+}
+
+/// A part of a file of regions. The parts, in order, are the file.
+pub enum Part {
+    /// A region, from its `(` to its `)`.
+    Region(Range<usize>),
+    /// Loose code with the blank lines around it, and whether its code is a
+    /// program (`is_program`).
+    Loose { text: Range<usize>, program: bool },
+    /// What is left as it is written: blank lines, and what shares the line
+    /// of a region's `)`.
+    AsWritten(Range<usize>),
+}
+
+/// `src` in its parts, given its regions (`of`). The lines between two
+/// regions are one loose part if they are a program whole, and if not, one
+/// for each paragraph of them.
+///
+/// # Errors
+/// When the grammar cannot be loaded.
+pub fn parts(src: &str, regions: &[Range<usize>]) -> Result<Vec<Part>> {
+    let loose = |from: usize, to: usize, parts: &mut Vec<Part>| -> Result<()> {
+        if is_program(&src[from..to])? {
+            parts.push(Part::Loose {
+                text: from..to,
+                program: true,
+            });
+            return Ok(());
+        }
+        let mut at = from;
+        for paragraph in paragraphs(&src[from..to]) {
+            let text = at..at + paragraph.len();
+            at = text.end;
+            parts.push(if paragraph.trim().is_empty() {
+                Part::AsWritten(text)
+            } else {
+                Part::Loose {
+                    text,
+                    program: is_program(paragraph)?,
+                }
+            });
+        }
+        Ok(())
+    };
+    let mut parts = Vec::new();
+    let mut done = 0;
+    for region in regions {
+        loose(done, region.start, &mut parts)?;
+        parts.push(Part::Region(region.clone()));
+        done = line_end(src, region.end);
+        parts.push(Part::AsWritten(region.end..done));
+    }
+    loose(done, src.len(), &mut parts)?;
+    Ok(parts)
+}
+
 /// `text` in paragraphs, which together are `text`: each runs to the end of
 /// the blank lines after it. A blank line inside a comment or a string
 /// parts nothing.
@@ -350,6 +418,42 @@ mod tests {
                 "{loose:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_the_units_of_a_file() {
+        let kinds = |src: &str| -> Vec<(&str, bool, (usize, usize))> {
+            crate::units(src)
+                .unwrap()
+                .iter()
+                .map(|unit| (unit.kind.name(), unit.program, unit.lines))
+                .collect()
+        };
+        // One program, parsing or not.
+        assert_eq!(kinds("x = 1;\ny = 2;\n"), [("program", true, (1, 2))]);
+        assert_eq!(kinds("x = 1;\ny = = 2;\n"), [("program", false, (1, 2))]);
+        // Regions and loose code.
+        let src = "s.boot;\n\n(\na;\n) // c\n\nx=Synth(\\p)\nx.free ;\n\ny=1 ;\n(\nb;\n)\n";
+        assert_eq!(
+            kinds(src),
+            [
+                ("loose", true, (1, 1)),
+                ("region", true, (3, 5)),
+                ("loose", false, (7, 8)),
+                ("loose", true, (10, 10)),
+                ("region", true, (11, 13)),
+            ]
+        );
+        // The bytes of a unit are its code.
+        let units = crate::units(src).unwrap();
+        assert_eq!(&src[units[1].bytes.clone()], "(\na;\n)");
+        assert_eq!(&src[units[2].bytes.clone()], "x=Synth(\\p)\nx.free ;");
+    }
+
+    #[test]
+    fn test_units_cannot_be_told_with_a_bracket_left_open() {
+        let refused = format!("{:#}", crate::units("(\na;\n)\n\n(\nb;\n").unwrap_err());
+        assert!(refused.contains("line 5"), "{refused}");
     }
 
     #[test]

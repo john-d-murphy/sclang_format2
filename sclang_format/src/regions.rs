@@ -444,6 +444,13 @@ mod tests {
                 ("region", true, (11, 13)),
             ]
         );
+        // A file with a region is told by its regions though it parses
+        // whole: sclang refuses `var` in parentheses that follow a
+        // statement, and takes each such region only by itself.
+        assert_eq!(
+            kinds("s.boot;\n\n(\nvar a = 1;\na.postln;\n)\n"),
+            [("loose", true, (1, 1)), ("region", true, (3, 6))]
+        );
         // The bytes of a unit are its code.
         let units = crate::units(src).unwrap();
         assert_eq!(&src[units[1].bytes.clone()], "(\na;\n)");

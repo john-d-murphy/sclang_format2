@@ -134,9 +134,13 @@ pub struct Unit {
     pub lines: (usize, usize),
 }
 
-/// The units of `src`, as the formatter reads it: the whole of it where it
-/// is one program or has no regions, and otherwise its regions and its
-/// loose code, in order.
+/// The units of `src`: the whole of it where it has no regions, and
+/// otherwise its regions and its loose code, in order.
+///
+/// A file with a region is told by its regions even where the whole of it
+/// parses here: sclang refuses `var` in parentheses that follow a statement,
+/// so such a region is a program only by itself. Whether the whole is a
+/// program too is for sclang to say.
 ///
 /// # Errors
 /// When a bracket is without its other, so that the regions cannot be told.
@@ -164,12 +168,14 @@ pub fn units(src: &str) -> Result<Vec<Unit>> {
     )?
     .error_line()
     .is_none();
-    if parses {
-        return Ok(whole(true));
-    }
-    let regions = regions::of(src)?;
+    // Text that parses has its brackets in pairs: were the regions of such a
+    // text refused, the fault would be this crate's, and it is one program.
+    let regions = match regions::of(src) {
+        Err(_) if parses => Vec::new(),
+        found => found?,
+    };
     if regions.is_empty() {
-        return Ok(whole(false));
+        return Ok(whole(parses));
     }
     Ok(regions::parts(src, &regions)?
         .into_iter()

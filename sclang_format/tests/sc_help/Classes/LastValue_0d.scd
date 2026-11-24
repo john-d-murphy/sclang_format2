@@ -1,2 +1,2 @@
-// Source: Classes/LastValue.schelp block 0 (part 4/6)
-d.set(\freq, 680);
+// Source: Classes/LastValue.schelp block 0 (part 4/7)
+d.set(\freq, 670);

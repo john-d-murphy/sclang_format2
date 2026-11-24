@@ -5,14 +5,14 @@ t = Array.series(max, 0, 1).curdle(0.06).scramble.flat;
 b = Buffer(s, t.size, 1);
 
 // alloc and set the values
-s.listSendMsg( b.allocMsg( b.setnMsg(0, t) ) );
+s.listSendMsg(b.allocMsg(b.setnMsg(0, t)));
 
 
 {
 	var index, in, out, f0, fdiff;
 	var bufnum = b;
 	var input;
-	input = MouseX.kr(0, max).round(1); // round to precision
+	input = MouseX.kr(0, max).round(1); // round to integer
 	index = DetectIndex.kr(bufnum, input);
 	index.poll;
 	SinOsc.ar(index.linexp(0, max, 200, 700)) * 0.1

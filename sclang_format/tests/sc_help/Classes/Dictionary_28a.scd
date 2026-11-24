@@ -1,2 +1,2 @@
-// Source: Classes/Dictionary.schelp block 28 (part 1/4)
-d = Dictionary[\a -> 5, \b -> 7, \d -> 0];
+// Source: Classes/Dictionary.schelp block 28 (part 1/2)
+d = Dictionary[\a -> 5, \b -> 7, \c -> 1, \d -> 0];

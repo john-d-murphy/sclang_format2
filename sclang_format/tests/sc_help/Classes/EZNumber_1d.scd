@@ -8,10 +8,10 @@ s.waitForBoot({
 	var node, cmdPeriodFunc;
 
 	// define a synth
-	SynthDef("window-test", { |out, note = 36, fc = 1000, rq = 0.25, bal=0, amp=0.4, gate = 1|
+	SynthDef("window-test", { |out, note = 36, fc = 1000, rq = 0.25, bal = 0, amp = 0.4, gate = 1|
 			var x;
 			x = Mix.fill(4, {
-				LFSaw.ar((note + {0.1.rand2}.dup).midicps, 0, 0.02)
+				LFSaw.ar((note + { 0.1.rand2 }.dup).midicps, 0, 0.02)
 			});
 			x = RLPF.ar(x, fc, rq).softclip;
 			x = RLPF.ar(x, fc, rq, amp).softclip;
@@ -36,15 +36,15 @@ s.waitForBoot({
 		["Start", Color.black, Color.green],
 		["Stop", Color.white, Color.red]
 	];
-	startButton.action = {|view|
+	startButton.action = { |view|
 			if (view.value == 1) {
 				// start sound
-				node = Synth( "window-test", [
+				node = Synth("window-test", [
 					"note", noteControl.value,
 					"fc", cutoffControl.value,
 					"rq", resonControl.value,
 					"bal", balanceControl.value,
-					"amp", ampControl.value.dbamp ]);
+					"amp", ampControl.value.dbamp]);
 			} {
 				// set gate to zero to cause envelope to release
 				node.release; node = nil;
@@ -54,27 +54,27 @@ s.waitForBoot({
 	// create controls for all parameters
 	w.view.decorator.nextLine;
 	noteControl = EZNumber(w, 160 @ 20, "Note ", ControlSpec(24, 60, \lin, 1),
-		{|ez| node.set( "note", ez.value )}, 36);
+		{ |ez| node.set("note", ez.value) }, 36);
 
 	w.view.decorator.nextLine;
 	cutoffControl = EZNumber(w, 160 @ 20, "Cutoff ", ControlSpec(200, 5000, \exp),
-		{|ez| node.set( "fc", ez.value )}, 1000);
+		{ |ez| node.set("fc", ez.value) }, 1000);
 
 	w.view.decorator.nextLine;
 	resonControl = EZNumber(w, 160 @ 20, "Reson", ControlSpec(0.1, 0.7),
-		{|ez| node.set( "rq", ez.value )}, 0.2);
+		{ |ez| node.set("rq", ez.value) }, 0.2);
 
 	w.view.decorator.nextLine;
 	balanceControl = EZNumber(w, 160 @ 20, "Balance ", \bipolar,
-		{|ez| node.set( "bal", ez.value )}, 0);
+		{ |ez| node.set("bal", ez.value) }, 0);
 
 	w.view.decorator.nextLine;
 	ampControl = EZNumber(w, 160 @ 20, "Amp ", \db,
-		{|ez| node.set( "amp", ez.value.dbamp )}, -6);
+		{ |ez| node.set("amp", ez.value.dbamp) }, -6);
 
 
 	// set start button to zero upon a cmd-period
-	cmdPeriodFunc = { startButton.value = 0; };
+	cmdPeriodFunc = { startButton.value = 0 };
 	CmdPeriod.add(cmdPeriodFunc);
 
 	// stop the sound when window closes and remove cmdPeriodFunc.

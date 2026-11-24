@@ -1,2 +1,2 @@
-// Source: Guides/J-concepts-in-SC.schelp block 2 (part 6/15)
-{100.rand}
+// Source: Guides/J-concepts-in-SC.schelp block 2 (part 6/8)
+{|i| i.squared} dup: 10;

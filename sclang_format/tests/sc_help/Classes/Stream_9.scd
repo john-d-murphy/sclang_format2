@@ -1,8 +1,8 @@
 // Source: Classes/Stream.schelp block 9
 (
-x = Routine({ arg inval;
+x = Routine({ |inval|
 	2.do({
-		[1,2,3,4].do({ arg i;
+		[1, 2, 3, 4].do({ |i|
 			if(inval.isNil) { nil.alwaysYield };
 			inval = (i * inval).yield;
 		});

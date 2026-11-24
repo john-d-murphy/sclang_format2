@@ -1,60 +1,28 @@
 // src/rules/call_index_paren.rs
-
+use crate::engine::ast::{blanks_before, tokens_of_kinds};
+use crate::engine::text::{is_ident_char, is_newline};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
-
-const fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
-}
+use tree_sitter::Node;
 
 fn is_keyword(bytes: &[u8], start: usize, end: usize) -> bool {
     let word = &bytes[start..end];
     word == b"if" || word == b"while" || word == b"for" || word == b"switch" || word == b"case"
 }
 
-fn fix_before_delim(bytes: &[u8], delim: usize, edits: &mut Vec<TextEdit>) {
-    if delim == 0 {
-        return;
-    }
+fn fix_before_delim(bytes: &[u8], delim_node: Node, edits: &mut Vec<TextEdit>) {
+    let delim = delim_node.start_byte();
 
     // find start of whitespace run before the delimiter
-    let mut ws_start = delim;
-    while ws_start > 0 && is_space(bytes[ws_start - 1]) && !is_newline(bytes[ws_start - 1]) {
-        ws_start -= 1;
-    }
-
+    let ws_start = blanks_before(bytes, delim_node);
     if ws_start == delim {
         // no spaces immediately before '(' / '[' on this line
         return;
     }
 
-    let prev_index = match ws_start.checked_sub(1) {
-        Some(i) => i,
-        None => return,
+    let Some(prev_index) = ws_start.checked_sub(1) else {
+        return;
     };
 
     let prev = bytes[prev_index];
@@ -96,6 +64,8 @@ fn fix_before_delim(bytes: &[u8], delim: usize, edits: &mut Vec<TextEdit>) {
     });
 }
 
+/// No space between what is called or indexed and its bracket: `foo (1)` is
+/// `foo(1)` and `a [0]` is `a[0]`.
 pub struct CallIndexParenSpacing;
 
 impl Rule for CallIndexParenSpacing {
@@ -104,87 +74,10 @@ impl Rule for CallIndexParenSpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
-        let len = bytes.len();
-
+        let bytes = cx.bytes();
         let mut edits = Vec::new();
-
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
-
-        let mut i = 0usize;
-        while i < len {
-            let b = bytes[i];
-
-            // inside comments/strings
-            if in_line_comment {
-                if b == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_block_comment {
-                if b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
-            }
-
-            if in_single_str {
-                if b == b'\'' && !is_escaped(bytes, i) {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_double_str {
-                if b == b'"' && !is_escaped(bytes, i) {
-                    in_double_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            // entering comments/strings
-            if b == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if b == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-
-            if b == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // actual rule: '(' and '[' for calls/indexing
-            if b == b'(' || b == b'[' {
-                fix_before_delim(bytes, i, &mut edits);
-            }
-
-            i += 1;
+        for delim in tokens_of_kinds(cx.tree.root_node(), &["(", "["]) {
+            fix_before_delim(bytes, delim, &mut edits);
         }
 
         let n = edits.len();
@@ -192,5 +85,35 @@ impl Rule for CallIndexParenSpacing {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        CallIndexParenSpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    /// A rule that counts quotes or brackets is lost after a character that
+    /// is one. The tokens of the tree are what they are wherever they stand.
+    #[test]
+    fn test_a_quote_or_bracket_character_before_it_hides_nothing() {
+        assert_eq!(
+            format("x = $\"; y = foo (1); z = a [0];"),
+            "x = $\"; y = foo(1); z = a[0];"
+        );
+        assert_eq!(format("x = $'; y = foo (1);"), "x = $'; y = foo(1);");
+        assert_eq!(format("x = [$(, a (1)];"), "x = [$(, a(1)];");
     }
 }

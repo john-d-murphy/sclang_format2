@@ -1,6 +1,6 @@
-// Source: Classes/MFCC.schelp block 1 (part 4/6)
+// Source: Classes/MFCC.schelp block 1 (part 4/7)
 (
-a = Array.fill(220, {|i| 
+a = Array.fill(220, { |i| 
 	var f = i * 100; 
 	11.17 * log((f + 312) / (f + 14675)) + 43.0 
 })

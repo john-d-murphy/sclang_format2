@@ -1,0 +1,68 @@
+Text that is not SuperCollider, and what the formatter does with it.
+
+The formatter must never repair: what sclang refuses must not come out of
+it as something sclang accepts. tests/lang11d.rs holds each form here to
+what its heading says. The file is read as interpreted.forms is.
+
+== sclang refuses it, and so does the formatter
+
+x = a+.2b;
+
+f = { |a|-1 };
+
+f = { |a=-1| a };
+
+f = { arg a=-1; a };
+
+f = { || 1 };
+
+f = { |a|/*c*/ a };
+
+f = { |a, b|-1 };
+
+f = { |a = 1|-1 };
+
+f = { arg a b; a + b };
+
+f = { arg a, b c = 2; a + b + c };
+
+f = { arg a, b = 1 + ; a };
+
+f = { arg a = 1 2; a };
+
+f = { |a ! b| a };
+
+f = { |a = 1 + b| a };
+
+f = { arg a = 1 b = 2; a };
+
+f = { |a ; b| a };
+
+f = { |a @ b = 2| a };
+
+var a=-1; a
+
+== sclang refuses it; the formatter takes it and writes text sclang still refuses
+
+x = a <- b;
+
+x = -a; y = a.neg; z = - a; w = -a.abs;
+
+x = f.(a: 1, b: 2); y = f.value(1, b: 2); z = Foo(1, a: 2); w = foo(bar: 1);
+
+x = foo(1, bar : 2);
+
+w = foo(bar: 1);
+
+x = -/*c*/1;
+
+== sclang ends the text at an open comment, string or symbol and accepts it; the formatter refuses it
+
+x = 1; // c
+y = 2 /* d
+
+x = 1;
+"open
+
+x = 1;
+'open

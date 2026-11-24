@@ -1,2 +1,2 @@
-// Source: Classes/Dbufwr.schelp block 0 (part 6/8)
-b.setn(0, [1, 0]);
+// Source: Classes/Dbufwr.schelp block 0 (part 6/11)
+b.free;

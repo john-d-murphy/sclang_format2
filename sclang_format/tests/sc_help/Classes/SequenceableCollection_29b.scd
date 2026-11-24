@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 29 (part 2/4)
-a.obtain(2, 1);
+// Source: Classes/SequenceableCollection.schelp block 29 (part 2/3)
+a.take(12);

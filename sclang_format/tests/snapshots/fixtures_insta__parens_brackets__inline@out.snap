@@ -11,9 +11,7 @@ bar(a, b, c);
 baz((a + b), [1, 2, 3]);
 
 // grouping
-(
-    (a + b) * (c - d)
-).postln;
+((a + b) * (c - d)).postln;
 
 // arrays
 [1, 2, 3];

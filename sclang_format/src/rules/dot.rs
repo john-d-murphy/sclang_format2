@@ -1,14 +1,14 @@
 use anyhow::Result;
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
+use crate::engine::ast::{end_of_token_before, in_string_or_comment};
 use crate::engine::{Ctx, TextEdit};
-use crate::engine::ast::in_string_or_comment;
 
 pub struct NoSpacesAroundDot;
 
 impl NoSpacesAroundDot {
     #[inline]
-    fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
+    const fn is_dot_at_line_start(src: &[u8], dot_pos: usize) -> bool {
         // Check if there's only whitespace (not newlines) before the dot since the last newline
         let mut i = dot_pos;
         while i > 0 && src[i - 1] != b'\n' && src[i - 1] != b'\r' {
@@ -30,7 +30,7 @@ impl crate::rules::Rule for NoSpacesAroundDot {
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let root = cx.tree.root_node();
         let bytes = cx.bytes();
-        let src = bytes.as_slice();
+        let src = bytes;
 
         let mut edits = Vec::<TextEdit>::new();
 
@@ -46,15 +46,17 @@ impl crate::rules::Rule for NoSpacesAroundDot {
                 continue;
             }
 
-            // Skip dots that are at the start of a line (already in desired format by dot_chain_layout)
+            // A dot that begins its line stays there: only a comment on
+            // the line above keeps one from being joined to it.
             if Self::is_dot_at_line_start(src, dot) {
                 continue;
             }
 
             // strip spaces before/after '.' (but never cross newlines)
             // left
+            let token_before_end = end_of_token_before(cap.node);
             let mut l = dot;
-            while l > 0 && src[l - 1].is_ascii_whitespace() && src[l - 1] != b'\n' {
+            while l > token_before_end && src[l - 1].is_ascii_whitespace() && src[l - 1] != b'\n' {
                 l -= 1;
             }
             if l != dot {
@@ -83,5 +85,32 @@ impl crate::rules::Rule for NoSpacesAroundDot {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+    use crate::rules::Rule;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        NoSpacesAroundDot.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_character_space_keeps_its_blank() {
+        assert_eq!(
+            format("x = a .size;\ny = $ .ascii;"),
+            "x = a.size;\ny = $ .ascii;"
+        );
     }
 }

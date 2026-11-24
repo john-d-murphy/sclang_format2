@@ -1,2 +1,2 @@
-// Source: Classes/ArrayedCollection.schelp block 17 (part 2/3)
-y.takeThese({ arg item, index; item.odd; });
+// Source: Classes/ArrayedCollection.schelp block 17 (part 2/2)
+y.indexOf(\symbol);

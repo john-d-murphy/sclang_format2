@@ -1,7 +1,7 @@
 // Source: Classes/FreqShift.schelp block 1 (part 4/6)
 (
 SynthDef("frqShift1", { |out, freq|
-	var e1,snd,snd2,in;
+	var e1, snd, snd2, in;
 	in = FreqShift.ar(InFeedback.ar(0, 1) * 3.2, XLine.ar(0.01, freq * 1.5, 1)); // shift the feedback
 	e1 = Env.new([0, 0.1, 0], [0.02, 2.98]);
 	snd = SinOsc.ar(freq, 0, EnvGen.ar(e1, 1, doneAction: Done.freeSelf));

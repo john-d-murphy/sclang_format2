@@ -1,2 +1,2 @@
-// Source: Classes/Fdef.schelp block 0 (part 10/10)
-z.value(400);
+// Source: Classes/Fdef.schelp block 0 (part 10/11)
+z.value;

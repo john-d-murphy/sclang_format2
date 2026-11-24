@@ -1,2 +1,2 @@
 // Source: Classes/SequenceableCollection.schelp block 7
-Array.interpolation(5, 3.2, 20.5);
+Array.exprand(8, 1, 100);

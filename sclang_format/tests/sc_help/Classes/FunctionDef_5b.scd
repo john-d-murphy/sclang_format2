@@ -1,2 +1,2 @@
-// Source: Classes/FunctionDef.schelp block 5 (part 2/2)
-{ "nothing to see here" }.def.argumentString;
+// Source: Classes/FunctionDef.schelp block 5 (part 2/3)
+{ |a, b ... c| a + b * c }.def.hasKwArgs;

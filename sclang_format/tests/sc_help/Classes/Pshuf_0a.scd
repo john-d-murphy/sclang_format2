@@ -3,5 +3,5 @@
 var a, b;
 a = Pshuf([1, 2, 3, 4, 5], 3);	// repeat 3 times
 b = a.asStream;
-16.do({ b.next.postln; });
+16.do({ b.next.postln });
 )

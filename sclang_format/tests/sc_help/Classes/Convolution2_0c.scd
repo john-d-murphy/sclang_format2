@@ -5,7 +5,7 @@ SynthDef("conv-test", { |out, kernel, trig = 0|
 
 	input = Impulse.ar(1);
 
-	//must have power of two framesize
+	// must have power of two framesize
 	Out.ar(out, Convolution2.ar(input, kernel, trig, 2048, 0.5));
 }).add
 

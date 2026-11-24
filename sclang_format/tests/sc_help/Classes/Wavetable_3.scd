@@ -1,2 +1,6 @@
 // Source: Classes/Wavetable.schelp block 3
-Wavetable.sineFill(512, [1]).asSignal.plot;
+(
+var w = Window("parent");
+Wavetable.sineFill(512, 1.0/[1, 2, 3, 4, 5, 6]).plot(parent: w);
+w.front
+)

@@ -1,2 +1,2 @@
-// Source: Classes/BelaScope.schelp block 2 (part 4/8)
+// Source: Classes/BelaScope.schelp block 2 (part 4/9)
 b = Bus(\audio, 10, 6, ~belaServer);

@@ -1,2 +1,2 @@
-// Source: Guides/Internal-Snooping.schelp block 5 (part 6/10)
-x = f.play;
+// Source: Guides/Internal-Snooping.schelp block 5 (part 6/11)
+x.free;

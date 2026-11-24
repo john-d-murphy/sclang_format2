@@ -2,5 +2,5 @@
 (
 w = Window.new.front;
 t = StaticText(w, w.view.bounds).align_(\center);
-t.string=" SUPERCOLLIDER";
+t.string = " SUPERCOLLIDER";
 )

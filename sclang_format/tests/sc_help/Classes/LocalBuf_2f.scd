@@ -15,13 +15,13 @@ play({
 				1,					// mul = 1
 				72					// offset by 72 notes
 			).poll
-			+ LFNoise1.kr([3,3], 0.04)	// add some low freq stereo detuning
+			+ LFNoise1.kr([3, 3], 0.04)	// add some low freq stereo detuning
 		).midicps,						// convert midi notes to hertz
 		0,
 		0.1)
 
 	// drone 5ths
-	+ RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
+	+ RLPF.ar(LFPulse.ar([48, 55].midicps, 0.15),
 		SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1);
 
 	// add some 70's euro-space-rock echo

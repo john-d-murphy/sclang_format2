@@ -1,5 +1,5 @@
 // Source: Classes/PlayBuf.schelp block 1 (part 4/8)
-SynthDef(\help_PlayBuf, { arg out=0, bufnum=0;
+SynthDef(\help_PlayBuf, { |out = 0, bufnum = 0|
 	var trig;
 	trig = Impulse.kr(MouseY.kr(0.5, 200, 1));
 	Out.ar(out,

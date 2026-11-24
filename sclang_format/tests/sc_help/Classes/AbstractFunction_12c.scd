@@ -1,2 +1,2 @@
-// Source: Classes/AbstractFunction.schelp block 12 (part 3/5)
-a = Pseries(60, 1, inf).midicps;
+// Source: Classes/AbstractFunction.schelp block 12 (part 3/6)
+[a.value(9), b.value(9)];

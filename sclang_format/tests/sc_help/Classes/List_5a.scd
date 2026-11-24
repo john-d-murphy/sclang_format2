@@ -1,2 +1,2 @@
-// Source: Classes/List.schelp block 5 (part 1/4)
-y = List[ 1, 2, 3 ];
+// Source: Classes/List.schelp block 5 (part 1/5)
+a = List[1, 2, 3]

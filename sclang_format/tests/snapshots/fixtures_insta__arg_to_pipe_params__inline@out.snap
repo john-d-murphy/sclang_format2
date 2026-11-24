@@ -5,9 +5,7 @@ expression: out
 (
 // arg → pipe conversion
 
-x = { |foo = 3, bar = (4.dbamp)|
-    foo + bar
-};
+x = { |foo = 3, bar = (4.dbamp)| foo + bar };
 
 y = { |a|
     var z;
@@ -16,9 +14,5 @@ y = { |a|
 };
 
 // arg inside if-branches
-if (true) { |n|
-    n.postln
-} {
-    "else".postln
-};
+if (true) { |n| n.postln } { "else".postln };
 )

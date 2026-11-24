@@ -1,9 +1,2 @@
-// Source: Classes/Env.schelp block 24 (part 2/2)
-(
-{ SinOsc.ar(
-	EnvGen.kr(
-		Env([6000, 700, 100], [1, 1], ['exp', 'lin']).circle(1).postcs,
-		MouseX.kr > 0.5)
-	) * 0.1
-	+ Impulse.ar(1) }.play;
-)
+// Source: Classes/Env.schelp block 24 (part 2/4)
+{ EnvGen.kr(Env([0.1, 1, 0.5], [0.01, 0.03]).circle(0.05, \sin)) }.plot(0.2).plotMode_(\dlines)

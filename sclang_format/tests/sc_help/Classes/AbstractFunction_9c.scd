@@ -1,2 +1,2 @@
-// Source: Classes/AbstractFunction.schelp block 9 (part 3/5)
-a = Pseries(0, 1, inf).cubed;
+// Source: Classes/AbstractFunction.schelp block 9 (part 3/6)
+[a.value(1), b.value(1)];

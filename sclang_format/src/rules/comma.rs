@@ -1,5 +1,6 @@
 // src/rules/comma.rs
 
+use crate::engine::ast::end_of_token_before;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -17,7 +18,7 @@ impl Rule for AddSpacesAfterCommas {
         let src = cx.bytes();
 
         let mut edits = Vec::new();
-        walk_for_commas(root, &src, root, &mut edits);
+        walk_for_commas(root, src, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -28,30 +29,16 @@ impl Rule for AddSpacesAfterCommas {
     }
 }
 
-/// Check if byte position is inside a string or comment node
-fn in_string_or_comment(root: Node, byte: usize) -> bool {
-    let mut cur = root.descendant_for_byte_range(byte, byte + 1);
-    while let Some(n) = cur {
-        match n.kind() {
-            "comment" | "block_comment" | "line_comment" | "string" => return true,
-            _ => {}
-        }
-        cur = n.parent();
-    }
-    false
-}
-
-fn walk_for_commas(node: Node, src: &[u8], root: Node, edits: &mut Vec<TextEdit>) {
-    // Process this node's text for commas
+fn walk_for_commas(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     if should_check_for_commas(node.kind()) {
-        check_commas_in_range(src, node.start_byte(), node.end_byte(), root, edits);
+        space_commas_within(node, src, edits);
         return; // Don't recurse
     }
 
     // Recursively walk children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk_for_commas(child, src, root, edits);
+        walk_for_commas(child, src, edits);
     }
 }
 
@@ -68,30 +55,27 @@ fn should_check_for_commas(kind: &str) -> bool {
     )
 }
 
-fn check_commas_in_range(
-    src: &[u8],
-    start: usize,
-    end: usize,
-    root: Node,
-    edits: &mut Vec<TextEdit>,
-) {
-    let mut i = start;
-    while i < end {
-        if src[i] == b',' {
-            // Use AST to check if we're in a comment or string
-            if !in_string_or_comment(root, i) {
-                normalize_comma_spacing(src, i, edits);
-            }
-        }
-        i += 1;
+/// Every comma token within the node, nested lists included. The tree says
+/// which `,` is a comma: in `$,` it is a character, in a string or a comment
+/// it is text.
+fn space_commas_within(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
+    if node.kind() == "," {
+        normalize_comma_spacing(src, node, edits);
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        space_commas_within(child, src, edits);
     }
 }
 
-fn normalize_comma_spacing(src: &[u8], comma_pos: usize, edits: &mut Vec<TextEdit>) {
+fn normalize_comma_spacing(src: &[u8], comma: Node, edits: &mut Vec<TextEdit>) {
+    let comma_pos = comma.start_byte();
+    let token_before_end = end_of_token_before(comma);
     let mut left = comma_pos;
 
     // Scan backwards for spaces before comma
-    while left > 0 {
+    while left > token_before_end {
         let b = src[left - 1];
         if b == b' ' || b == b'\t' {
             left -= 1;
@@ -156,7 +140,7 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();
@@ -219,5 +203,11 @@ FlowView.new.flow({ arg f;
         let once = format(input);
         let twice = format(&once);
         assert_eq!(once, twice, "Must be idempotent");
+    }
+
+    #[test]
+    fn test_a_character_literal_is_not_a_comma_or_a_blank() {
+        assert_eq!(format("x = s.tr($ , $_);"), "x = s.tr($ , $_);");
+        assert_eq!(format("y = [$,,1];"), "y = [$,, 1];");
     }
 }

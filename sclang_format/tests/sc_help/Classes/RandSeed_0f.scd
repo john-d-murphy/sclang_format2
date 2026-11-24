@@ -1,6 +1,6 @@
 // Source: Classes/RandSeed.schelp block 0 (part 6/11)
 (
-SynthDef("pseudorandom", { arg out, sustain=1, seed=1967, id=0;
+SynthDef("pseudorandom", { |out, sustain = 1, seed = 1967, id = 0|
 	var noise, filterfreq;
 	RandID.ir(id);
 	RandSeed.ir(1, seed);

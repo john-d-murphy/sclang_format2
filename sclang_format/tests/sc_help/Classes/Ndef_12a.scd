@@ -1,6 +1,11 @@
-// Source: Classes/Ndef.schelp block 12 (part 1/24)
+// Source: Classes/Ndef.schelp block 12 (part 1/11)
 (
-SynthDef(\grain, { |out=0, freq=300, amp=0.3|
-	OffsetOut.ar(out, Pulse.ar(freq) * EnvGen.kr(Env.perc, doneAction: Done.freeSelf) * amp)
-}).add;
+Ndef(\sound, {
+	RHPF.ar(
+		\in1.ar([0, 0]) * \in2.ar([0, 0]),
+		\freq.kr(6000, 2),
+		\rq.kr(0.2)
+	) * 7
+}).play;
+Ndef(\sound).fadeTime = 0.2;	// avoid harsh clicks
 )

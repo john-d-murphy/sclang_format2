@@ -1,13 +1,11 @@
 // src/rules/binary_ops.rs
 
+use crate::engine::ast::blanks_before;
+use crate::engine::text::is_newline;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
 
 /// Operators that should have spaces around them
 const SPACED_OPERATORS: &[&str] = &[
@@ -36,7 +34,7 @@ impl Rule for AddSpacesAroundBinaryOps {
 
         let mut edits: Vec<TextEdit> = Vec::new();
 
-        walk_tree(root, &src, &mut edits);
+        walk_tree(root, src, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -62,45 +60,41 @@ fn walk_tree(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     }
 }
 
-/// Handle variable_definition and function_definition nodes (x = value)
+/// Handle `variable_definition` and `function_definition` nodes (x = value)
 fn process_variable_definition(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Find the = sign by looking for it between name and value
-    let name_node = match node.child_by_field_name("name") {
-        Some(n) => n,
-        None => return,
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return;
     };
-    let value_node = match node.child_by_field_name("value") {
-        Some(n) => n,
-        None => return,
+    let Some(value_node) = node.child_by_field_name("value") else {
+        return;
     };
 
-    let name_end = name_node.end_byte();
-    let value_start = value_node.start_byte();
-
-    // Find the = in between
-    for i in name_end..value_start {
-        if src[i] == b'=' {
-            fix_operator_spacing(src, i, i + 1, edits);
-            break;
-        }
+    // The = between them: the token, not a `=` byte that a comment may hold.
+    let mut cursor = node.walk();
+    let equals = node.children(&mut cursor).find(|child| {
+        child.kind() == "="
+            && child.start_byte() >= name_node.end_byte()
+            && child.end_byte() <= value_node.start_byte()
+    });
+    if let Some(equals) = equals {
+        fix_operator_spacing(src, equals, equals.end_byte(), edits);
     }
 }
 
 fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Get the operator field from the AST
-    let op_node = match node.child_by_field_name("operator") {
-        Some(n) => n,
-        None => return,
+    let Some(op_node) = node.child_by_field_name("operator") else {
+        return;
     };
 
     let op_start = op_node.start_byte();
-    let op_end = op_node.end_byte();
-    let op_text = &src[op_start..op_end];
+    let op_text = &src[op_start..op_node.end_byte()];
+    let op_end = crate::engine::ast::operator_end(op_node);
 
     // Check if this is an operator we should add spaces around
-    let op_str = match std::str::from_utf8(op_text) {
-        Ok(s) => s,
-        Err(_) => return,
+    let Ok(op_str) = std::str::from_utf8(op_text) else {
+        return;
     };
 
     // Skip if not in our list of spaced operators
@@ -130,10 +124,10 @@ fn process_binary_expression(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) 
     }
 
     // Now fix spacing around the operator
-    fix_operator_spacing(src, op_start, op_end, edits);
+    fix_operator_spacing(src, op_node, op_end, edits);
 }
 
-/// Check if this node is inside a class_def
+/// Check if this node is inside a `class_def`
 fn is_inside_class_def(node: Node) -> bool {
     let mut cur = Some(node);
     while let Some(n) = cur {
@@ -145,27 +139,29 @@ fn is_inside_class_def(node: Node) -> bool {
     false
 }
 
-/// Handle duplicated_statement nodes (the ! duplication operator).
+/// Handle `duplicated_statement` nodes (the ! duplication operator).
 fn process_duplicated_statement(node: Node, src: &[u8], edits: &mut Vec<TextEdit>) {
     // Find the ! operator child
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "!" {
-            fix_operator_spacing(src, child.start_byte(), child.end_byte(), edits);
+            fix_operator_spacing(src, child, child.end_byte(), edits);
             break;
         }
     }
 }
 
 /// Normalize spaces around an operator: exactly one space before and after.
-fn fix_operator_spacing(bytes: &[u8], op_start: usize, op_end: usize, edits: &mut Vec<TextEdit>) {
+/// `op` is the operator's token and `op_end` where it ends, its adverb
+/// included.
+fn fix_operator_spacing(bytes: &[u8], op: Node, op_end: usize, edits: &mut Vec<TextEdit>) {
     let len = bytes.len();
+    let op_start = op.start_byte();
 
     // ----- left side -----
-    let mut l = op_start;
-    while l > 0 && bytes[l - 1].is_ascii_whitespace() && !is_newline(bytes[l - 1]) {
-        l -= 1;
-    }
+    // The blanks before it, no further back than the token before: the
+    // second byte of a character (`$ `, a `$` and a tab) is no space.
+    let l = blanks_before(bytes, op);
     if l == op_start {
         // No space before op - insert one
         edits.push(TextEdit {
@@ -213,13 +209,34 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();
         let rule = AddSpacesAroundBinaryOps;
         rule.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_keeps_an_adverb_with_its_operator() {
+        assert_eq!(format("a +.t b"), "a +.t b");
+        assert_eq!(format("a+.t b"), "a +.t b");
+        assert_eq!(format("a+.2 b"), "a +.2 b");
+    }
+
+    /// A character is the dollar sign and whatever follows it: a tab too.
+    #[test]
+    fn test_the_tab_or_blank_of_a_character_before_an_operator_is_kept() {
+        assert_eq!(format("x = $\t + 1;"), "x = $\t + 1;");
+        assert_eq!(format("x = $\t  ! 2;"), "x = $\t ! 2;");
+        assert_eq!(format("x = $ + 1;"), "x = $  + 1;");
+        assert_eq!(format("x = $\t+ 1;"), "x = $\t + 1;");
+    }
+
+    #[test]
+    fn test_an_equals_sign_in_a_comment_is_not_the_assignment() {
+        assert_eq!(format("x /* = */=1;"), "x /* = */ = 1;");
     }
 
     #[test]

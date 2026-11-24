@@ -27,11 +27,7 @@ f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
     var x, y;
     x = freq * 2 + 1;
     y = x - 3;
-    if (freq > 0) {
-        "freq ok".postln
-    } {
-        "freq bad".postln
-    };
+    if (freq > 0) { "freq ok".postln } { "freq bad".postln };
     [x, y]
 };
 
@@ -53,18 +49,12 @@ f = { |freq = 440, amp = (4.dbamp), env = (Env.perc(0.01, 1.0))|
 );
 
 // looks like parens but not event (no top-level key:)
-(
-    "not an event: just data",
-    [1, 2, 3]
-);
+("not an event: just data", [1, 2, 3]);
 
 // 5. Dot chains + multiline layout
-"hello".asSymbol().asString
-.toUpper.postln;
+"hello".asSymbol().asString.toUpper.postln;
 
-Button().states_([["blorp", nil, nil]]).action_({
-    "button".postln
-});
+Button().states_([["blorp", nil, nil]]).action_({ "button".postln });
 
 // 6. Control-ish methods: do + extra trailing closures
 [1, 2, 3].collect { |n| n * 2 };
@@ -72,7 +62,12 @@ Button().states_([["blorp", nil, nil]]).action_({
 [10, 20, 30].inject(0, { |acc, n| acc + n });
 [1, 2, 3].reject { |n| n == 2 };
 [1, 2, 3].detect { |n| n > 1 };
-[1, 2, 3].do { |n| while { n < 3 } { n = n + 1; "loop".postln } };
+[1, 2, 3].do { |n|
+    while { n < 3 } {
+        n = n + 1;
+        "loop".postln
+    }
+};
 
 // should NOT change: extra arg
 [1, 2, 3].collect({ |n| n * 2 }, 42);
@@ -86,21 +81,13 @@ whilex({ x < 10 }, { x = x + 1 });
 
 h = { |a, b|
     var arr;
-    arr = [
-        a,
-        a + 1,
-        a + 2
-    ];
+    arr = [a, a + 1, a + 2];
     arr  // SHOULD lose this semicolon (final expr)
 };
 
 k = {
     var r;
-    if (a > 0) {
-        r = 1
-    } {
-        r = 0
-    };
+    if (a > 0) { r = 1 } { r = 0 };
     r
 };
 

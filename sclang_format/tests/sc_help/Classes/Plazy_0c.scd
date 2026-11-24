@@ -4,7 +4,7 @@ a = Plazy({
 	var x, y;
 	x = Array.series(rrand(2, 4), [1, 5].choose, 1);
 	x.put(x.size.rand, 8+0.1.rand2);
-	Pseq(x,1);
+	Pseq(x, 1);
 });
 x = Pn(a, inf).asStream;
 

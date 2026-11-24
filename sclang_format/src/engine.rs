@@ -1,13 +1,12 @@
-use anyhow::{anyhow, Context, Result};
-use ropey::Rope;
+use anyhow::{Context, Result, anyhow};
 use std::fmt;
 use tree_sitter::{Language, Node, Parser, Tree};
 
+pub mod as_written;
 pub mod ast;
 pub mod ast_utils;
 pub mod layout;
-pub mod scan;
-pub mod width;
+pub mod text;
 
 pub use ast::in_string_or_comment;
 
@@ -24,22 +23,38 @@ pub enum IndentStyle {
     Spaces { width: usize },
 }
 
+impl IndentStyle {
+    /// The columns a level of indent takes. A tab is counted as the four
+    /// that a level is when it is written in spaces and no width is asked for.
+    #[must_use]
+    pub const fn width(self) -> usize {
+        match self {
+            Self::Tabs => 4,
+            Self::Spaces { width } => width,
+        }
+    }
+}
+
 pub struct Ctx {
-    rope: Rope,
+    text: String,
     parser: Parser,
     pub tree: Tree,
     pub indent_style: IndentStyle,
+    /// The widest a line may be.
+    pub line_width: usize,
     pub current_rule_name: Option<&'static str>,
     pub debug_edits: bool,
+    /// The stretches of the text the writer asks to be left as written
+    /// (see `as_written`), for the tree as it now stands.
+    kept: Vec<(usize, usize)>,
 }
 
 impl fmt::Display for Ctx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.rope.to_string())
+        f.write_str(&self.text)
     }
 }
 
-// --- STANDALONE HELPER FUNCTION ---
 pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
     let indent = "  ".repeat(depth);
     let start = node.start_byte();
@@ -54,7 +69,7 @@ pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
         if clean.len() > 50 {
             format!("{}...", &clean[..47])
         } else {
-            clean.to_string()
+            clean
         }
     };
 
@@ -74,19 +89,45 @@ pub fn print_ast_with_source(node: Node, source: &[u8], depth: usize) {
 }
 
 impl Ctx {
-    pub fn new(src: String, lang: Language, indent_style: IndentStyle) -> Result<Self> {
+    /// The text, parsed.
+    ///
+    /// # Errors
+    /// When the parser does not take the grammar, or gives no tree.
+    pub fn new(src: String, lang: &Language, indent_style: IndentStyle) -> Result<Self> {
         let mut parser = Parser::new();
-        parser.set_language(&lang).context("set_language failed")?;
+        parser.set_language(lang).context("set_language failed")?;
         let tree = parser.parse(src.as_str(), None).context("parse failed")?;
 
+        let kept = as_written::kept_as_written(tree.root_node(), src.as_bytes());
         Ok(Self {
-            rope: Rope::from_str(&src),
+            text: src,
             parser,
             tree,
             indent_style,
+            line_width: layout::DEFAULT_LINE_WIDTH,
             current_rule_name: None,
-            debug_edits: std::env::var("DEBUG_EDITS").is_ok(), // ADD THIS
+            debug_edits: std::env::var("DEBUG_EDITS").is_ok(),
+            kept,
         })
+    }
+
+    /// Whether an edit of `from..to` would change text the writer asks to
+    /// be left as written. Such an edit is never made.
+    #[must_use]
+    pub fn is_kept(&self, from: usize, to: usize) -> bool {
+        as_written::touches(&self.kept, from, to)
+    }
+
+    /// Whether the text at `at` is to be left as written.
+    #[must_use]
+    pub fn keeps(&self, at: usize) -> bool {
+        as_written::holds(&self.kept, at)
+    }
+
+    /// Takes `tree` for the text as it now stands.
+    fn take(&mut self, tree: Tree) {
+        self.kept = as_written::kept_as_written(tree.root_node(), self.text.as_bytes());
+        self.tree = tree;
     }
 
     #[must_use]
@@ -94,30 +135,22 @@ impl Ctx {
         self.indent_style
     }
 
+    /// The text as it now stands. Borrowed, not copied: rules ask for it once
+    /// a node, and a copy each time made the cost grow with the square of the file.
     #[must_use]
-    pub fn indent_unit(&self) -> String {
-        match self.indent_style {
-            IndentStyle::Tabs => "\t".to_string(),
-            IndentStyle::Spaces { width } => " ".repeat(width),
-        }
+    pub const fn bytes(&self) -> &[u8] {
+        self.text.as_bytes()
     }
 
-    #[must_use]
-    pub fn bytes(&self) -> Vec<u8> {
-        self.rope.to_string().into_bytes()
-    }
-
-    pub fn apply_edits(&mut self, mut edits: Vec<TextEdit>) -> Result<()> {
+    /// Makes the edits in the text and parses it: the new tree, which is not
+    /// yet the text's own, or nothing when no edit was made. Edits inside a
+    /// string, a symbol or the words of a comment are dropped, and edits of
+    /// what the writer asks to be left as written.
+    fn splice(&mut self, mut edits: Vec<TextEdit>) -> Result<Option<Tree>> {
         if edits.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
 
-        // Track whether the tree already had errors before this edit batch.
-        // If it did, we tolerate errors after — the semantic transform rules
-        // (like PipeParamAddMissingCommas) need to run on broken trees to fix them.
-        let had_errors_before = self.tree.root_node().has_error();
-
-        // ADD THIS DEBUG BLOCK
         if self.debug_edits {
             let rule_name = self.current_rule_name.unwrap_or("unknown");
             eprintln!("\n=== {} edits ({}) ===", rule_name, edits.len());
@@ -149,11 +182,10 @@ impl Ctx {
                     "Edit {}: [{}..{}] '{}' -> '{}'",
                     i, edit.start_byte, edit.end_byte, before_text, edit.replacement
                 );
-                eprintln!("  Before: '{}'", line_before);
-                eprintln!("  After:  '{}'", line_after);
+                eprintln!("  Before: '{line_before}'");
+                eprintln!("  After:  '{line_after}'");
             }
         }
-        // END DEBUG BLOCK
 
         // === CENTRALIZED EDIT PROTECTION ===
         // Drop any edits that are entirely INSIDE a comment or string node.
@@ -161,7 +193,7 @@ impl Ctx {
         // or "..." regions.  Edits that SPAN across a protected range (like
         // compacting an array that contains strings) are allowed — they're
         // structural edits, not content modifications.
-        let protected = collect_protected_ranges(self.tree.root_node(), &self.bytes());
+        let protected = collect_protected_ranges(self.tree.root_node(), self.bytes());
         if !protected.is_empty() {
             let before_count = edits.len();
             edits.retain(|e| {
@@ -173,41 +205,87 @@ impl Ctx {
             });
             let dropped = before_count - edits.len();
             if dropped > 0 && self.debug_edits {
-                eprintln!("  Dropped {} edits inside comments/strings", dropped);
+                eprintln!("  Dropped {dropped} edits inside comments/strings");
             }
             if edits.is_empty() {
-                return Ok(());
+                return Ok(None);
             }
+        }
+
+        // What the writer asks to be left as written is left: an edit that
+        // would change any of it is dropped whole.
+        edits.retain(|e| !self.is_kept(e.start_byte, e.end_byte));
+        if edits.is_empty() {
+            return Ok(None);
         }
 
         edits.sort_by_key(|e| e.start_byte);
-        for e in edits.into_iter().rev() {
-            let start_char = self.rope.byte_to_char(e.start_byte);
-            let end_char = self.rope.byte_to_char(e.end_byte);
-            self.rope.remove(start_char..end_char);
-            if !e.replacement.is_empty() {
-                self.rope.insert(start_char, &e.replacement);
-            }
+        // Two edits over the same bytes would each be applied to text the other
+        // has already changed. Refuse them, rather than write whatever results.
+        if let Some(pair) = edits.windows(2).find(|w| w[0].end_byte > w[1].start_byte) {
+            return Err(anyhow!(
+                "rule {} made overlapping edits at bytes {}..{} and {}..{}",
+                self.current_rule_name.unwrap_or("unknown"),
+                pair[0].start_byte,
+                pair[0].end_byte,
+                pair[1].start_byte,
+                pair[1].end_byte
+            ));
         }
+        for e in edits.into_iter().rev() {
+            self.text
+                .replace_range(e.start_byte..e.end_byte, &e.replacement);
+        }
+        self.parser
+            .parse(&self.text, None)
+            .context("reparse failed")
+            .map(Some)
+    }
 
-        let source_string = self.rope.to_string(); // Capture this once for reuse below
+    /// Makes edits that only move where lines break, when the text parses to
+    /// the same tree after them; when it does not, leaves the text as it
+    /// was. Whether the edits were made. For a rule that lays code out anew
+    /// and must never be the reason a text is refused.
+    ///
+    /// # Errors
+    /// When two edits overlap.
+    pub fn apply_edits_that_keep_the_tree(&mut self, edits: Vec<TextEdit>) -> Result<bool> {
+        let text = self.text.clone();
+        let Some(new_tree) = self.splice(edits)? else {
+            return Ok(false);
+        };
+        // Named nodes, fields and errors, in order: what a line break
+        // between two tokens cannot change unless the tokens are read anew.
+        let kept = new_tree.root_node().to_sexp() == self.tree.root_node().to_sexp();
+        if kept {
+            self.take(new_tree);
+        } else {
+            self.text = text;
+        }
+        Ok(kept)
+    }
 
-        let new_tree = self
-            .parser
-            .parse(&source_string, None)
-            .context("reparse failed")?;
-
-        // === CRITICAL ERROR CHECK ===
-        // Only bail if this rule INTRODUCED errors into a previously clean tree.
-        // If the tree already had errors (e.g. missing commas in arg lists),
-        // semantic transforms need to run to fix them.
-        if new_tree.root_node().has_error() && !had_errors_before {
+    /// Makes the edits and parses the text again. Edits inside a string, a
+    /// symbol or the words of a comment are dropped.
+    ///
+    /// # Errors
+    /// When two edits overlap, or when the text does not parse after them:
+    /// a rule has broken it.
+    pub fn apply_edits(&mut self, edits: Vec<TextEdit>) -> Result<()> {
+        let Some(new_tree) = self.splice(edits)? else {
+            return Ok(());
+        };
+        let source_string = &self.text;
+        // A rule that leaves text that does not parse has broken it. No
+        // rule is given text that does not parse to begin with (parse_check
+        // is the first), so there is nothing here to forgive.
+        if new_tree.root_node().has_error() {
             eprintln!("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             eprintln!("FATAL: AST is broken after applying edits.");
             eprintln!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
             if let Some(name) = self.current_rule_name {
-                eprintln!("Triggered by Rule: {}\n", name);
+                eprintln!("Triggered by Rule: {name}\n");
             } else {
                 eprintln!("Triggered by: Unknown Rule\n");
             }
@@ -217,10 +295,9 @@ impl Ctx {
             eprintln!("--------------------------------------------\n");
 
             eprintln!("--- BROKEN SOURCE CODE ---");
-            eprintln!("{}", source_string);
+            eprintln!("{source_string}");
             eprintln!("--------------------------\n");
 
-            // FIX: Use the standalone function with the correct variables
             eprintln!("--- AST DUMP ---");
             print_ast_with_source(new_tree.root_node(), source_string.as_bytes(), 0);
 
@@ -229,13 +306,13 @@ impl Ctx {
             ));
         }
 
-        self.tree = new_tree;
+        self.take(new_tree);
         Ok(())
     }
 
     #[must_use]
     pub fn slice_bytes(&self, start: usize, end: usize) -> String {
-        self.rope.byte_slice(start..end).to_string()
+        self.text[start..end].to_string()
     }
 
     #[must_use]
@@ -250,6 +327,22 @@ impl Ctx {
             }
         }
         false
+    }
+
+    /// The line, counted from 1, where the text first fails to parse;
+    /// `None` where it parses.
+    #[must_use]
+    pub fn error_line(&self) -> Option<usize> {
+        fn first(n: Node) -> Option<Node> {
+            if n.is_error() || n.is_missing() {
+                return Some(n);
+            }
+            let mut w = n.walk();
+            n.children(&mut w).filter(Node::has_error).find_map(first)
+        }
+        let root = self.tree.root_node();
+        root.has_error()
+            .then(|| first(root).map_or(1, |n| n.start_position().row + 1))
     }
 }
 
@@ -288,5 +381,44 @@ fn collect_protected_ranges_inner(node: Node, src: &[u8], ranges: &mut Vec<(usiz
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_protected_ranges_inner(child, src, ranges);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_edits_that_would_change_the_tree_are_not_made() {
+        let src = "x = foo(a, b);";
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &crate::grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        let edit = |at: usize, replacement: &str| TextEdit {
+            start_byte: at,
+            end_byte: at,
+            replacement: replacement.to_string(),
+        };
+        // A line break between two tokens changes nothing the tree holds.
+        assert!(
+            cx.apply_edits_that_keep_the_tree(vec![edit(8, "\n")])
+                .unwrap()
+        );
+        assert_eq!(cx.to_string(), "x = foo(\na, b);");
+        // One in the middle of a name makes two names of it, and one that
+        // leaves text that does not parse makes an error.
+        for (at, replacement) in [(5, "\n"), (9, ")")] {
+            assert!(
+                !cx.apply_edits_that_keep_the_tree(vec![edit(at, replacement)])
+                    .unwrap()
+            );
+            assert_eq!(cx.to_string(), "x = foo(\na, b);");
+            assert!(!cx.tree.root_node().has_error());
+        }
+        // Nothing to make is nothing made.
+        assert!(!cx.apply_edits_that_keep_the_tree(Vec::new()).unwrap());
     }
 }

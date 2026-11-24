@@ -1,2 +1,2 @@
 // Source: Classes/Collection.schelp block 30 (part 1/2)
-[1,2,3,4,5].injectr([], _++_);
+[0, 1, 2, 3, 4].detectLastIndex({ arg item; item.odd });

@@ -7,7 +7,7 @@
 	q = LFSaw.ar(301);
 
 	// B-format encode
-	#w, x, y = BiPanB2.ar(p, q, MouseX.kr(-1,1), 0.1);
+	#w, x, y = BiPanB2.ar(p, q, MouseX.kr(-1, 1), 0.1);
 
 	// B-format decode to quad
 	#a, b, c, d = DecodeB2.ar(4, w, x, y);

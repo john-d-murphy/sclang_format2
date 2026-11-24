@@ -7,7 +7,7 @@ w.addFlowLayout;
 
 TdefGui(Tdef(\text), 0, w);
 Tdef(\text).envir.keysValuesDo { |k, v|
-	EZText(w, Rect(0,0,300,40), k, { |ez|
+	EZText(w, Rect(0, 0, 300, 40), k, { |ez|
 		Tdef(\text).envir.put(*[k, ez.value].postcs);
 	}, v);
 };

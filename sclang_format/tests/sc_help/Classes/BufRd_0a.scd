@@ -3,5 +3,5 @@
 // read a whole sound into memory
 s = Server.local;
 // note: not *that* columbia, the first one
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+b = Buffer.read(s, ExampleFiles.child);
 )

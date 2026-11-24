@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/proxyspace_examples.schelp block 1 (part 4/4)
-~out = { Pan2.ar(PinkNoise.ar(0.1), LFClipNoise.kr(2)) };
+// Source: Tutorials/JITLib/proxyspace_examples.schelp block 1 (part 4/5)
+~out = { Resonz.ar(Saw.ar(40 + [0,0.2], 1), [1200, 1600], 0.1) + SinOsc.ar(60 * [1,1.1],0,0.2) };

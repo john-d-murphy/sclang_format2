@@ -1,0 +1,299 @@
+Code that sclang compiles and a formatter is apt to spoil.
+
+These are not forms of the grammar but traps for the rules: a character
+whose second byte is a blank, a tab, a quote or a bracket; a comment or a
+line break where one is seldom written; an operator hard against a number.
+Most were written by a reviewer of this formatter to break it, and many
+did. tests/lang11d.rs requires of each what it requires of the forms in
+interpreted.forms: sclang compiles it, the grammar parses it, the formatter
+takes it and is done in one pass, and sclang compiles what it wrote to the
+same thing. The file is read as interpreted.forms is; the headings here are
+only names. A tab in a form is a tab.
+
+== characters whose second byte is a blank, a tab, a quote, a comma or a bracket
+
+var separatorCharacter, aVeryLongConditionName, anotherVeryLongName;
+x = if (aVeryLongConditionName > anotherVeryLongName) { separatorCharacter = $ } { separatorCharacter = $a };
+
+var aVeryLongSeparatorCharacterName;
+if (aVeryLongSeparatorCharacterName == $ ) { "the then branch, made long enough".postln } { "and the else".postln };
+
+x = { $	 };
+
+x = $	 + 1;
+
+x = [$	 , 1];
+
+x = f.($	 );
+
+x = [
+    $,, 2,
+    3
+];
+
+x = [
+    $(, 1, 2,
+    3
+];
+
+x = [
+    "a, b", 2, $], 4,
+    3
+];
+
+x = (
+    a: $,, b: 2,
+    c: "x, y", d: 4
+);
+
+x = { |a| $	  };
+
+x = $	;
+
+x = [$	, $	 ];
+
+x = (a: $	 , b: 1);
+
+x = a.b($	  , 1);
+
+if (a == $	 ) { 1 } { 2 };
+
+x = $	  ;
+
+x = $	  // c
+;
+
+x = a  ? $	  ? b;
+
+f = { |a = $	  | a };
+
+x = $	  .ascii;
+
+x = [$	  ];
+
+x = ($	  );
+
+x = $	  ! 2;
+
+x = $	  -> 2;
+
+x = (a: 1, b : $	  );
+
+var a = $	  , b;
+
+x = $ + 1; y = { $ };
+
+x = $
+ + 1;
+
+== comments, line breaks and operators in odd places
+
+x = if (aVeryLongConditionName > anotherVeryLongName) { separatorCharacter = $ } { separatorCharacter = $a };
+
+if (aVeryLongSeparatorCharacterName == $ ) { "the then branch, made long enough".postln } { "and the else".postln };
+
+if(a // why
+, { 1 }, { 2 });
+
+f = {
+    // why a
+    |a|
+    a
+};
+
+x = a +// b;
+
+x = a */ b;
+
+x = a +/* b;
+
+x=-1;
+
+x = a - -1; y = a--1; z = a- -1; w = [1 -1]; v = a -1;
+
+x = 1 +.t 2; y = a +.x b; z = a + .t b;
+
+x = "line one   
+      indented line
+	tab line
+";
+
+x = [$ , $\\, $', $", $/, $*, $|, ${, $}, $(, $), $[, $], $;, $,, $$, $#, $\n];
+
+x = $
+;
+
+x = [1, $
+, 2];
+
+x = [1,
+ "a
+   b",
+ 2];
+
+x = [\a, \1, 'a b', \_a]; y = (\a: 1, \b : 2); z = [\ , 1];
+
+x = a max: b; y = a foo: b bar: c;
+
+x = (a : 1, b: 2, (c): 3, 4: 5, \d: 6, "e": 7);
+
+f = { |a b = 2 c| a };
+
+f = { |a = 1 b = -2| a };
+
+f = { |a 1 b -1| a };
+
+f = { arg a = 1 + 2, b = [1, 2], c(3) ... d; a };
+
+x = a.do({ 1 }) { 2 };
+
+y = a.collect({ |x| x }).select({ |x| x }); while({ a }, { b }); a.do(#{ 1 });
+
+x = if(a, { 1 }).foo; y = if(a, { 1 }, { 2 }) + 1; z = [if(a, {1}, {2}), 3];
+
+f = { |a| a }; f.(1); f.value(*[1]); g = f <> f;
+
+x = {: [a, b], a <- (1..3), b <- (1..3), a < b }; y = all {: x, x <- (1..5), x.odd };
+
+x = (1..5); y = (1, 3..9); z = (..5); w = a[1..]; v = a[..2]; u = a[1, 3..7];
+
+x = a ? b; y = a ?? { b }; z = a !? { b };
+
+x = [1e3, 1e-3, 1.5e3, 16rFF, 2r101, 0x1F, 1b, 2s, 2pi, 1.5pi, -1, -1.5, -pi, - 1];
+
+x = 1; // c
+y = 2 /* d */ + 3;
+
+x = [ ];
+y = ( );
+z = { };
+
+~a = 1; ~b = ~a + 1; a = `b; c = `(1);
+
+x = a.b_(1).c; a.b = 2; a[0] = 1; a.b[0] = 2;
+
+x = #[1, a, \b, "c", $d, [1, 2], nil, true];
+
+x = a.
+    foo.
+    bar(1);
+
+x = case { a } { 1 } { b } { 2 };
+y = switch (a) { 1 } { \one } { 2 } { \two };
+z = switch(a, 1, { \one }, 2, { \two });
+
+x = a.if({ 1 }, { 2 }); y = a.if { 1 } { 2 }; z = if(a) { 1 };
+
+x = (a: 1, b: 2)[\a]; y = { 1 }.value; z = "abc"[0]; w = \a.asString;
+
+x = a |==| b; y = a <! b; z = a ==> b; w = a ! 2;
+
+var a, b = 1, c; var d = [1, 2]; a = 1;
+
+x = (a: /* c */ 1);
+
+f = { arg a, b /* c */ = 2; a + b };
+
+f = { |a /* first */ b| a };
+
+x = $ // c
+;
+
+x = [1, 2,   $ 
+];
+
+x = "a" "b"
+    "c";
+
+x = a.foo  (1); y = a [0]; z = a . b;
+
+x = { |a| a }
+.value(1);
+
+a = (1 + 2) * 3; b = a.(1); (a + b).postln; (1..3).do { |i| i };
+
+x = { arg a; var b; b = a; b };
+
+x = {
+arg a,
+    b;
+a + b
+};
+
+x = [1, 2, 3
+// last
+];
+
+x = (
+    a: 1, // one
+    b: 2
+);
+
+x = a ++ b +/+ c; y = a +/+ "b/c"; z = a / b; w = a // b
+;
+
+x = 1 !? 2; y = a ! b ! c; z = a !? _.foo;
+
+x = a.foo { |b| b } { |c| c }; y = fork { 1 }; z = Routine { 1 } { 2 };
+
+x = a[b; c]; y = a.[1]; z = `a; w = `[1, 2];
+
+x = (a; b : 2); y = (a; b .. c); z = (a; b);
+
+if (a) { 1 } { 2 } ; while { a } { b }; for (1, 3) { |i| i }; forBy (1, 9, 2) { |i| i };
+
+x = a.b { 1 }.c; y = a.b({ 1 }, { 2 }).c;
+
+x = [a: 1, b: 2]; y = [a : 1]; z = [\a -> 1, b -> 2];
+
+x = a.do({ |i|
+    i.postln;
+});
+y = if(a, {
+    1
+}, {
+    2
+});
+
+x = 3.do({ |i| i }).size; y = 1.for(3, { |i| i }); z = 3.format(1); w = 3.fork { 1 };
+
+== operators beside numbers, names and pipes
+
+x = f.(a: 1, b: 2);
+
+y = f.value(1, b: 2);
+
+z = Array(1, a: 2);
+
+x = 2 pi;
+
+1;
+'a
+b'.foo
+
+x = a ==-1; y = a>-1; z = a?-1;
+
+x = (a:-1, b:-2); y = [1,-1, 2 -1, a -1];
+
+x = a.b(c:-1);
+
+x = [1, 2]
+-1;
+
+f = { |a| a }
+-1;
+
+x = a*-b;
+
+f = {|a|a};
+
+x=1;y=x-1;z=x- 1;
+
+x = a -b;
+
+x = a -1.0; y = a -1e3; z = [1 -1e3];
+
+x = 1 -1e3;
+
+x = a - 1e3 -2e3;
+

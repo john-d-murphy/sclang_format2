@@ -1,2 +1,2 @@
-// Source: Classes/Pprob.schelp block 0 (part 12/12)
-a.tableSize = 2048;
+// Source: Classes/Pprob.schelp block 0 (part 12/16)
+a.distribution = [1, 0];

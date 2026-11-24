@@ -1,2 +1,9 @@
-// Source: Classes/Pprob.schelp block 0 (part 9/12)
-a.distribution = [0, 0, 0, 0, 1, 0];
+// Source: Classes/Pprob.schelp block 0 (part 9/16)
+(
+SynthDef(\help_sinegrain,
+	{ |out = 0, freq = 440, sustain = 0.05|
+		var env;
+		env = EnvGen.kr(Env.perc(0.01, sustain, 0.2), doneAction: Done.freeSelf);
+		Out.ar(out, SinOsc.ar(freq, 0, env))
+	}).add;
+)

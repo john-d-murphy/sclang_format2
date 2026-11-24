@@ -1,30 +1,30 @@
 // src/rules/colons.rs
+use crate::engine::ast::end_of_token_before;
+use crate::engine::text::is_space;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::{Node, TreeCursor};
 
-fn is_identifier_char(b: u8) -> bool {
-    (b'a'..=b'z').contains(&b)
-        || (b'A'..=b'Z').contains(&b)
-        || (b'0'..=b'9').contains(&b)
-        || b == b'_'
-}
-
+/// One space after the colon of a key.
+///
+/// A colon that stands apart from its key stays apart, and one that is
+/// joined to it stays joined: `(a: 1)` is keyed by the symbol \a and
+/// `(a : 1)` by the value of the variable a.
 pub struct AddSpacesAroundColons;
 
 impl AddSpacesAroundColons {
-    fn visit_node(&self, cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
+    fn visit_node(cursor: &mut TreeCursor, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let node = cursor.node();
 
         // Only process colons in associative items (event key:value pairs)
         if node.kind() == "associative_item" {
-            self.process_associative_item(node, cx, edits);
+            Self::process_associative_item(node, cx, edits);
         }
 
         if cursor.goto_first_child() {
             loop {
-                self.visit_node(cursor, cx, edits);
+                Self::visit_node(cursor, cx, edits);
                 if !cursor.goto_next_sibling() {
                     break;
                 }
@@ -33,75 +33,44 @@ impl AddSpacesAroundColons {
         }
     }
 
-    fn process_associative_item(&self, node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
-        let Some(key_node) = node.child_by_field_name("key") else {
-            return;
-        };
+    fn process_associative_item(node: Node, cx: &Ctx, edits: &mut Vec<TextEdit>) {
         let Some(value_node) = node.child_by_field_name("value") else {
             return;
         };
-
-        let src = cx.bytes();
-
-        // For event_key tokens, the colon is INSIDE the key token
-        // e.g., "freq:" or "amp :" - we need to normalize to "key:" (no space before colon)
-        if key_node.kind() == "event_key" {
-            let key_start = key_node.start_byte();
-            let key_end = key_node.end_byte();
-            let key_text = &src[key_start..key_end];
-
-            // Find where identifier ends (first non-ident char)
-            let ident_end = key_text
-                .iter()
-                .position(|&b| !is_identifier_char(b))
-                .unwrap_or(key_text.len());
-
-            // Find the colon position within the key token
-            if let Some(colon_offset) = key_text.iter().rposition(|&b| b == b':') {
-                let abs_ident_end = key_start + ident_end;
-                let abs_colon = key_start + colon_offset;
-
-                // Remove any whitespace between identifier and colon
-                if abs_ident_end < abs_colon {
-                    edits.push(TextEdit {
-                        start_byte: abs_ident_end,
-                        end_byte: abs_colon,
-                        replacement: String::new(),
-                    });
-                }
-            }
-        }
-
-        // Fix spacing AFTER the key (before value)
-        // For event_key tokens, the colon is inside the key token.
-        // For symbol/string/number keys, the colon is a separate token
-        // between key and value — we must skip past it.
-        let after_key = key_node.end_byte();
-        let value_start = value_node.start_byte();
-
-        let src_slice = &src[after_key..value_start];
-        let colon_offset = if key_node.kind() == "event_key" {
-            0 // colon already inside key token
-        } else {
-            // Find the colon in the gap between key and value
-            src_slice.iter().position(|&b| b == b':').map(|p| p + 1).unwrap_or(0)
+        // The colon is the last character of an event_key, and a token of its
+        // own after any other key.
+        let mut cursor = node.walk();
+        let Some(colon) = node
+            .children(&mut cursor)
+            .find(|child| matches!(child.kind(), "event_key" | ":"))
+        else {
+            return;
         };
-
-        self.fix_space_after_colon(&src, after_key + colon_offset, value_start, edits);
+        let src = cx.bytes();
+        // Blanks before a colon that stands apart come down to one. They are
+        // never removed: without them a name and its colon are one token.
+        let key_end = end_of_token_before(colon);
+        let blanks = &src[key_end..colon.start_byte()];
+        if colon.kind() == ":" && blanks.len() > 1 && blanks.iter().all(|&b| is_space(b)) {
+            edits.push(TextEdit {
+                start_byte: key_end,
+                end_byte: colon.start_byte(),
+                replacement: " ".to_string(),
+            });
+        }
+        Self::fix_space_after_colon(src, colon.end_byte(), value_node.start_byte(), edits);
     }
 
     fn fix_space_after_colon(
-        &self,
         bytes: &[u8],
         start: usize,
         value_start: usize,
         edits: &mut Vec<TextEdit>,
     ) {
-        // Check for newlines - if multiline, don't touch
-        for i in start..value_start {
-            if bytes[i] == b'\n' || bytes[i] == b'\r' {
-                return;
-            }
+        // Only blanks are space to put right: a line break is left as it
+        // is, and so is a comment that stands between the colon and the value.
+        if !bytes[start..value_start].iter().all(|&b| is_space(b)) {
+            return;
         }
 
         let whitespace_count = value_start - start;
@@ -131,16 +100,12 @@ impl Rule for AddSpacesAroundColons {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        if cx.tree.root_node().has_error() {
-            return Ok(0);
-        }
-
         let mut edits = Vec::new();
 
         {
             let root = cx.tree.root_node();
             let mut cursor = root.walk();
-            self.visit_node(&mut cursor, cx, &mut edits);
+            Self::visit_node(&mut cursor, cx, &mut edits);
         }
 
         let n = edits.len();
@@ -148,5 +113,61 @@ impl Rule for AddSpacesAroundColons {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        AddSpacesAroundColons.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_comment_after_a_colon_is_kept() {
+        for src in [
+            "x = (a: /*c*/ 1);",
+            "x = (a:/*c*/1);",
+            "x = (\\a: // c\n 1);",
+        ] {
+            assert_eq!(format(src), src);
+        }
+    }
+
+    #[test]
+    fn test_one_space_after_a_colon() {
+        assert_eq!(
+            format("(a:1, \\b:  2, \"c\":3, 4:5)"),
+            "(a: 1, \\b: 2, \"c\": 3, 4: 5)"
+        );
+        assert_eq!(format("[a:1, b: 2]"), "[a: 1, b: 2]");
+    }
+
+    /// Asked of sclang: `(a : 1)` and `(a: 1)` compile to different things,
+    /// and so do `[a : 1]` and `[a: 1]`, `(Object : 1)` and `(Object: 1)`.
+    #[test]
+    fn test_the_space_before_a_colon_is_kept() {
+        for src in [
+            "(a : 1)",
+            "[a : 1]",
+            "(Object : 1)",
+            "(a + 1 : 2)",
+            "(\\a : 1)",
+        ] {
+            assert_eq!(format(src), src);
+        }
+        assert_eq!(format("(a :1)"), "(a : 1)");
+        assert_eq!(format("(pan  \t:  -0.5)"), "(pan : -0.5)");
+        assert_eq!(format("(a; \"b:c\" :1)"), "(a; \"b:c\" : 1)");
     }
 }

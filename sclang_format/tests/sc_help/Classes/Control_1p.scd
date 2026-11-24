@@ -1,2 +1,2 @@
-// Source: Classes/Control.schelp block 1 (part 16/17)
-b.setn(\amp, Array.rand(4, 0.005, 0.1))
+// Source: Classes/Control.schelp block 1 (part 16/18)
+b.setn(\harm, Array.rand(4, 1.0, 4.7))

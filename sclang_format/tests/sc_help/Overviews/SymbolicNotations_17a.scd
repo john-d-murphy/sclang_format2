@@ -1,2 +1,2 @@
 // Source: Overviews/SymbolicNotations.schelp block 17 (part 1/2)
-{ 10.rand }
+{ 10.rand } ! 5

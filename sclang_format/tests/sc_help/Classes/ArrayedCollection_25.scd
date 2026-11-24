@@ -1,7 +1,8 @@
 // Source: Classes/ArrayedCollection.schelp block 25
 (
-var z;
+var y, z;
 z = [1, 2, 3, 4];
-z.pop.postln;
+y = z.extend(10, 9);		// fill up with 9 until the size equals 10
 z.postln;
+y.postln;
 )

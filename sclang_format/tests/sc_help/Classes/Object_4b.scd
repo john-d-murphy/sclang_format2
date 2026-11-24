@@ -1,2 +1,2 @@
 // Source: Classes/Object.schelp block 4 (part 2/2)
-5.isKindOf(String);
+5.respondsTo('indexOf');

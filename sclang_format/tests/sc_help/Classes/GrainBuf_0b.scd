@@ -1,8 +1,8 @@
-// Source: Classes/GrainBuf.schelp block 0 (part 2/5)
+// Source: Classes/GrainBuf.schelp block 0 (part 2/6)
 (
 var winenv;
 
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01-44_1.aiff");
+b = Buffer.read(s, ExampleFiles.apollo11);
 // a custom envelope
 winenv = Env([0, 1, 0], [0.5, 0.5], [8, -8]);
 z = Buffer.sendCollection(s, winenv.discretize, 1);

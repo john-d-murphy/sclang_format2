@@ -12,11 +12,7 @@ x = {
 };
 
 // Allman-style if/else
-if (x.value > 0) {
-    "positive".postln
-} {
-    "non-positive".postln
-};
+if (x.value > 0) { "positive".postln } { "non-positive".postln };
 
 // this comment ends with an identifier; brace must NOT be moved onto it
 // block with both var and arg; weird spacing

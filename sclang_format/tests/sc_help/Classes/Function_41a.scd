@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 41 (part 1/13)
-try { 123.postln; 456.throw; 789.postln }
+// Source: Classes/Function.schelp block 41 (part 1/3)
+a = p { 5.do { |i| i.rand.yield } };

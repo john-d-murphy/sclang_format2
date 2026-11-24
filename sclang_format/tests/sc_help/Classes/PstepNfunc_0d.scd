@@ -1,7 +1,7 @@
 // Source: Classes/PstepNfunc.schelp block 0 (part 4/4)
 (
-f = { arg vals;
-	vals.inject(1, { arg x, y; x * y })
+f = { |vals|
+	vals.inject(1, { |x, y| x * y })
 };
 x = PstepNfunc(f,
 	[

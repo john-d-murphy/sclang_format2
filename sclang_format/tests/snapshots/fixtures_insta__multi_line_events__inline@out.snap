@@ -6,11 +6,7 @@ expression: out
 // multi-line events – messy on purpose
 
 // simple event, all pairs on one line
-(
-    freq: 440,
-    amp: 0.1,
-    pan: -0.5
-).play;
+(freq: 440, amp: 0.1, pan: -0.5).play;
 
 // event with comments and a string containing ':'
 (
@@ -22,15 +18,8 @@ expression: out
 );
 
 // nested parens / function calls inside values
-(
-    freq: (220 + 20),
-    amp: 0.1,
-    env: Env.perc(0.01, 1.0)
-);
+(freq: (220 + 20), amp: 0.1, env: Env.perc(0.01, 1.0));
 
 // looks like parens but is NOT an event (no top-level key:)
-(
-    "this: is in a string",
-    [1, 2, 3]
-);
+("this: is in a string", [1, 2, 3]);
 )

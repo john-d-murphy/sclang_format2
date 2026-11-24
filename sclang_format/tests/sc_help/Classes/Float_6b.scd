@@ -1,2 +1,2 @@
-// Source: Classes/Float.schelp block 6 (part 2/4)
-c = a + 2;
+// Source: Classes/Float.schelp block 6 (part 2/9)
+x = 2147483647 * 3;

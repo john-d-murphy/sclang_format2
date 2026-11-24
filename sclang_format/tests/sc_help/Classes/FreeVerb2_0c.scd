@@ -1,4 +1,4 @@
-// Source: Classes/FreeVerb2.schelp block 0 (part 3/7)
+// Source: Classes/FreeVerb2.schelp block 0 (part 3/8)
 (
 a = SynthDef(\src2x2, { |out|
 	Out.ar(out,

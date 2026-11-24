@@ -15,9 +15,7 @@ if (x > 0) { "pos".postln } { "neg".postln };
 [1, 2, 3].do { |n| n.postln };
 
 // already trailing closure – should remain unchanged
-[10, 20].do { |n|
-    n.squared.postln
-};
+[10, 20].do { |n| n.squared.postln };
 
 // string / comment patterns that should be untouched
 "This looks like if(c, { ... }, { ... }) but is just text".postln;

@@ -2,6 +2,6 @@
 (
 {
 	var mod = LFNoise2.ar(80);
-	SinOsc.ar(mod.linexp(-1,1, MouseX.kr(200, 8000, 1), MouseY.kr(200, 8000, 1))) * 0.1
+	SinOsc.ar(mod.linexp(-1, 1, MouseX.kr(200, 8000, 1), MouseY.kr(200, 8000, 1))) * 0.1
 }.play;
 )

@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 37 (part 2/6)
-a.flatBelow(0);
+// Source: Classes/SequenceableCollection.schelp block 37 (part 2/10)
+a.flatten2(4);

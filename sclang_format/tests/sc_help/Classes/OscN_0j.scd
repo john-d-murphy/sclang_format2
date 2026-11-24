@@ -3,7 +3,7 @@
 Routine({
 	var n = 32;
 	50.do({
-		b.sine1(Array.rand(n,0,1).cubed, true, true, true);
+		b.sine1(Array.rand(n, 0, 1).cubed, true, true, true);
 		0.25.wait;
 	});
 }).play;

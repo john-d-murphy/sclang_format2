@@ -1,2 +1,2 @@
-// Source: Classes/Collection.schelp block 57 (part 2/3)
-b = [2, 3, 4, 5];
+// Source: Classes/Collection.schelp block 57 (part 2/2)
+[(degree: 7, x: 4), (degree: 8, x: 5), (degree: -2, dur: 2.5)].flopDict(false);

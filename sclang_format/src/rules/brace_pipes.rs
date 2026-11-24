@@ -1,14 +1,83 @@
 use anyhow::Result;
-use tree_sitter::{Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
 
+use crate::engine::ast::blanks_before;
 use crate::engine::{Ctx, TextEdit};
-use crate::engine::ast::in_string_or_comment;
 
 pub struct BraceAndPipesSingleLine;
 
 impl BraceAndPipesSingleLine {
     fn same_line(src: &[u8], a: usize, b: usize) -> bool {
         !src[a..b].contains(&b'\n')
+    }
+
+    /// One space inside each brace of a block that stands on one line:
+    /// `{a}` is `{ a }`.
+    fn space_block(src: &[u8], blk: Node, edits: &mut Vec<TextEdit>) {
+        let range = blk.byte_range();
+        let open = range.start;
+        let close = range.end - 1; // assuming '}' is last byte of the block
+
+        if src.get(open) != Some(&b'{') || src.get(close) != Some(&b'}') {
+            return;
+        }
+        if !Self::same_line(src, open, close) {
+            return;
+        }
+        if Ctx::subtree_has_error(blk) {
+            return;
+        }
+
+        // After '{' -> exactly one space (unless already before '|', both fine: we want "{ |")
+        let mut after_l = open + 1;
+        while after_l < src.len() && src[after_l].is_ascii_whitespace() && src[after_l] != b'\n' {
+            after_l += 1;
+        }
+        if after_l == close {
+            // An empty block: the space after '{' and the space before '}'
+            // are the same gap, so it gets one edit, not the two below.
+            if close != open + 2 {
+                edits.push(TextEdit {
+                    start_byte: open + 1,
+                    end_byte: close,
+                    replacement: " ".into(),
+                });
+            }
+            return;
+        }
+        if after_l == open + 1 {
+            edits.push(TextEdit {
+                start_byte: after_l,
+                end_byte: after_l,
+                replacement: " ".into(),
+            });
+        } else if after_l > open + 2 {
+            edits.push(TextEdit {
+                start_byte: open + 1,
+                end_byte: after_l,
+                replacement: " ".into(),
+            });
+        }
+
+        // Before '}' -> exactly one space (unless previous is '{', then "{ }" still okay)
+        // As far back as the token before the brace: the second byte of a
+        // character (`$ `, a `$` and a tab) is no space.
+        let before_r = blk
+            .child(blk.child_count() - 1)
+            .map_or(close, |brace| blanks_before(src, brace));
+        if before_r == close {
+            edits.push(TextEdit {
+                start_byte: before_r,
+                end_byte: before_r,
+                replacement: " ".into(),
+            });
+        } else if close - before_r != 1 {
+            edits.push(TextEdit {
+                start_byte: before_r,
+                end_byte: close,
+                replacement: " ".into(),
+            });
+        }
     }
 }
 
@@ -19,7 +88,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
         let bytes = cx.bytes();
-        let src = bytes.as_slice();
+        let src = bytes;
         let root = cx.tree.root_node();
         let lang = cx.tree.language();
 
@@ -31,122 +100,7 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
         let mut caps = cur.captures(&q, root, src);
 
         while let Some((m, idx)) = caps.next() {
-            let blk = m.captures[*idx].node;
-            let range = blk.byte_range();
-            let open = range.start;
-            let close = range.end - 1; // assuming '}' is last byte of the block
-
-            if src.get(open) != Some(&b'{') || src.get(close) != Some(&b'}') {
-                continue;
-            }
-            if !Self::same_line(src, open, close) {
-                continue;
-            }
-            if in_string_or_comment(root, open) {
-                continue;
-            }
-            if Ctx::subtree_has_error(blk) {
-                continue;
-            }
-
-            // After '{' -> exactly one space (unless already before '|', both fine: we want "{ |")
-            let mut after_l = open + 1;
-            while after_l < src.len() && src[after_l].is_ascii_whitespace() && src[after_l] != b'\n'
-            {
-                after_l += 1;
-            }
-            if after_l == open + 1 {
-                edits.push(TextEdit {
-                    start_byte: after_l,
-                    end_byte: after_l,
-                    replacement: " ".into(),
-                });
-            } else if after_l > open + 2 {
-                edits.push(TextEdit {
-                    start_byte: open + 1,
-                    end_byte: after_l,
-                    replacement: " ".into(),
-                });
-            }
-
-            // Before '}' -> exactly one space (unless previous is '{', then "{ }" still okay)
-            let mut before_r = close;
-            while before_r > 0
-                && src[before_r - 1].is_ascii_whitespace()
-                && src[before_r - 1] != b'\n'
-            {
-                before_r -= 1;
-            }
-            if before_r == close {
-                edits.push(TextEdit {
-                    start_byte: before_r,
-                    end_byte: before_r,
-                    replacement: " ".into(),
-                });
-            } else if close - before_r != 1 {
-                edits.push(TextEdit {
-                    start_byte: before_r,
-                    end_byte: close,
-                    replacement: " ".into(),
-                });
-            }
-
-            // Pipes: ensure "{ |" and "| }" if a parameter_list is present
-            let p = blk.child_by_field_name("parameters");
-            if let Some(params) = p {
-                // params are enclosed in '|' ... '|'
-                let pr = params.byte_range();
-                // left pipe at pr.start - 1, right pipe at pr.end
-                if pr.start > 0 && src.get(pr.start - 1) == Some(&b'|') {
-                    // ensure a space between '{' and left pipe: already handled by the '{' rule ("{ ")
-                    // ensure space **after** left pipe
-                    let lp = pr.start - 1;
-                    let mut after_lp = lp + 1;
-                    while after_lp < src.len()
-                        && src[after_lp].is_ascii_whitespace()
-                        && src[after_lp] != b'\n'
-                    {
-                        after_lp += 1;
-                    }
-                    if after_lp == lp + 1 {
-                        edits.push(TextEdit {
-                            start_byte: after_lp,
-                            end_byte: after_lp,
-                            replacement: " ".into(),
-                        });
-                    } else if after_lp > lp + 2 {
-                        edits.push(TextEdit {
-                            start_byte: lp + 1,
-                            end_byte: after_lp,
-                            replacement: " ".into(),
-                        });
-                    }
-                }
-                if src.get(pr.end) == Some(&b'|') {
-                    // ensure space **before** right pipe
-                    let rp = pr.end;
-                    let mut before_rp = rp;
-                    while before_rp > 0
-                        && src[before_rp - 1].is_ascii_whitespace()
-                        && src[before_rp - 1] != b'\n'
-                    {
-                        before_rp -= 1;
-                    }
-                    if rp - before_rp == 0 {
-                        edits.push(TextEdit {
-                            start_byte: rp,
-                            end_byte: rp,
-                            replacement: " ".into(),
-                        });
-                    } else if rp - before_rp != 1 {
-                        edits.push(TextEdit {
-                            start_byte: before_rp,
-                            end_byte: rp,
-                            replacement: " ".into(),
-                        });
-                    }
-                }
-            }
+            Self::space_block(src, m.captures[*idx].node, &mut edits);
         }
 
         let n = edits.len();
@@ -154,5 +108,40 @@ impl crate::rules::Rule for BraceAndPipesSingleLine {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+    use crate::rules::Rule;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        BraceAndPipesSingleLine.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_the_tab_or_blank_of_a_character_before_the_closing_brace_is_kept() {
+        assert_eq!(format("x = { $\t };"), "x = { $\t };");
+        assert_eq!(format("x = { |a| $\t  };"), "x = { |a| $\t };");
+        assert_eq!(format("x = { $ };"), "x = { $  };");
+        assert_eq!(format("x = { $\t};"), "x = { $\t };");
+    }
+
+    #[test]
+    fn test_an_empty_block_gets_one_space_however_it_came() {
+        assert_eq!(format("x = {};"), "x = { };");
+        assert_eq!(format("x = { };"), "x = { };");
+        assert_eq!(format("x = {  };"), "x = { };");
+        assert_eq!(format("foo(bar, {});"), "foo(bar, { });");
     }
 }

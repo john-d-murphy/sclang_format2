@@ -12,7 +12,7 @@ var amp;
 var out;
 
 // SynthDef with weird spacing
-SynthDef(\testA, { |freq = 440, amp = 0.1, pan = (-0.5)|
+SynthDef(\testA, { |freq = 440, amp = 0.1, pan = -0.5|
     var sig1, sig2;
     sig1 = SinOsc.ar(freq.linexp(0, 1, 200, 2000)) * 0.1;
     sig2 = sig1 ! 2;
@@ -34,9 +34,7 @@ c = (a + b) * (c - 1);
 d = a * -1 + b.neg;
 
 // control keywords
-if (a > 0) {
-    "a>0".postln
-};
+if (a > 0) { "a>0".postln };
 /*
 for(0,10,1,{ |i|i.postln;});*/
 

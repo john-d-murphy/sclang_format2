@@ -1,2 +1,2 @@
-// Source: Classes/AbstractFunction.schelp block 10 (part 3/5)
-a = Pseries(0, 1, inf).sqrt;
+// Source: Classes/AbstractFunction.schelp block 10 (part 3/6)
+[a.value(1), b.value(1)];

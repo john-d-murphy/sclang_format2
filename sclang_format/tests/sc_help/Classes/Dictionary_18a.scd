@@ -1,2 +1,2 @@
-// Source: Classes/Dictionary.schelp block 18 (part 1/2)
-var d = Dictionary.newFrom([\a, "hey", \b, "hello"]);
+// Source: Classes/Dictionary.schelp block 18 (part 1/10)
+d = (x:1, y:0);

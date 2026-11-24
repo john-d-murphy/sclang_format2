@@ -1,6 +1,23 @@
 // src/engine/layout.rs
 use crate::engine::IndentStyle;
 
+/// The widest a line may be, where no other width is asked for.
+pub const DEFAULT_LINE_WIDTH: usize = 80;
+
+/// The columns `text` takes on a line: one for a character, and for a tab as
+/// many as a level of indent.
+#[must_use]
+pub fn columns(text: &[u8], style: IndentStyle) -> usize {
+    text.iter()
+        .map(|&b| match b {
+            b'\t' => style.width(),
+            // A byte that continues a character is no column of its own.
+            0x80..=0xBF => 0,
+            _ => 1,
+        })
+        .sum()
+}
+
 /// Info about a single line in the source.
 #[derive(Debug, Clone)]
 pub struct LineInfo<'a> {
@@ -19,7 +36,8 @@ pub struct LineCursor<'a> {
 }
 
 impl<'a> LineCursor<'a> {
-    pub fn new(src: &'a [u8]) -> Self {
+    #[must_use]
+    pub const fn new(src: &'a [u8]) -> Self {
         Self { src, pos: 0 }
     }
 }
@@ -67,23 +85,10 @@ impl<'a> Iterator for LineCursor<'a> {
 }
 
 /// Build an indent string for a given logical depth.
+#[must_use]
 pub fn make_indent(style: IndentStyle, depth: usize) -> String {
     match style {
         IndentStyle::Tabs => "\t".repeat(depth),
         IndentStyle::Spaces { width } => " ".repeat(depth * width),
     }
-}
-
-/// Is this line blank or only whitespace?
-pub fn is_blank_or_ws(line: &LineInfo<'_>, src: &[u8]) -> bool {
-    if line.first_non_ws >= line.end {
-        return true;
-    }
-    // defensive; line.indent already covers [start..first_non_ws]
-    for b in &src[line.first_non_ws..line.end] {
-        if !matches!(*b, b' ' | b'\t') {
-            return false;
-        }
-    }
-    true
 }

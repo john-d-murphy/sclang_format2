@@ -8,7 +8,7 @@
 	my = MouseY.kr(0.1, 2, 1);
 
 	blas = [0, 12, 24] +.x [60, 64, 67] ++ [60+36];
-	zieh = [62, 67, 71,   74, 77, 81, 83,   86, 89, 93];
+	zieh = [62, 67, 71, 74, 77, 81, 83, 86, 89, 93];
 
 	trig = Dust.kr(1);
 	which = ToggleFF.kr(TDelay.kr(trig, schnauf));
@@ -16,7 +16,7 @@
 	blas = Select.kr(which, [blas, zieh]);
 	u = SelectXFocus.ar(
 		mx * blas.size,
-		blas.collect {|f|
+		blas.collect { |f|
 			Pulse.ar((Rand(-0.04, 0.09) + f).midicps * 0.5, 0.48 + LFNoise1.kr(0.06, 0.1), 0.2)
 		},
 		my

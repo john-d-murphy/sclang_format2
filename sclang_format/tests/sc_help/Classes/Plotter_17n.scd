@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 17 (part 14/15)
-Env.new({ 1.0.rand2 }! 8, { 1.0.rand } ! 7, \sin).plot;
+// Source: Classes/Plotter.schelp block 17 (part 14/24)
+a.value = { |i| (0..10000).normalize(0, 8pi + i).sin } ! 3;

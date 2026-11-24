@@ -1,2 +1,2 @@
-// Source: Classes/NodeProxy.schelp block 19 (part 3/9)
-a.quant = 2.0;
+// Source: Classes/NodeProxy.schelp block 19 (part 3/7)
+a[0] = { Ringz.ar(Impulse.ar(5, 0, 0.1), 1260) };

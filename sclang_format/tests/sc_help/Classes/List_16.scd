@@ -1,2 +1,7 @@
 // Source: Classes/List.schelp block 16
-List[1, 2, 3, 4].mirror.postln;
+(
+var y, z;
+z = List[1, 2, 3, 4, 5, 6];
+y = z.copySeries(0, 2, 5);
+y.postln;
+)

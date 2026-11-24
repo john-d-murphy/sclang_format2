@@ -1,8 +1,7 @@
-// Source: Classes/Plotter.schelp block 20 (part 1/11)
-( // units displayed in the axis labels by default
-p = (4 ** (-1.5, -1.25 .. 0)).plot;
-p.specs = \delay.asSpec.minval_(0.1);
-p.domainSpecs = [0, 10, \lin, 0, 0, "xUnits"].asSpec;
-p.setGridProperties(\y, \constrainLabelExtents, false);
-p.setGridProperties(\x, \constrainLabelExtents, true);
+// Source: Classes/Plotter.schelp block 20 (part 1/7)
+(
+p = 4.collect({
+	100.collect({ rrand(0, 1.0) })
+}).plot(bounds: Rect(50, 50, 500, 650));
+p.plotColor_([Color.red, Color.blue, Color.green, Color.cyan]);
 )

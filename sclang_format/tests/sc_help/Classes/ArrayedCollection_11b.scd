@@ -1,2 +1,2 @@
-// Source: Classes/ArrayedCollection.schelp block 11 (part 2/3)
-y.putEach([4, 7], [\smelly, \head]);
+// Source: Classes/ArrayedCollection.schelp block 11 (part 2/5)
+a.clipAt(2) // same as at

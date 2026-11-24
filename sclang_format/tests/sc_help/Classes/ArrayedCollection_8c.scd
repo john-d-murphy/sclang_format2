@@ -1,2 +1,2 @@
-// Source: Classes/ArrayedCollection.schelp block 8 (part 3/4)
-y.wrapAt(4).postln;
+// Source: Classes/ArrayedCollection.schelp block 8 (part 3/6)
+x.at((-1..3));

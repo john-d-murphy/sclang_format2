@@ -1,2 +1,2 @@
-// Source: Classes/SequenceableCollection.schelp block 17 (part 1/2)
-y = List[ 10, 5, 77, 55, 12, 123];
+// Source: Classes/SequenceableCollection.schelp block 17 (part 1/3)
+y = [7, 8, 7, 6, 5, 6, 7, 6, 7, 8, 9];

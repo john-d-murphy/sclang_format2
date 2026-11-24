@@ -1,2 +1,10 @@
-// Source: Classes/Phasor.schelp block 0 (part 4/5)
-{ BufRd.ar(1, b.bufnum, Phasor.ar(0, BufRateScale.kr(b.bufnum), 0, BufFrames.kr(b.bufnum))) }.play;
+// Source: Classes/Phasor.schelp block 0 (part 4/7)
+(
+{ var trig, rate, x, sr;
+	rate = MouseX.kr(1, 200, 1);
+	trig = Impulse.ar(rate);
+	sr = SampleRate.ir;
+	x = Phasor.ar(trig, rate / sr, 0, 1, [0, MouseY.kr(0, 1)]);
+	SinOsc.ar(x * 500 + 500, 0, 0.2)
+}.play;
+)

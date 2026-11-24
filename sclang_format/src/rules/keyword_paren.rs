@@ -1,74 +1,15 @@
+use crate::engine::ast::tokens_of_kinds;
+use crate::engine::text::{is_newline, is_space};
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
-
-const fn is_ident_char(b: u8) -> bool {
-    b.is_ascii_lowercase() || b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-}
-
-/// Check if the quote at `i` is escaped by an odd number of backslashes.
-fn is_escaped(bytes: &[u8], i: usize) -> bool {
-    let mut count = 0;
-    let mut j = i;
-    while j > 0 {
-        j -= 1;
-        if bytes[j] == b'\\' {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count % 2 == 1
-}
-
-/// Check that `kw` starts at `i` and is a standalone token (not part of a longer ident).
-/// Also returns false if preceded by '.' (method call, not keyword).
-fn is_keyword_start(bytes: &[u8], i: usize, kw: &[u8]) -> bool {
-    let len = bytes.len();
-    let klen = kw.len();
-    if i + klen > len {
-        return false;
-    }
-    if &bytes[i..i + klen] != kw {
-        return false;
-    }
-
-    // preceding boundary: start-of-file or non-identifier
-    if i > 0 {
-        let prev = bytes[i - 1];
-        // If preceded by '.', this is a method call like .if() or .for()
-        // not a control structure keyword
-        if prev == b'.' {
-            return false;
-        }
-        if is_ident_char(prev) {
-            return false;
-        }
-    }
-
-    // following boundary: end-of-file or non-identifier
-    if i + klen < len {
-        let next = bytes[i + klen];
-        if is_ident_char(next) {
-            return false;
-        }
-    }
-
-    true
-}
+/// The names that are written with a space before their parenthesis.
+const KEYWORDS: [&str; 5] = ["if", "while", "for", "switch", "case"];
 
 /// Ensure exactly one ASCII space between keyword and '(' on the same line.
-fn fix_keyword_paren(bytes: &[u8], start: usize, kw_len: usize, edits: &mut Vec<TextEdit>) {
+fn fix_keyword_paren(bytes: &[u8], i: usize, edits: &mut Vec<TextEdit>) {
     let len = bytes.len();
-    let i = start + kw_len;
     if i >= len {
         return;
     }
@@ -103,6 +44,8 @@ fn fix_keyword_paren(bytes: &[u8], start: usize, kw_len: usize, edits: &mut Vec<
     // else exactly one space already → do nothing
 }
 
+/// One space between a control structure's name and its parenthesis:
+/// `if(a)` is `if (a)`.
 pub struct KeywordParenSpacing;
 
 impl Rule for KeywordParenSpacing {
@@ -111,113 +54,26 @@ impl Rule for KeywordParenSpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
-        let len = bytes.len();
-
+        let bytes = cx.bytes();
         let mut edits = Vec::new();
-
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut in_single_str = false;
-        let mut in_double_str = false;
-
-        let mut i = 0usize;
-        while i < len {
-            let b = bytes[i];
-
-            // inside comments/strings
-            if in_line_comment {
-                if b == b'\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
-                continue;
+        // The name where it is the control structure's own token, and where
+        // it is the callee of a plain call (`if(a)` with one argument). As a
+        // method's name after a dot (`x.if(a)`) or as a variable's it is
+        // neither.
+        let mut names = KEYWORDS.to_vec();
+        names.push("method_name");
+        for name in tokens_of_kinds(cx.tree.root_node(), &names) {
+            let is_callee = name
+                .parent()
+                .and_then(|call| call.child_by_field_name("callee"))
+                .is_some_and(|callee| callee.id() == name.id());
+            let text = std::str::from_utf8(&bytes[name.byte_range()]).unwrap_or("");
+            let after_a_dot = name.prev_sibling().is_some_and(|dot| dot.kind() == ".");
+            if !after_a_dot
+                && (name.kind() != "method_name" || (is_callee && KEYWORDS.contains(&text)))
+            {
+                fix_keyword_paren(bytes, name.end_byte(), &mut edits);
             }
-
-            if in_block_comment {
-                if b == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
-            }
-
-            if in_single_str {
-                if b == b'\'' && !is_escaped(bytes, i) {
-                    in_single_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_double_str {
-                if b == b'"' && !is_escaped(bytes, i) {
-                    in_double_str = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            // entering comments/strings
-            if b == b'/' && i + 1 < len {
-                if bytes[i + 1] == b'/' {
-                    in_line_comment = true;
-                    i += 2;
-                    continue;
-                } else if bytes[i + 1] == b'*' {
-                    in_block_comment = true;
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if b == b'\'' {
-                in_single_str = true;
-                i += 1;
-                continue;
-            }
-
-            if b == b'"' {
-                in_double_str = true;
-                i += 1;
-                continue;
-            }
-
-            // keywords we care about
-            if is_keyword_start(bytes, i, b"if") {
-                fix_keyword_paren(bytes, i, 2, &mut edits);
-                i += 2;
-                continue;
-            }
-
-            if is_keyword_start(bytes, i, b"while") {
-                fix_keyword_paren(bytes, i, 5, &mut edits);
-                i += 5;
-                continue;
-            }
-
-            if is_keyword_start(bytes, i, b"for") {
-                fix_keyword_paren(bytes, i, 3, &mut edits);
-                i += 3;
-                continue;
-            }
-
-            if is_keyword_start(bytes, i, b"switch") {
-                fix_keyword_paren(bytes, i, 6, &mut edits);
-                i += 6;
-                continue;
-            }
-
-            if is_keyword_start(bytes, i, b"case") {
-                fix_keyword_paren(bytes, i, 4, &mut edits);
-                i += 4;
-                continue;
-            }
-
-            i += 1;
         }
 
         let n = edits.len();
@@ -225,5 +81,49 @@ impl Rule for KeywordParenSpacing {
             cx.apply_edits(edits)?;
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        KeywordParenSpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_one_space_between_a_control_structures_name_and_its_parenthesis() {
+        assert_eq!(format("if(a) { 1 };"), "if (a) { 1 };");
+        assert_eq!(format("while   (a) { 1 };"), "while (a) { 1 };");
+        assert_eq!(format("if(a);"), "if (a);");
+    }
+
+    #[test]
+    fn test_a_method_or_a_variable_of_that_name_is_left_alone() {
+        for src in [
+            "x.if(a, b);",
+            "x.while(a);",
+            "if = 1; y = iffy(2);",
+            "x.switch(a, b, c);",
+        ] {
+            assert_eq!(format(src), src);
+        }
+    }
+
+    /// A rule that counts quotes is lost after a character that is one.
+    #[test]
+    fn test_a_quote_character_before_it_hides_no_keyword() {
+        assert_eq!(format("x = $\"; if(a) { 1 };"), "x = $\"; if (a) { 1 };");
+        assert_eq!(format("x = $'; if(a) { 1 };"), "x = $'; if (a) { 1 };");
     }
 }

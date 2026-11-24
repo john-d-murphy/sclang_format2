@@ -1,2 +1,2 @@
-// Source: Classes/MIDIdef.schelp block 0 (part 5/10)
-MIDIIn.doNoteOnAction(1, 1, 64, 64);
+// Source: Classes/MIDIdef.schelp block 0 (part 5/11)
+MIDIdef.noteOn(\test4, { |...args| args.postln });

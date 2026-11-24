@@ -3,7 +3,7 @@
 {
 	SinOsc.ar(
 		Index.kr(
-			LocalBuf.newFrom([ 200, 300, 400, 500, 600, 800 ]),
+			LocalBuf.newFrom([200, 300, 400, 500, 600, 800]),
 			MouseX.kr(0, 7)
 		),
 		0,

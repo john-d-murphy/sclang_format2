@@ -1,4 +1,4 @@
-// Source: Guides/FFT-Overview.schelp block 12 (part 1/2)
+// Source: Guides/FFT-Overview.schelp block 12 (part 1/4)
 (
 SynthDef("help-multichannel FFT", { |out=0| // bufnum is an array
 	var in, chain;

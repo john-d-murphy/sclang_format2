@@ -1,2 +1,2 @@
-// Source: Classes/Buffer.schelp block 10 (part 3/5)
-Buffer.cachedBufferAt(s, 0);
+// Source: Classes/Buffer.schelp block 10 (part 3/9)
+c = Buffer.new(s, 44100 * 4.0, 2);

@@ -1,0 +1,14 @@
+---
+source: tests/fixtures_insta.rs
+expression: out
+---
+(
+// An array of plain things is joined into one line when the line is no wider
+// than 80 with it. The line is measured as it will stand, with the spaces the
+// other rules put around its `=`. The first is 80 so and is joined; the second
+// is 81 so, though 79 as it is written here, and keeps its lines.
+theFirstOfTheTwoArraysHere = [10000000, 20000000, 30000000, 40000000, 50000000];
+theSecondOfTheTwoArraysHere = [
+    10000000, 20000000, 30000000, 40000000, 50000000
+];
+)

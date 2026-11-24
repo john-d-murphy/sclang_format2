@@ -2,12 +2,12 @@
 (
 var func, views;
 
-func = {|me|
+func = { |me|
 	Pen.use{
 		1.do{
 			Color(
 				rrand(0.0, 1),
-				rrand(0.0,0.2),
+				rrand(0.0, 0.2),
 				rrand(0.0, 0.8),
 				rrand(0.4, 0.8)
 			).set;
@@ -19,11 +19,11 @@ func = {|me|
 
 w = Window.new("DrawFunc Examples").front;
 w.view.background_(Color.white);
-views = {|i|
+views = { |i|
 	v = UserView(w, Rect(20+(i*120), 100, 100, 100));
 	v.background = Color.rand;
 	v.drawFunc = func;
-	v.mouseMoveAction = {|me| me.refresh };
+	v.mouseMoveAction = { |me| me.refresh };
 	v.clearOnRefresh_(false);
 } ! 3;
 w.refresh;

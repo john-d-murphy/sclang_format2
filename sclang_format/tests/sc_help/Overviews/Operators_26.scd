@@ -1,6 +1,8 @@
 // Source: Overviews/Operators.schelp block 26
-{ // modulates and envelopes z
-var z;
-z = FSinOsc.ar(500);
-z max: FSinOsc.ar(0.1);
-}.play;
+(
+{
+	var a, b;
+	a = FSinOsc.ar(800);
+	b = FSinOsc.ar(XLine.kr(200,500,5));
+	((a * b) + a) * 0.125
+}.play)

@@ -1,2 +1,2 @@
-// Source: Classes/Dictionary.schelp block 20 (part 1/5)
-d = Dictionary[\a -> "hello", \b -> "robot", \c -> [1, 2, 3]];
+// Source: Classes/Dictionary.schelp block 20 (part 1/2)
+var d = Dictionary.newFrom(["hey", 1, "hello", 2]);

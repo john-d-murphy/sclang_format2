@@ -14,7 +14,7 @@ w.drawFunc = {
 
     // everything else we draw is now clipped
     Pen.fillColor = Color.yellow;
-    Pen.fillRect(Rect(0,0,400,400));
+    Pen.fillRect(Rect(0, 0, 400, 400));
     Pen.fillColor = Color.red;
     Pen.moveTo(200@100);
 

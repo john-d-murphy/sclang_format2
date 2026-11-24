@@ -9,6 +9,6 @@ u = TempoClock(1, 0, v);
 
 // start two functions at beat zero in each clock.
 // t controls u's tempo. They should stay in sync.
-t.schedAbs(0, { arg beat, sec; u.tempo = t.tempo * [1,2,3,4,5].choose; [\t, beat, sec].postln; 1 });
-u.schedAbs(0, { arg beat, sec; [\u, beat, sec].postln; 1 });
+t.schedAbs(0, { |beat, sec| u.tempo = t.tempo * [1, 2, 3, 4, 5].choose; [\t, beat, sec].postln; 1 });
+u.schedAbs(0, { |beat, sec| [\u, beat, sec].postln; 1 });
 )

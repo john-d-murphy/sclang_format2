@@ -235,6 +235,29 @@ fn sc_help_fixture() {
 /// These are extracted from /usr/share/SuperCollider/HelpSource/ using
 /// extract_help_from_docs.py
 ///
+/// Corpus files the formatter refuses. Every corpus file is SuperCollider
+/// (sclang compiles it), so each is a grammar gap, a rule bug, or text that
+/// sclang's lexer forgives and no grammar should. The corpus test tolerates
+/// exactly these failures and no others; if one of these files
+/// starts passing, the test fails with a stale-entry error so the list cannot
+/// rot. To list the refusals afresh, run the sharded tests and read the `PF`
+/// lines (path, pass, rule, status, message) of the files they write:
+///
+///     cargo test --test fixtures_insta sc_help_corpus_shard -- --test-threads=8
+///     cat target/sc_help_shards/shard_*.tsv | grep '^PF'
+const KNOWN_PARSE_FAILURES: &[&str] = &[
+    // No gap in the grammar, and nothing a grammar should take. The file is
+    // `'(sclang-eval-line-forward nil)`: Emacs Lisp from the help for the
+    // Emacs editor, with a quote that is never closed. sclang's lexer, when
+    // a quoted symbol is still open at the end of its line, says so ("Symbol
+    // open at end of line") and ends the text there, as if the file stopped
+    // before the quote. What is left to compile here is nothing, and sclang
+    // accepts nothing. A grammar that read an open quote as the end of the
+    // file would hide every quote left open by mistake, and those the
+    // formatter must refuse.
+    "tests/sc_help/Reference/EmacsEditor_1.scd",
+];
+
 /// Run with: cargo test sc_help_corpus_idempotent
 /// Skip with: cargo test -- --skip sc_help_corpus_idempotent
 #[test]
@@ -284,12 +307,44 @@ fn sc_help_corpus_idempotent() {
         }
     }
 
-    let total = success_count + parse_failures.len() + idempotency_failures.len();
+    // Partition parse failures into known (documented grammar limitations)
+    // and unexpected (regressions). Entries are "path: err" strings.
+    let is_known = |entry: &str| {
+        KNOWN_PARSE_FAILURES
+            .iter()
+            .any(|k| entry.starts_with(&format!("{}:", k)) || entry.starts_with(&format!("{} ", k)))
+    };
+    let (known_failures, parse_failures): (Vec<_>, Vec<_>) =
+        parse_failures.into_iter().partition(|e| is_known(e));
+
+    // Staleness check: a known-failure file that no longer fails must be
+    // removed from KNOWN_PARSE_FAILURES.
+    let stale: Vec<&&str> = KNOWN_PARSE_FAILURES
+        .iter()
+        .filter(|k| !known_failures.iter().any(|e| e.starts_with(*k as &str)))
+        .collect();
+
+    let total =
+        success_count + known_failures.len() + parse_failures.len() + idempotency_failures.len();
     eprintln!("\n=== SC Help Corpus Results ===");
     eprintln!("Total: {}", total);
     eprintln!("Success: {}", success_count);
-    eprintln!("Parse failures: {}", parse_failures.len());
+    eprintln!(
+        "Known parse failures (documented grammar limitations): {}",
+        known_failures.len()
+    );
+    eprintln!("Unexpected parse failures: {}", parse_failures.len());
     eprintln!("Idempotency failures: {}", idempotency_failures.len());
+
+    if !stale.is_empty() {
+        panic!(
+            "\nKNOWN_PARSE_FAILURES contains entries that now pass — remove them:\n{}",
+            stale
+                .iter()
+                .map(|k| format!("  {}\n", k))
+                .collect::<String>()
+        );
+    }
 
     if !parse_failures.is_empty() || !idempotency_failures.is_empty() {
         let mut msg = String::new();
@@ -548,11 +603,22 @@ fn run_sc_help_corpus_shard(shard_idx: usize, shards: usize) {
         idempotency_failures.len()
     );
 
+    // Tolerate documented grammar limitations; fail on anything else.
+    // (No staleness check here — shards see only a slice of the corpus, so
+    // an absent known-failure is expected. The unsharded
+    // sc_help_corpus_idempotent test owns keeping the list honest.)
+    let unexpected: Vec<&ParseFailure> = parse_failures
+        .iter()
+        .filter(|f| !KNOWN_PARSE_FAILURES.contains(&f.path.as_str()))
+        .collect();
+
     assert!(
-        parse_failures.is_empty() && idempotency_failures.is_empty(),
-        "Shard {}/{} failed. See {}",
+        unexpected.is_empty() && idempotency_failures.is_empty(),
+        "Shard {}/{} failed ({} unexpected parse failures, {} idempotency failures). See {}",
         shard_idx,
         shards,
+        unexpected.len(),
+        idempotency_failures.len(),
         shard_results_path(shard_idx).display()
     );
 }

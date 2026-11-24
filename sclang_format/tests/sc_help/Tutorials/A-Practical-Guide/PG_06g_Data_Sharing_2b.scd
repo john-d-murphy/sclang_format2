@@ -2,7 +2,7 @@
 (
 TempoClock.default.tempo = 1;
 p = Pfset({
-	~buf = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+	~buf = Buffer.read(s, ExampleFiles.child);
 	0.2.yield;	// sync seems to be incompatible with patterns
 	~bufFrames = ~buf.numFrames;
 }, Pbind(

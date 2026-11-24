@@ -1,2 +1,2 @@
-// Source: Classes/ArrayedCollection.schelp block 8 (part 1/4)
-y = [ 1, 2, 3 ];
+// Source: Classes/ArrayedCollection.schelp block 8 (part 1/6)
+x = [10, 20, 30];

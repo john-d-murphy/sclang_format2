@@ -2,7 +2,7 @@
 (
 z = { // toy around with boost/cut
 BHiShelf.ar(
-	SoundIn.ar([0,1]),
+	SoundIn.ar([0, 1]),
 	MouseX.kr(2200, 18000, \exponential),
 	1.0, // rs
 	MouseY.kr(18.0, -18.0, \linear),

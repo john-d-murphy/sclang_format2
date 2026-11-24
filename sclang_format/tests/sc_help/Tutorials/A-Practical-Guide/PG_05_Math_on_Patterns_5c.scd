@@ -1,5 +1,2 @@
-// Source: Tutorials/A-Practical-Guide/PG_05_Math_on_Patterns.schelp block 5 (part 3/3)
-p.do { |x| x.postln };
-
-	// flattening the pattern returns a one-dimensional stream of numbers
-p.flatten.do { |x| x.postln };
+// Source: Tutorials/A-Practical-Guide/PG_05_Math_on_Patterns.schelp block 5 (part 3/5)
+p = Pseq(Array.fill(5, { Array.fill(4, { rrand(1, 5) }) }), 1);

@@ -1,7 +1,7 @@
 // Source: Tutorials/Mark_Polishook_tutorial/Japanese_version/12.schelp block 6 (part 1/3)
 (
 // サウンド・ファイルを読み込む
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+b = Buffer.read(s, ExampleFiles.child);
 
 // サウンド・ファイル全体をループ再生するサンプル・プレーヤーを定義する
 SynthDef("aLoopingSamplePlayer", { arg outBus = 0, bufnum = 0, rateScale = 1, mul = 1;

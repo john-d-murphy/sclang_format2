@@ -11,12 +11,10 @@ a = [1, 2, 3];
 b = ["foo", "bar"];
 
 // short event that should collapse to one line
-(
-    freq: 440,
-    amp: 0.1
-).play;
+(freq: 440, amp: 0.1).play;
 
-// long array: collapsing this would blow past 80 chars, so it should stay multi-line
+// long array: collapsing this would blow past 80 chars, so it should stay
+// multi-line
 c = [
     "this is a pretty long string that will push the line over eighty characters when formatted",
     "second element also quite long to keep things wide"

@@ -11,9 +11,7 @@ expression: out
 ~h = { |x, y| x + y };
 
 // multiline heads should not get space before newline
-~m = { |freq, amp|
-    SinOsc.ar(freq) * amp
-};
+~m = { |freq, amp| SinOsc.ar(freq) * amp };
 
 // blocks without pipes should be untouched
 {

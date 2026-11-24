@@ -1,2 +1,2 @@
-// Source: Classes/Bag.schelp block 7 (part 4/9)
+// Source: Classes/Bag.schelp block 7 (part 4/10)
 a.add("something");

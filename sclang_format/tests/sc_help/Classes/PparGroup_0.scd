@@ -1,7 +1,7 @@
 // Source: Classes/PparGroup.schelp block 0
 (
 var p, q, r, o;
-p = Pbind(\degree, Prand((0..7),12), \dur, 0.3, \legato, 0.2);
+p = Pbind(\degree, Prand((0..7), 12), \dur, 0.3, \legato, 0.2);
 
 PparGroup(p).play;
 

@@ -1,7 +1,6 @@
-// Source: Classes/HLayout.schelp block 0 (part 4/5)
+// Source: Classes/HLayout.schelp block 0 (part 4/6)
 (
 w = Window().front;
-a = { HLayout(Slider(w, Rect(0, 0, 130, 20)), Button(w)) } ! 12;
-b = { Slider2D(w) } ! 3;
-w.layout = HLayout(VLayout(*a), VLayout(*b));
+a = { { PopUpMenu(w, Rect(0, 0, 50, 20)).items_({ "abcdefghijklmno".scramble.keep(3) } ! 7) } ! 10 } ! 10;
+w.layout = HLayout(*a.collect { |x| VLayout(*x) });
 )

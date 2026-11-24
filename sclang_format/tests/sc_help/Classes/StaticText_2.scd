@@ -1,7 +1,7 @@
 // Source: Classes/StaticText.schelp block 2
 (
 w = Window.new.front;
-w.view.background=Color.white;
+w.view.background = Color.white;
 a = Array.fill(20, { StaticText(w, Rect(w.bounds.extent.x.rand, w.bounds.extent.y.rand, 160, 16))
 	.string_("Rolof's Rolex".scramble)
 	.align_(\center)

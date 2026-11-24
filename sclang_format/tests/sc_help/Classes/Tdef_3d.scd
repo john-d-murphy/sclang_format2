@@ -4,7 +4,7 @@ Tdef(\x, {
 	var x;
 	x = Pseries(300, 20, 100).loop.asStream;
 	loop({
-		s.sendMsg("/s_new", "pdef_grainlet", -1,0,0, \freq, x.next);
+		s.sendMsg("/s_new", "pdef_grainlet", -1, 0, 0, \freq, x.next);
 		0.05.wait;
 	})
 })

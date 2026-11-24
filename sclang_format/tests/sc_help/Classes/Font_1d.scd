@@ -3,7 +3,7 @@
 var w, f;
 
 w = Window("Fonts", Rect(128, 64, 340, 360));
-w.view.decorator = f = FlowLayout(w.view.bounds,Point(4, 4),Point(4, 2));
+w.view.decorator = f = FlowLayout(w.view.bounds, Point(4, 4), Point(4, 2));
 
 [
 "Helvetica-Bold",
@@ -12,8 +12,8 @@ w.view.decorator = f = FlowLayout(w.view.bounds,Point(4, 4),Point(4, 2));
 "Arial",
 "Gadget",
 "MarkerFelt-Thin"
-].do({ arg name;
-	var v, s, n, spec, p, height = 16;
+].do({ |name|
+	var v, s, n, height = 16;
 
 		v = StaticText(w, Rect(0, 0, 110, height + 20));
 		v.font = Font(name, 13);

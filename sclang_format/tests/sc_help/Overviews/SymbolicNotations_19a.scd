@@ -1,2 +1,2 @@
-// Source: Overviews/SymbolicNotations.schelp block 19 (part 1/4)
-f = { |a| a * 5 }
+// Source: Overviews/SymbolicNotations.schelp block 19 (part 1/3)
+f = { |a| a * 5 } <> {|a| a + 2 };

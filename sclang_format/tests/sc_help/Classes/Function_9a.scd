@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 9 (part 1/3)
-t = Task({ { "I'm loopy".postln; 1.wait;}.loop });
+// Source: Classes/Function.schelp block 9 (part 1/2)
+a = { |a, b, c| postf("% plus % plus % is %\n", a, b, c, a + b + c); "" };

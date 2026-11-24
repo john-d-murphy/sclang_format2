@@ -1,2 +1,2 @@
-// Source: Classes/Plotter.schelp block 19 (part 2/7)
-p.axisLabelX_("one");
+// Source: Classes/Plotter.schelp block 19 (part 2/9)
+a.specs = ControlSpec(100, 2000, units: "Hz");

@@ -1,4 +1,6 @@
 // src/rules/pipe_heads.rs
+use crate::engine::ast::end_of_token_before;
+use crate::engine::text::is_operator_char;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
@@ -19,7 +21,7 @@ impl Rule for PipeHeadSpacing {
             let root = tree.root_node();
 
             let mut cursor = root.walk();
-            visit_pipe_params(&mut cursor, &src, &mut edits);
+            visit_pipe_params(&mut cursor, src, &mut edits);
         }
 
         let n = edits.len();
@@ -55,25 +57,25 @@ fn is_valid_context(pipe_list_node: tree_sitter::Node) -> bool {
     let mut current = pipe_list_node.parent();
     while let Some(node) = current {
         if node.kind() == "function_block" {
-            if let Some(parent) = node.parent() {
-                if parent.kind() == "function_call" {
-                    let mut has_receiver = false;
-                    let mut cursor = parent.walk();
-                    if cursor.goto_first_child() {
-                        loop {
-                            if cursor.field_name() == Some("receiver") {
-                                has_receiver = true;
-                                break;
-                            }
-                            if !cursor.goto_next_sibling() {
-                                break;
-                            }
+            if let Some(parent) = node.parent()
+                && parent.kind() == "function_call"
+            {
+                let mut has_receiver = false;
+                let mut cursor = parent.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        if cursor.field_name() == Some("receiver") {
+                            has_receiver = true;
+                            break;
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
                         }
                     }
+                }
 
-                    if !has_receiver {
-                        return false;
-                    }
+                if !has_receiver {
+                    return false;
                 }
             }
             break;
@@ -143,10 +145,11 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
     let brace_end = brace.end_byte();
     let left_start = left.start_byte();
 
-    // Handle both adjacent {| and spaced { | cases
+    // Handle both adjacent {| and spaced { | cases. Whatever stands between
+    // them is replaced only when it is all space: a comment there stays.
     if brace_end <= left_start {
         let current_spacing = &src[brace_end..left_start];
-        if current_spacing != b" " {
+        if current_spacing != b" " && current_spacing.iter().all(u8::is_ascii_whitespace) {
             // Replace whatever spacing exists (including none) with exactly one space
             edits.push(TextEdit {
                 start_byte: brace_end,
@@ -163,19 +166,28 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
         space_end += 1;
     }
 
-    if space_end > inner_start {
+    // One blank stays where an operator character follows, which a comment
+    // begins with too: a pipe and an operator character with nothing between
+    // them are one operator to sclang (`|/*`, `|-`).
+    let wanted = if src.get(space_end).is_some_and(|&b| is_operator_char(b)) {
+        " "
+    } else {
+        ""
+    };
+    if space_end > inner_start && &src[inner_start..space_end] != wanted.as_bytes() {
         edits.push(TextEdit {
             start_byte: inner_start,
             end_byte: space_end,
-            replacement: String::new(),
+            replacement: wanted.to_string(),
         });
     }
 
-    // 3) Remove spaces immediately before right pipe
+    // 3) Remove spaces immediately before right pipe, as far back as the
+    //    token before it: the blank of the character `$ ` is that token's.
     let inner_end = right.start_byte();
+    let token_end = end_of_token_before(right).max(left.end_byte());
     let mut space_start = inner_end;
-    while space_start > left.end_byte()
-        && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
+    while space_start > token_end && (src[space_start - 1] == b' ' || src[space_start - 1] == b'\t')
     {
         space_start -= 1;
     }
@@ -186,5 +198,48 @@ fn fix_pipe_spacing(pipe_list: tree_sitter::Node, src: &[u8], edits: &mut Vec<Te
             end_byte: inner_end,
             replacement: String::new(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::IndentStyle;
+    use crate::grammar;
+
+    fn format(src: &str) -> String {
+        let mut cx = Ctx::new(
+            src.to_string(),
+            &grammar::language(),
+            IndentStyle::Spaces { width: 4 },
+        )
+        .unwrap();
+        PipeHeadSpacing.run(&mut cx).unwrap();
+        cx.to_string()
+    }
+
+    #[test]
+    fn test_a_comment_beside_a_pipe_is_kept_and_stays_a_comment() {
+        // Asked of sclang: `{ |/*c*/ a| a }` is a syntax error, `|/*` being
+        // one operator to its lexer.
+        for src in [
+            "f = { | /*c*/ a, b = 2| a + b };",
+            "f = { /*c*/ |a| a };",
+            "f = { // why a\n    |a| a };",
+        ] {
+            assert_eq!(format(src), src);
+        }
+        assert_eq!(format("f = { |   /*c*/ a| a };"), "f = { | /*c*/ a| a };");
+    }
+
+    #[test]
+    fn test_no_blanks_inside_the_pipes() {
+        assert_eq!(format("f = {| a, b |a };"), "f = { |a, b|a };");
+    }
+
+    #[test]
+    fn test_the_character_space_before_the_closing_pipe_is_kept() {
+        assert_eq!(format("f = { |c = $ | c };"), "f = { |c = $ | c };");
+        assert_eq!(format("f = { |c = $   | c };"), "f = { |c = $ | c };");
     }
 }

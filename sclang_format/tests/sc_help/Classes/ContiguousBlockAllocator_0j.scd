@@ -1,2 +1,2 @@
-// Source: Classes/ContiguousBlockAllocator.schelp block 0 (part 10/12)
-(0, 4 .. 23).do
+// Source: Classes/ContiguousBlockAllocator.schelp block 0 (part 10/11)
+(0, 4 .. 23).do { |i| c.reserve(i) };

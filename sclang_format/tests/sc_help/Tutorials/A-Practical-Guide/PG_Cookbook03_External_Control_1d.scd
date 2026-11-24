@@ -1,0 +1,2 @@
+// Source: Tutorials/A-Practical-Guide/PG_Cookbook03_External_Control.schelp block 1 (part 4/4)
+c.remove;

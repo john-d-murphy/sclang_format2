@@ -1,4 +1,4 @@
-// Source: Guides/Internal-Snooping.schelp block 3 (part 1/3)
+// Source: Guides/Internal-Snooping.schelp block 3 (part 1/5)
 (
 // create some windows to snoop in
 5.do { | i |

@@ -1,8 +1,10 @@
-// Source: Classes/Pbind.schelp block 7 (part 3/3)
+// Source: Classes/Pbind.schelp block 7 (part 3/4)
 (
-e.stream = Pbind(
-	\degree, Pxrand([0, 1, 2, 4, 6, 3, 5, 7, 8], inf),
-	\dur, Prand([0.2, 0.4, 0.8], inf), \amp, 0.05,
-	\octave, 5, \instrument, \cfstring1
-).asStream;
+// a SynthDef
+SynthDef(\test, {
+	|out, freq = 440, amp = 0.1, nharms = 10, pan = 0, gate = 1|
+	var audio = Blip.ar(freq, nharms, amp);
+	var env = Linen.kr(gate, doneAction: Done.freeSelf);
+	OffsetOut.ar(out, Pan2.ar(audio, pan, env));
+}).add;
 )

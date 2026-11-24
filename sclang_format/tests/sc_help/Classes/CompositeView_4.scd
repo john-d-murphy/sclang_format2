@@ -6,25 +6,25 @@ q = 3;
 
 b = Button(a, Rect(0, 0, 160, 20));
 
-b.states = Array.fill(q, { arg i;
+b.states = Array.fill(q, { |i|
 	[i.asString, Color.white, colors.wrapAt(i)]
 });
 
-b.action = { arg butt;
+b.action = { |butt|
 	p.visible = false;
 	p = c.at(butt.value);
 	p.visible = true;
 };
 
-c = Array.fill(q, { arg i;
+c = Array.fill(q, { |i|
 	b = CompositeView(a, Rect(0, 25, 300, 300));
 	b.background = colors[i].alpha_(0.2);
 	b.visible = false;
 	b;
 });
 
-5.do{ arg i; Slider(c[0], Rect(10, i * 30 + 10, 150, 25)).value_(1.0.rand) };
-5.do{ arg i; Slider(c[1], Rect(i * 30 + 10, 10, 25, 150)).value_(1.0.rand) };
+5.do{ |i| Slider(c[0], Rect(10, i * 30 + 10, 150, 25)).value_(1.0.rand) };
+5.do{ |i| Slider(c[1], Rect(i * 30 + 10, 10, 25, 150)).value_(1.0.rand) };
 Slider2D(c[2], Rect(10, 10, 155, 150)).x_(1.0.rand).y_(1.0.rand);
 
 p = c.at(0); // previous

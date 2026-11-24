@@ -7,8 +7,8 @@ w.onClose = { run = false };
 w.front;
 w.drawFunc = {
 	thisThread.randSeed = Date.seed;
-	if (0.0125.coin) { seed = Date.seed; phase = 0; zoom = 0.7; zoomf = exprand(1/1.01, 1.01); }
-	{ phase = phase + (2pi/80); zoom = zoom * zoomf; };
+	if (0.0125.coin) { seed = Date.seed; phase = 0; zoom = 0.7; zoomf = exprand(1/1.01, 1.01) }
+	{ phase = phase + (2pi/80); zoom = zoom * zoomf };
 	thisThread.randSeed = seed;
 	Pen.use {
 		var p1 = Point(20.rand2 + (h/2), 20.rand2 + (v/2));
@@ -24,8 +24,8 @@ w.drawFunc = {
 		xlates = xlates ++ xlates.neg;
 		ylates = ylates ++ xlates.neg;
 		rots = rots ++ rots.neg;
-		xform = {|i| [xlates[i], ylates[i], rots[i], xscales[i], yscales[i]] } ! 4;
-		Pen.strokeColor = Color.grey(1,0.5);
+		xform = { |i| [xlates[i], ylates[i], rots[i], xscales[i], yscales[i]] } ! 4;
+		Pen.strokeColor = Color.grey(1, 0.5);
 		Pen.width = 8.linrand + 1;
 		Pen.translate(400, 400);
 		Pen.scale(zoom, zoom);
@@ -45,6 +45,6 @@ w.drawFunc = {
 	};
 };
 
-{ while { run } { w.refresh; 0.05.wait; } }.fork(AppClock)
+{ while { run } { w.refresh; 0.05.wait } }.fork(AppClock)
 
 )

@@ -1,2 +1,2 @@
-// Source: Classes/Object.schelp block 10 (part 1/7)
-5.0 == 5;
+// Source: Classes/Object.schelp block 10 (part 1/2)
+{ 10.do { 10.postln } }.cs;

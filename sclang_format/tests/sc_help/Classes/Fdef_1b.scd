@@ -5,7 +5,7 @@ Fdef(\dur, 0.2);
 
 fork {
 	loop {
-		s.sendMsg("/s_new", "gpdef", -1, 1,1, \freq, Fdef(\freq).value);
+		s.sendMsg("/s_new", "gpdef", -1, 1, 1, \freq, Fdef(\freq).value);
 		Fdef(\dur).value.wait;
 	}
 };

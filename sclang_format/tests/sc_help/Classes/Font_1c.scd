@@ -1,6 +1,6 @@
 // Source: Classes/Font.schelp block 1 (part 3/5)
 (
-var updateFont;
+var updateFont, w, m, y, t, a, b, c;
 w = Window("Fonts", Rect(150, Window.screenBounds.height - 500, 400, 400)).front;
 w.view.decorator = FlowLayout(w.view.bounds);
 StaticText.new(w, Rect(5, 0, 30, 20)).string_("Font").align_(\right);
@@ -20,7 +20,7 @@ c = PopUpMenu(w, 200@20).items_(["The quick drowned fox"]).background_(Color.ran
 
 y.action = {
 	var font;
-	font = Font(m.items[m.value],y.items[y.value].asInteger);
+	font = Font(m.items[m.value], y.items[y.value].asInteger);
 	a.font_(font).refresh;
 	b.font_(font).refresh;
 	c.font_(font).refresh;

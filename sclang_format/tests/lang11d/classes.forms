@@ -1,0 +1,228 @@
+The grammar of class files, production by production.
+
+As interpreted.forms, for the productions that only a class file reaches.
+Each form is a whole class file. tests/lang11d.rs has sclang compile them
+into its class library (in a run of its own, with the forms' directory as an
+include path), requires that our grammar parses each without an error, and
+that the formatted files compile to the same classes: the same variables,
+constants and methods, each method to the same code.
+
+Every class here is named Lang11d..., and every method added to an existing
+class lang11d..., so that nothing in the class library is overridden. No
+form defines initClass or anything else that runs when the library is
+compiled. A method's body does a little more than return an argument, since
+sclang compiles one that only returns to no code at all.
+
+== root: classes
+== classes: (empty)
+
+Lang11dOne { }
+
+== classes: classes classdef
+
+Lang11dFirst { }
+Lang11dSecond { }
+
+== root: classextensions
+== classextensions: classextension
+
++ Object { lang11dExtension { } }
+
+== classextensions: classextensions classextension
+
++ Object { lang11dFirstExtension { } }
++ Integer { lang11dSecondExtension { } }
+
+== classdef: classname superclass '{' classvardecls methods '}'
+== superclass: (empty)
+== classname: CLASSNAME
+
+Lang11dPlain {
+	var a;
+	b { }
+}
+
+== classdef: classname '[' optname ']' superclass '{' classvardecls methods '}'
+== optname: (empty)
+== optname: name
+
+Lang11dIndexed[slot] { }
+
+Lang11dIndexedBare[] { }
+
+Lang11dIndexedChild[slot] : Lang11dIndexedParent { }
+Lang11dIndexedParent[slot] { }
+
+== classextension: '+' classname '{' methods '}'
+
++ Object {
+	lang11dExtensionA { ^1 + 2 }
+	*lang11dExtensionB { ^3 + 4 }
+}
+
++Object { lang11dExtensionC { } }
+
+== superclass: ':' classname
+
+Lang11dChild : Lang11dParent { }
+Lang11dParent { }
+
+== classvardecls: (empty)
+
+Lang11dNoDecls { a { ^1 + 2 } }
+
+== classvardecls: classvardecls classvardecl
+
+Lang11dDecls {
+	classvar a;
+	var b;
+	const c = 1;
+	var d;
+}
+
+== classvardecl: CLASSVAR rwslotdeflist ';'
+== rwslotdeflist: rwslotdef
+== rwslotdeflist: rwslotdeflist ',' rwslotdef
+
+Lang11dClassvar { classvar a; }
+
+Lang11dClassvars { classvar a, <b, >c, <>d; }
+
+== classvardecl: VAR rwslotdeflist ';'
+
+Lang11dVar { var a; }
+
+Lang11dVars { var a, <b, >c, <>d; }
+
+== classvardecl: SC_CONST constdeflist ';'
+== constdeflist: constdef
+
+Lang11dConst { const a = 1; }
+
+== constdeflist: constdeflist optcomma constdef
+
+Lang11dConsts { const a = 1, b = 2 c = 3; }
+
+== constdef: rspec name '=' slotliteral
+
+Lang11dConstKinds { const a = 1, <b = 1.5, c = $a, d = "a", e = \a, f = true, g = false, h = nil, i = #[1, 2], j = -1, k = 2pi, l = inf; }
+
+== rwslotdef: rwspec name
+== rwspec: (empty)
+
+Lang11dSlot { var a, <b; }
+
+== rwslotdef: rwspec name '=' slotliteral
+
+Lang11dSlotValue { var a = 1, <b = "a", >c = #[1], <>d = \a, e = -1.5, f = nil; }
+
+Lang11dClassSlotValue { classvar a = 1, <b = $a, >c = true, <>d = 1s; }
+
+== rwspec: '<'
+== rwspec: READWRITEVAR
+== rwspec: '>'
+
+Lang11dAccess { var <a, <>b, >c, < d, <> e, > f; }
+
+== rspec: (empty)
+== rspec: '<'
+
+Lang11dConstAccess { const <a = 1, < b = 2; }
+
+== methods: (empty)
+
+Lang11dNoMethods { var a; }
+
+== methods: methods methoddef
+
+Lang11dMethods {
+	a { ^1 + 2 }
+	b { ^3 + 4 }
+}
+
+== methoddef: name '{' argdecls funcvardecls primitive methbody '}'
+
+Lang11dMethod {
+	a { }
+	b { arg c; var d; ^c + d }
+	e { |f, g = 1 ... h| ^f + g }
+	while { ^1 + 2 }
+}
+
+== methoddef: '*' name '{' argdecls funcvardecls primitive methbody '}'
+
+Lang11dClassMethod {
+	*a { }
+	* b { arg c; var d; ^c + d }
+	*while { ^1 + 2 }
+}
+
+== methoddef: binop '{' argdecls funcvardecls primitive methbody '}'
+
+Lang11dOperators {
+	+ { |a| ^a + 1 }
+	- { |a| ^a + 1 }
+	* { |a| ^a + 1 }
+	< { |a| ^a + 1 }
+	> { |a| ^a + 1 }
+	| { |a| ^a + 1 }
+	<> { |a| ^a + 1 }
+	== { |a| ^a + 1 }
+	+++ { |a| ^a + 1 }
+	<--> { |a| ^a + 1 }
+	/ { |a| ^a + 1 }
+	% { |a| ^a + 1 }
+	! { |a| ^a + 1 }
+	? { |a| ^a + 1 }
+	@ { |a| ^a + 1 }
+	& { |a| ^a + 1 }
+}
+
+== methoddef: '*' binop '{' argdecls funcvardecls primitive methbody '}'
+
+Lang11dClassOperators {
+	* + { |a| ^a + 1 }
+	*- { |a| ^a + 1 }
+	* * { |a| ^a + 1 }
+	*== { |a| ^a + 1 }
+	*<> { |a| ^a + 1 }
+	*| { |a| ^a + 1 }
+}
+
+== methbody: retval
+== retval: (empty)
+== primitive: (empty)
+
+Lang11dEmptyBody { a { } }
+
+== methbody: exprseq retval
+
+Lang11dBody {
+	a { 1 }
+	b { 1; 2 }
+	c { 1; ^2 }
+	d { 1 ^2 }
+	e { 1; 2; }
+}
+
+== retval: '^' expr optsemi
+
+Lang11dReturn {
+	a { ^1 + 2 }
+	b { ^3 + 4; }
+	c { ^this }
+}
+
+== primitive: primname optsemi
+== primname: PRIMITIVENAME
+
+Lang11dPrimitive {
+	a { _BasicNew }
+	b { _BasicNew; }
+	c { _BasicNew ^this.primitiveFailed }
+	d { arg e; var f; _BasicNew; ^this.primitiveFailed }
+}
+
+== lexer comments: a class file may hold nothing else
+
+// no class at all

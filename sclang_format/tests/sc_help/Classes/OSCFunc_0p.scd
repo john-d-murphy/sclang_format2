@@ -1,2 +1,2 @@
-// Source: Classes/OSCFunc.schelp block 0 (part 16/22)
-m.sendMsg("/chat", "Hello App 1");
+// Source: Classes/OSCFunc.schelp block 0 (part 16/25)
+OSCdef(\test, { |msg, time, addr, recvPort| 'Changed Unmatching'.postln }, '/chat', n);

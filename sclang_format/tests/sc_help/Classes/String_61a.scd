@@ -1,2 +1,2 @@
-// Source: Classes/String.schelp block 61 (part 1/6)
-"echo $0".unixCmd;
+// Source: Classes/String.schelp block 61 (part 1/2)
+"Store this on Post".storeOn(Post);

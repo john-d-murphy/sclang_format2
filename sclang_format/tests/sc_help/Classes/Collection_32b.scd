@@ -1,2 +1,2 @@
-// Source: Classes/Collection.schelp block 32 (part 2/4)
-b = a.collectCopy { |x| if(x.even) { a.remove(x); "removed" } { x }  };
+// Source: Classes/Collection.schelp block 32 (part 2/2)
+[1, 2, 3, 4, 5].inject([], _++_);

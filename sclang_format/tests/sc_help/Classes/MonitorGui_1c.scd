@@ -1,2 +1,2 @@
-// Source: Classes/MonitorGui.schelp block 1 (part 3/4)
+// Source: Classes/MonitorGui.schelp block 1 (part 3/7)
 MonitorGui.new(Ndef(\a), bounds: Rect(100, 100, 400, 30))

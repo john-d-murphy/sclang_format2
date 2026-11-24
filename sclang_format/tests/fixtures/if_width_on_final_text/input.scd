@@ -1,0 +1,15 @@
+(
+// An if is joined into one line when the line is no wider than 80 with it.
+// This one is exactly 80 once the semicolons that end its blocks, and the one
+// after it that ends the block it stands in, are gone; with them it is 83. It
+// is joined on the first pass, not left for the second.
+x = { |k|
+	switch(k)
+	{ 102 } {
+		theSwitchIsOnNow = theSwitchIsOnNow.not;
+		if(theSwitchIsOnNow)
+		{ lamp.turnItselfOn; }
+		{ lamp.switchItselfOff; };
+	};
+};
+)

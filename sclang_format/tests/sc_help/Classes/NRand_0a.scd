@@ -1,6 +1,6 @@
 // Source: Classes/NRand.schelp block 0 (part 1/5)
 (
-SynthDef("help-NRand", { arg out=0, n=0;
+SynthDef("help-NRand", { |out = 0, n = 0|
 	Out.ar(out,
 		FSinOsc.ar(
 			NRand(1200.0, 4000.0, n),

@@ -17,12 +17,8 @@ var flag, x, y;
 flag = true;
 x = !flag;
 y = a && !b;
-if (!flag) {
-    "nope".postln
-};
-while (!flag) {
-    "loop".postln
-};
+if (!flag) { "nope".postln };
+while (!flag) { "loop".postln };
 
 // strings/comments with ! should be untouched
 "!not an operator!".postln;

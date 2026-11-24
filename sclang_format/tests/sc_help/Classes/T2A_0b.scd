@@ -3,5 +3,5 @@
 {
 	var trig = Impulse.kr(200);
 	[T2A.ar(trig), K2A.ar(trig)].lag(0.001)
-}.plot2(10/200);
+}.plot(10/200);
 )

@@ -1,11 +1,12 @@
 // Source: Classes/Pevent.schelp block 3
 (
 SynthDef(\help_sinegrain,
-	    { arg out=0, freq=440, sustain=0.05;
-		        var env;
-		        env = EnvGen.kr(Env.perc(0.01, sustain, 0.2), doneAction: Done.freeSelf);
-		        Out.ar(out, SinOsc.ar(freq, 0, env))
-    }).add;
+	{ |out = 0, freq = 440, sustain = 0.05|
+		var env;
+		env = EnvGen.kr(Env.perc(0.01, sustain, 0.2), doneAction: Done.freeSelf);
+		Out.ar(out, SinOsc.ar(freq, 0, env))
+	}
+).add;
 
 a = Pn(
 	Plazy({
@@ -26,6 +27,6 @@ Tdef(\x, {
 		event.play;
 		event[\dur].wait;
 	}
-
+	
 }).play;
 )

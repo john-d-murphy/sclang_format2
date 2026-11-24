@@ -1,2 +1,2 @@
-// Source: Classes/EventPatternProxy.schelp block 3 (part 7/26)
-a.source = Pbind(\instrument, \Pdefhelp, \dur, 0.25, \degree, Pseq(#[0, 5, 4, 3]));
+// Source: Classes/EventPatternProxy.schelp block 3 (part 7/25)
+b.source = Pbind(\instrument, \Pdefhelp, \dur, 0.125, \degree, Pseq(#[7, 8, 7, 8]));

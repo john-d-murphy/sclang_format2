@@ -1,4 +1,4 @@
-// Source: Classes/GrainFM.schelp block 0 (part 2/5)
+// Source: Classes/GrainFM.schelp block 0 (part 2/6)
 (
 var winenv;
 // a custom envelope

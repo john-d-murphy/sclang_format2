@@ -7,5 +7,5 @@ w = Window.new("Pbetarand", Rect(10, 10, 540, 800));
 // plot the values
 c.plot(bounds: Rect(10, 10, 520, 380), discrete: true, parent: w);
 // a histogram of the values
-c.histo(500).plot(bounds: Rect(10, 410, 520, 380), parent: w);(discrete: true);
+c.histo(500).plot(bounds: Rect(10, 410, 520, 380), parent: w); (discrete: true);
 )

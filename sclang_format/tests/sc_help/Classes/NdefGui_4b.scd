@@ -1,2 +1,2 @@
-// Source: Classes/NdefGui.schelp block 4 (part 2/2)
-(	Ndef(\a)	)
+// Source: Classes/NdefGui.schelp block 4 (part 2/29)
+n = NdefGui(Ndef(\a), 0, options: NdefGui.control);

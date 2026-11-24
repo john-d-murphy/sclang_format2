@@ -9,7 +9,7 @@ b = Button(w, Rect(20, 20, 340, 30))
 			["the cessation of suffering", Color.red, Color.white],
 			["there is a path to cessation of suffering", Color.blue, Color.clear]
 		])
-		.action_({ arg butt;
+		.action_({ |butt|
 			butt.value.postln;
 		});
 w.front;

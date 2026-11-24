@@ -3,7 +3,7 @@
 var a, x, f;
 a = Pbrown(0.0, 1.0, 0.1, inf);
 
-f = { |pattern, dt=0.02, min=300, max=900|
+f = { |pattern, dt = 0.02, min = 300, max = 900|
 	{
 		var x = pattern.asStream;
 		loop {

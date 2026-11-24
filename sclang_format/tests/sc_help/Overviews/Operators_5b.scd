@@ -1,2 +1,2 @@
-// Source: Overviews/Operators.schelp block 5 (part 2/2)
-{ SinOsc.ar(110).rand }.plot;
+// Source: Overviews/Operators.schelp block 5 (part 2/6)
+42.0.rand;

@@ -1,2 +1,2 @@
-// Source: Classes/Object.schelp block 18 (part 4/10)
-b.instVarHash([\repeats]);
+// Source: Classes/Object.schelp block 18 (part 4/4)
+b.identityHash;

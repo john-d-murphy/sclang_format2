@@ -2,5 +2,5 @@
 (
 i = Image.new(SCDoc.helpSourceDir +/+ "images/Swamp.png");
 i.bounds.postln; // getting the dimensions
-w =i.plot;
+w = i.plot;
 )

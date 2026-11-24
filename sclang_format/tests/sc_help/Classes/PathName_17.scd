@@ -1,7 +1,7 @@
 // Source: Classes/PathName.schelp block 17
 (
 FileDialog.new(
-	{ arg ok, path;
+	{ |ok, path|
 	var myPathName;
 	if (ok,
 		{

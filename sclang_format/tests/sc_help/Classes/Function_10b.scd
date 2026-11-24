@@ -1,5 +1,2 @@
-// Source: Classes/Function.schelp block 10 (part 2/3)
-(
-{ "chicken".postln }.defer(0); // schedules on the AppClock
-{ "egg".postln }.defer // evaluates immediately
-)
+// Source: Classes/Function.schelp block 10 (part 2/2)
+a.performKeyValuePairs(\value, [\a, 1, \b, 2, \c, 3, \d, 4]);

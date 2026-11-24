@@ -13,7 +13,7 @@ SynthDef(\help_beattrack2, { |out|
 
 	hsound = Pan2.ar(BPF.ar(WhiteNoise.ar * Decay.kr(trackh, 0.05), 3000, 0.66), -0.5);
 
-	qsound = Pan2.ar(HPF.ar(WhiteNoise.ar * Decay.kr(trackq, 0.05),5000), 0.5);
+	qsound = Pan2.ar(HPF.ar(WhiteNoise.ar * Decay.kr(trackq, 0.05), 5000), 0.5);
 
 	Out.ar(out, bsound + hsound + qsound);
 }).play;

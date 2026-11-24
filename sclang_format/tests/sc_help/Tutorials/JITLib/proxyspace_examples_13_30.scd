@@ -1,2 +1,2 @@
-// Source: Tutorials/JITLib/proxyspace_examples.schelp block 13 (part 31/35)
-~out.lag(\xfreq, 0.01);
+// Source: Tutorials/JITLib/proxyspace_examples.schelp block 13 (part 31/38)
+~out.group.set(\trig, 0.1, \dt, 1, \xfreq, rrand(2000,9000));

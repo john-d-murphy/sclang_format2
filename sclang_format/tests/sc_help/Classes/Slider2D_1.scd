@@ -6,7 +6,7 @@ t = Slider2D(w, Rect(20, 20, 280, 280))
 		.x_(0.5) // initial location of x
 		.y_(1)   // initial location of y
 		.background_(Color.rand)
-		.action_({|sl|
+		.action_({ |sl|
 			[\sliderX, sl.x, \sliderY, sl.y].postln;
 		});
 t.step_(0.01);

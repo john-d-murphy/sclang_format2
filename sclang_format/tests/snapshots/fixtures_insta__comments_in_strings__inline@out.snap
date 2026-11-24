@@ -26,9 +26,7 @@ var a, b;
 
 // code that *should* be formatted normally
 a = 1 + 2;
-if (a > 0) {
-    "ok".postln
-};
+if (a > 0) { "ok".postln };
 
 // make sure pipes inside strings don't trigger pipe rules
 "{ |x, y| x + y } in a string".postln;

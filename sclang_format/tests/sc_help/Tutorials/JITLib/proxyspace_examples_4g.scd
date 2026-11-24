@@ -1,4 +1,2 @@
-// Source: Tutorials/JITLib/proxyspace_examples.schelp block 4 (part 7/8)
-~lfo3 = { Mix(~lfo2.kr * [1, 1.2]) };
-
-currentEnvironment.free;
+// Source: Tutorials/JITLib/proxyspace_examples.schelp block 4 (part 7/10)
+~lfo = (~lfo3 / 50).sin * 200 + 500 * { LFTri.kr(~lfo.kr * 0.0015, 0, 0.1 * ~lfo3.kr / 90, 1) };

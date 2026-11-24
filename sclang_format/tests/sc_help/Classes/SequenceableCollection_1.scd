@@ -1,2 +1,2 @@
 // Source: Classes/SequenceableCollection.schelp block 1
-Array.geom(5, 1, 3);
+Array.series(5, 10, 2);

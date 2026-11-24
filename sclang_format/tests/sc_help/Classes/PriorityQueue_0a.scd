@@ -1,4 +1,4 @@
-// Source: Classes/PriorityQueue.schelp block 0 (part 1/7)
+// Source: Classes/PriorityQueue.schelp block 0 (part 1/9)
 (
 var p;
 p = PriorityQueue.new;
@@ -9,7 +9,7 @@ p.put(0.5, \c);
 p.put(0.2, \d);
 p.put(1.0, \e);
 
-while ({ p.notEmpty },{
+while ({ p.notEmpty }, {
 	[p.topPriority, p.pop].postln;
 });
 

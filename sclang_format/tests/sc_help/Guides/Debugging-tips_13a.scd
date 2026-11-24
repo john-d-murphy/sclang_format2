@@ -1,4 +1,4 @@
-// Source: Guides/Debugging-tips.schelp block 13 (part 1/5)
+// Source: Guides/Debugging-tips.schelp block 13 (part 1/68)
 SynthDef(\resonz, { |out, freq = 440|
 	var	sig, ffreq;
 	sig = Saw.ar([freq, freq+1], 0.2);

@@ -1,9 +1,9 @@
 // Source: Classes/PstepNfunc.schelp block 0 (part 2/4)
 (
-f = { arg vals;
+f = { |vals|
 	var r;
 	r = vals.copy.removeAt(0);
-	vals.do({ arg item;  r = item / r.squared * 10 });
+	vals.do({ |item|  r = item / r.squared * 10 });
 	r
 };
 x = PstepNfunc(f,

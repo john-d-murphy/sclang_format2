@@ -1,2 +1,2 @@
-// Source: Classes/OSCFunc.schelp block 0 (part 14/22)
-m.sendMsg("/chat", "Hello App 1");
+// Source: Classes/OSCFunc.schelp block 0 (part 14/25)
+AbstractResponderFunc.allDisabled

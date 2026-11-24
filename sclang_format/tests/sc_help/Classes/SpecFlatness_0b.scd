@@ -3,7 +3,7 @@
 { // Example - vary mixture of white noise and pure tone with the mouse
 	var in, chain, flat, flatdb, flatdbsquish;
 
-	in = XFade2.ar(WhiteNoise.ar, SinOsc.ar, MouseX.kr(-1,1));
+	in = XFade2.ar(WhiteNoise.ar, SinOsc.ar, MouseX.kr(-1, 1));
 	chain = FFT(LocalBuf(2048), in);
 	Out.ar(0, in * 0.1);
 

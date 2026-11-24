@@ -1,2 +1,2 @@
 // Source: Classes/String.schelp block 65 (part 2/2)
-~listing.reverse.as(Array).dupEach.join.postln;
+"echo one; sleep 1; echo two; sleep 1".unixCmd { |res, pid| [\done, res, pid].postln };

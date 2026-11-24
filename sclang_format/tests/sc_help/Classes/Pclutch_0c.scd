@@ -3,7 +3,7 @@
 var a;
 a = Pclutch(
 		Pseq([1, 2, 3, 4, 5], inf),
-		Pseq([0, 0, 1, 0, Pn(0, {30.rand}), 0, 1, 1], inf)
+		Pseq([0, 0, 1, 0, Pn(0, { 30.rand }), 0, 1, 1], inf)
 	).asStream;
 {
 	loop {

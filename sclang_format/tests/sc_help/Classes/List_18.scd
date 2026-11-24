@@ -1,2 +1,8 @@
 // Source: Classes/List.schelp block 18
-List[1, 2, 3, 4].mirror2.postln;
+(
+var y, z;
+z = List[1, 2, 3, 4];
+y = z.reverse;
+z.postln;
+y.postln;
+)

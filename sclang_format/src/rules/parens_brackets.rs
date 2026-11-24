@@ -1,18 +1,11 @@
 // src/rules/parens_brackets.rs
 
-use crate::engine::ast::in_string_or_comment;
+use crate::engine::ast::end_of_token_before;
+use crate::engine::text::is_space;
 use crate::engine::{Ctx, TextEdit};
 use crate::rules::Rule;
 use anyhow::Result;
 use tree_sitter::Node;
-
-const fn is_space(b: u8) -> bool {
-    b == b' ' || b == b'\t'
-}
-
-const fn is_newline(b: u8) -> bool {
-    b == b'\n' || b == b'\r'
-}
 
 /// Check if there's a comment node starting at or near the given byte position
 fn comment_starts_at(root: Node, byte: usize) -> bool {
@@ -33,81 +26,9 @@ impl Rule for ParenBracketSpacing {
     }
 
     fn run(&self, cx: &mut Ctx) -> Result<usize> {
-        let src = cx.bytes();
-        let bytes: &[u8] = &src;
-        let len = bytes.len();
         let root = cx.tree.root_node();
-
         let mut edits = Vec::new();
-
-        for i in 0..len {
-            let b = bytes[i];
-
-            match b {
-                b'(' | b'[' => {
-                    // Skip if inside string or comment
-                    if in_string_or_comment(root, i) {
-                        continue;
-                    }
-
-                    // Find end of whitespace run after delimiter
-                    let mut j = i + 1;
-                    while j < len && is_space(bytes[j]) && !is_newline(bytes[j]) {
-                        j += 1;
-                    }
-
-                    // Only remove if there's whitespace to remove
-                    if j > i + 1 {
-                        // Don't remove if followed by a comment
-                        if j < len && comment_starts_at(root, j) {
-                            continue;
-                        }
-
-                        // Don't remove whitespace in empty brackets/parens: [ ] or ( )
-                        if j < len && (bytes[j] == b']' || bytes[j] == b')') {
-                            continue;
-                        }
-
-                        edits.push(TextEdit {
-                            start_byte: i + 1,
-                            end_byte: j,
-                            replacement: String::new(),
-                        });
-                    }
-                }
-                b')' | b']' => {
-                    // Skip if inside string or comment
-                    if in_string_or_comment(root, i) {
-                        continue;
-                    }
-
-                    // Find start of whitespace run before delimiter
-                    let mut j = i;
-                    while j > 0 && is_space(bytes[j - 1]) && !is_newline(bytes[j - 1]) {
-                        j -= 1;
-                    }
-
-                    // Only remove if there's whitespace to remove
-                    if j < i {
-                        // Don't remove whitespace that is part of a char literal
-                        // e.g. $ (dollar-space) is the char literal for space
-                        if j > 0 && bytes[j - 1] == b'$' {
-                            continue;
-                        }
-                        // Don't remove whitespace in empty brackets/parens: [ ] or ( )
-                        if j > 0 && (bytes[j - 1] == b'[' || bytes[j - 1] == b'(') {
-                            continue;
-                        }
-                        edits.push(TextEdit {
-                            start_byte: j,
-                            end_byte: i,
-                            replacement: String::new(),
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
+        collect(cx.bytes(), root, root, &mut edits);
 
         let n = edits.len();
         if n > 0 {
@@ -115,6 +36,67 @@ impl Rule for ParenBracketSpacing {
         }
         Ok(n)
     }
+}
+
+/// Every parenthesis and bracket the tree holds under `node`. One in a
+/// string, a symbol, a character or a comment is no token, and is not met.
+fn collect(bytes: &[u8], root: Node, node: Node, edits: &mut Vec<TextEdit>) {
+    match node.kind() {
+        "(" | "[" => remove_blanks_after(bytes, root, node, edits),
+        ")" | "]" => remove_blanks_before(bytes, node, edits),
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect(bytes, root, child, edits);
+    }
+}
+
+fn remove_blanks_after(bytes: &[u8], root: Node, open: Node, edits: &mut Vec<TextEdit>) {
+    let start = open.end_byte();
+    let mut end = start;
+    while end < bytes.len() && is_space(bytes[end]) {
+        end += 1;
+    }
+    if end == start {
+        return;
+    }
+    // Don't remove if followed by a comment
+    if end < bytes.len() && comment_starts_at(root, end) {
+        return;
+    }
+    // Don't remove whitespace in empty brackets/parens: [ ] or ( )
+    if end < bytes.len() && (bytes[end] == b']' || bytes[end] == b')') {
+        return;
+    }
+    edits.push(TextEdit {
+        start_byte: start,
+        end_byte: end,
+        replacement: String::new(),
+    });
+}
+
+fn remove_blanks_before(bytes: &[u8], close: Node, edits: &mut Vec<TextEdit>) {
+    let end = close.start_byte();
+    // As far back as the token before: the blank of the character `$ `, or
+    // of `$\ `, is that token's.
+    let token_end = end_of_token_before(close);
+    let mut start = end;
+    while start > token_end && is_space(bytes[start - 1]) {
+        start -= 1;
+    }
+    if start == end {
+        return;
+    }
+    // Don't remove whitespace in empty brackets/parens: [ ] or ( )
+    if start > 0 && (bytes[start - 1] == b'[' || bytes[start - 1] == b'(') {
+        return;
+    }
+    edits.push(TextEdit {
+        start_byte: start,
+        end_byte: end,
+        replacement: String::new(),
+    });
 }
 
 #[cfg(test)]
@@ -126,13 +108,26 @@ mod tests {
     fn format(src: &str) -> String {
         let mut cx = Ctx::new(
             src.to_string(),
-            grammar::language(),
+            &grammar::language(),
             IndentStyle::Spaces { width: 4 },
         )
         .unwrap();
         let rule = ParenBracketSpacing;
         rule.run(&mut cx).unwrap();
         cx.to_string()
+    }
+
+    #[test]
+    fn test_a_bracket_in_a_character_a_symbol_or_a_string_is_not_one() {
+        for src in [
+            "x = [$( , $[ , 1];",
+            "x = [1, $ ];",
+            "x = [$\\n, $\\t, $\\ ];",
+            "x = ['( a', \"[ b\", \\a];",
+            "x = [$', 1]; y = ( 1 ); z = [$', 2];",
+        ] {
+            assert_eq!(format(src), src.replace("( 1 )", "(1)"));
+        }
     }
 
     #[test]
@@ -164,8 +159,7 @@ mod tests {
         // Should NOT become "(// comment" - preserve space before comment
         assert!(
             result.contains("(  //"),
-            "Should preserve space before comment, got: {}",
-            result
+            "Should preserve space before comment, got: {result}"
         );
     }
 
@@ -177,8 +171,7 @@ mod tests {
         // Should preserve the whitespace before comment
         assert!(
             !result.contains("(//"),
-            "Should not remove all space before comment, got: {}",
-            result
+            "Should not remove all space before comment, got: {result}"
         );
     }
 
@@ -189,8 +182,7 @@ mod tests {
         // Should preserve space before block comment
         assert!(
             result.contains("(  /*"),
-            "Should preserve space before block comment, got: {}",
-            result
+            "Should preserve space before block comment, got: {result}"
         );
     }
 

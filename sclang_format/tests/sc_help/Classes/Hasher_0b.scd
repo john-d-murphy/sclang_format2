@@ -2,7 +2,7 @@
 (
 {
 	SinOsc.ar(
-		Hasher.kr(MouseX.kr(0,10).round(1), 300, 500)
+		Hasher.kr(MouseX.kr(0, 10).round(1), 300, 500)
 	) * 0.1
 }.play;
 )

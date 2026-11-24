@@ -3,7 +3,7 @@
 var pulse;
 {
 	pulse = LFPulse.kr(8.772);
-	Out.kr(0,[Ramp.kr(pulse, 0.025), Lag.kr(pulse, 0.025), pulse]);
+	Out.kr(0, [Ramp.kr(pulse, 0.025), Lag.kr(pulse, 0.025), pulse]);
 }.play;
 s.scope(3, bufsize: 44100, rate: \control, zoom: 40);
 )

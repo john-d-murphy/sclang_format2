@@ -1,2 +1,2 @@
 // Source: Classes/Collection.schelp block 38
-List[1, 2, 3, 4].maxItem({ arg item, i; item + 10 });
+List[1, 2, 3, 3, 4, 3, 4, 3].occurrencesOf(3);

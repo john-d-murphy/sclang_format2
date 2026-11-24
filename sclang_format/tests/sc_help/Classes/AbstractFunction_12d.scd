@@ -1,2 +1,2 @@
-// Source: Classes/AbstractFunction.schelp block 12 (part 4/5)
-a.asStream.nextN(12);
+// Source: Classes/AbstractFunction.schelp block 12 (part 4/6)
+a = Pseries(60, 1, inf).midicps;

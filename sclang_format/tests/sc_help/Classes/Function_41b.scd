@@ -1,2 +1,2 @@
-// Source: Classes/Function.schelp block 41 (part 2/13)
-{|error| [\catch, error].postln };
+// Source: Classes/Function.schelp block 41 (part 2/3)
+x = a.asStream;

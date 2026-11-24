@@ -2,7 +2,7 @@
 (
 n = 0;
 Routine({
-	inf.do({ arg i;
+	inf.do({ |i|
 		Synth.new("help-NRand", [\n, n]); 0.05.wait;
 	})
 }).play;

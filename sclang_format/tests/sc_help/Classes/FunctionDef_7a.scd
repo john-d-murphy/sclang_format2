@@ -1,2 +1,2 @@
-// Source: Classes/FunctionDef.schelp block 7 (part 1/2)
-{ |a = 9, b = 10 ... c| a + b }.def.argumentString(withEllipsis: true);
+// Source: Classes/FunctionDef.schelp block 7 (part 1/3)
+{ |a, b, c| a + b * c }.def.hasVarArgs;

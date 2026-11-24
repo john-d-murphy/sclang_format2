@@ -9,7 +9,7 @@ w.drawFunc = {
         Pen.color = Color.red(rrand(0.0, 1), rrand(0.0, 0.5));
         Pen.addArc((100.rand)@(100.rand), rrand(10, 100), 2pi.rand, pi);
         Pen.perform([\stroke, \fill].choose);
-    }
+   }
 };
 w.refresh;
 )

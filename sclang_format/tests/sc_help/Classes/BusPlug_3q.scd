@@ -1,2 +1,2 @@
-// Source: Classes/BusPlug.schelp block 3 (part 17/19)
-p.play(12);
+// Source: Classes/BusPlug.schelp block 3 (part 17/23)
+d = { Out.ar(p.index, PinkNoise.ar([0.1, 0.1])) }.play;

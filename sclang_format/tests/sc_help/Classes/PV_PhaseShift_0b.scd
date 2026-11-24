@@ -1,6 +1,6 @@
 // Source: Classes/PV_PhaseShift.schelp block 0 (part 2/2)
 (
-SynthDef("help-phaseShift", { arg out=0;
+SynthDef("help-phaseShift", { |out = 0|
         var in, chain;
         in = SinOsc.ar(500);
         chain = FFT(LocalBuf(2048), in);

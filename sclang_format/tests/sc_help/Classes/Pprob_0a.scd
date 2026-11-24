@@ -1,4 +1,4 @@
-// Source: Classes/Pprob.schelp block 0 (part 1/12)
+// Source: Classes/Pprob.schelp block 0 (part 1/16)
 (
 var a = Pprob([0,0,0,0,1,1,1,1,3,3,6,6,9].scramble);
 var b = a.asStream;

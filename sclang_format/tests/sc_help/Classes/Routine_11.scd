@@ -1,7 +1,7 @@
 // Source: Classes/Routine.schelp block 11
 (
 var r, outval;
-r = Routine.new({ arg inval;
+r = Routine.new({ |inval|
 	("->inval was " ++ inval).postln;
 	inval = 1.yield;
 	("->inval was " ++ inval).postln;

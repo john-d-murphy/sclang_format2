@@ -1,6 +1,6 @@
 // Source: Classes/PV_LocalMax.schelp block 0 (part 4/4)
 (
-SynthDef("help-localMax2", { arg out=0, soundBufnum=2;
+SynthDef("help-localMax2", { |out = 0, soundBufnum = 2|
 	var in, chain;
 	in = PlayBuf.ar(1, soundBufnum, BufRateScale.kr(soundBufnum), loop: 1);
 	chain = FFT(LocalBuf(2048), in);

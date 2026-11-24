@@ -2,11 +2,11 @@
 (
 w = Window.new.front;
 w.view.background_(Color.white);
-StaticText(w, Rect(0,0,200,20))
+StaticText(w, Rect(0, 0, 200, 20))
     .string_(" Change Line Cap & Join Styles: ");
-y = PopUpMenu(w, Rect(200,0,130,20))
+y = PopUpMenu(w, Rect(200, 0, 130, 20))
     .items_(["Butt - Miter", "Round - Round", "Square - Bevel"])
-    .action_({w.refresh});
+    .action_({ w.refresh });
 w.drawFunc = {
     Pen.strokeColor = Color.red;
     Pen.width_(8.0);

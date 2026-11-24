@@ -549,7 +549,7 @@ impl<'a> Layout<'a> {
             && breaks.len() == 1
             && !holds_comment
             && self.cuts(from, to, &pairs).is_empty()
-            && self.brackets_serve(chain, from, to, depth, &pairs)
+            && self.brackets_serve(chain, breaks[0], from, to, depth, &pairs)
         {
             return false;
         }
@@ -639,11 +639,15 @@ impl<'a> Layout<'a> {
     }
 
     /// Whether opening a pair of brackets is enough for the statement
-    /// `from..to`, whose value is `chain`: the pair ends the chain, or the
-    /// chain begins with it and what follows it fits on its line.
+    /// `from..to`, whose value is `chain`, a chain of the one operator
+    /// `operator`: the pair ends the chain; or the chain begins with it and
+    /// what follows it fits on its line; or it stands before the operator
+    /// in an operand too wide for a line by itself, which is opened
+    /// whatever is done, and what follows it fits on its line.
     fn brackets_serve(
         &self,
         chain: Node,
+        operator: Node,
         from: usize,
         to: usize,
         depth: usize,
@@ -651,10 +655,13 @@ impl<'a> Layout<'a> {
     ) -> bool {
         self.choose(from, to, depth, pairs).is_some_and(|choice| {
             let brackets = self.pairs[choice.of].brackets;
+            let rest_fits = || self.fits(brackets.close.start_byte(), to, depth);
             let ends = brackets.close.end_byte() == chain.end_byte();
-            let begins = brackets.open.start_byte() == chain.start_byte()
-                && self.fits(brackets.close.start_byte(), to, depth);
-            choice.head_fits && (ends || begins)
+            let begins = brackets.open.start_byte() == chain.start_byte() && rest_fits();
+            let opened_anyway = brackets.close.end_byte() <= operator.start_byte()
+                && !self.fits(from, self.code_end(from, operator.start_byte()), depth)
+                && rest_fits();
+            choice.head_fits && (ends || begins || opened_anyway)
         })
     }
 
@@ -1322,6 +1329,12 @@ mod tests {
                 "x = [firstElementOfAll, secondElementOfAll, thirdElementOfAll, fourthElementOfAll] ++ rest;\n"
             ),
             "x = [\n    firstElementOfAll, secondElementOfAll, thirdElementOfAll, fourthElementOfAll\n] ++ rest;\n"
+        );
+        // The brackets of a first operand too wide for a line by itself:
+        // they are opened whatever is done, and a line break before the
+        // operator would only leave it hanging under their closing one.
+        assert_layout(
+            "f = {\n    snd = BPF.ar(\n        snd,\n        (0..30).normalize.linexp(0, 1, ExpRand(30, 60), ExpRand(3000, 6000)),\n        0.05\n    ).sum * 4.dbamp;\n    snd\n};\n",
         );
         // Neither: it breaks before its operator.
         assert_eq!(

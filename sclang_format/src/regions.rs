@@ -181,12 +181,15 @@ pub fn reads_two_ways(code: &str) -> Result<bool> {
 /// # Errors
 /// When the grammar cannot be loaded.
 pub fn is_program(code: &str) -> Result<bool> {
+    // Without the blanks around it: an indent before the first line would
+    // make that line look as if it went on from another.
+    let code = code.trim();
     let mut parser = Parser::new();
     parser.set_language(&grammar::language())?;
     let sound = parser
         .parse(code, None)
         .is_some_and(|tree| !tree.root_node().has_error());
-    Ok(!code.trim().is_empty() && sound && !reads_two_ways(code)?)
+    Ok(!code.is_empty() && sound && !reads_two_ways(code)?)
 }
 
 /// A part of a file of regions. The parts, in order, are the file.
@@ -408,6 +411,8 @@ mod tests {
     fn test_loose_lines_that_read_another_way_together_are_left() {
         for loose in [
             "a=5\n-3.postln",
+            // The first line indented: it is still a line of its own.
+            "  a=5\n-3.postln",
             "x.play\n(1..3).do{|i|i.postln}",
             "a=[1,2,3]\n[0].postln",
         ] {

@@ -619,7 +619,9 @@ impl<'a> Layout<'a> {
         let mut start = from;
         for i in self.pairs_in(from, to) {
             let brackets = self.pairs[i].brackets;
-            if self.must_break(brackets.open.end_byte(), brackets.close.start_byte()) {
+            // Asked of the pair with its brackets: a block that is always
+            // open is itself the thing that must break, on one line or not.
+            if self.must_break(brackets.open.start_byte(), brackets.close.end_byte()) {
                 if wide(start, brackets.open.end_byte()) {
                     return true;
                 }
@@ -1405,6 +1407,11 @@ mod tests {
         // No line of it is too wide: a block that is open makes it long, not
         // wide.
         assert_stays("x = a.b(1).c { |y|\n    y.postln;\n    y\n}.d;\n");
+        // However it was typed: a block that is always open is not counted
+        // into the width of the line it opens on, joined onto it or not.
+        assert_layout(
+            "fork {\n    [\\freq, freq, \\mod, mod, \\modrange, modrange].flop.do { |args|\n        args.postln;\n        Synth(\"help_multichannel\", args);\n        0.3.wait\n    }\n};\n",
+        );
         assert_stays(
             "r = rects.collect { |rect|\n    rect.postln;\n    rect\n}.flatten.reverse;\n",
         );

@@ -27,10 +27,21 @@
 // A class file sclang refuses stops the library from compiling, and then
 // sclang never gets as far as this file.
 //
+//     sclang tests/judge.scd <file> texts <first>
+//
+// Compiles the texts of one file, which a form feed parts from one another,
+// from the text numbered <first> on (they are counted from 0), and posts a
+// record for each as for a file, opened by its number:
+//
+//     @@judge text <number>
+//
+// This is for texts too many to be a file each. Whoever runs it starts again
+// after a text that stops sclang.
+//
 // Nothing is run: .compile turns the text into a Function and never calls it.
 // Nothing here touches a server. The last line quits, whatever happened.
 
-var dump, dir, files, classes;
+var dump, dir, files, classes, texts, judge;
 
 // Everything the compiler made, on one line, so that two compilations can be
 // compared as text: the bytecode, the literals (a nested function is one of
@@ -56,20 +67,31 @@ dump = { |x|
 	{ x.asCompileString }
 };
 
+judge = { |text|
+	var function = text.compile;
+	if(function.isNil) {
+		"@@judge refused".postln
+	} {
+		("@@judge accepted " ++ dump.(function.def)).postln
+	}
+};
+
 files = {
 	PathName(dir).deepFiles
 	.select { |p| p.extension == "scd" }
 	.collect(_.fullPath)
 	.sort
 	.do { |path|
-		var function;
 		("@@judge file " ++ path).postln;
-		function = File.readAllString(path).compile;
-		if(function.isNil) {
-			"@@judge refused".postln
-		} {
-			("@@judge accepted " ++ dump.(function.def)).postln
-		}
+		judge.(File.readAllString(path))
+	}
+};
+
+texts = {
+	var first = thisProcess.argv[2].asInteger;
+	File.readAllString(dir).split(12.asAscii).drop(first).do { |text, i|
+		("@@judge text " ++ (first + i)).postln;
+		judge.(text)
 	}
 };
 
@@ -99,7 +121,7 @@ classes = {
 
 {
 	dir = thisProcess.argv[0] ?? { Error("judge.scd: no directory given").throw };
-	if(thisProcess.argv[1] == "classes", classes, files).value;
+	switch(thisProcess.argv[1], "classes", classes, "texts", texts, files);
 	"@@judge done".postln;
 }.try { |error| error.reportError };
 0.exit;

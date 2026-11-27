@@ -55,18 +55,7 @@ const NOT_SUPERCOLLIDER: &[&str] = &[
 /// Examples the formatter is known to fail on, each with what is wrong. The
 /// test tolerates exactly these files; one that no longer fails must be
 /// removed. To see the faults afresh, empty the list and run the test.
-const KNOWN_FAULTS: &[&str] = &[
-    // A second pass changes it. Some of its lines end in a carriage return
-    // alone, as files from the old Mac OS do. The grammar takes a carriage
-    // return for a blank, and so do the rules: one before a line break the
-    // formatter writes is left standing at the end of the line, and one
-    // before a line break it finds is taken away or left, as the rule at
-    // work there has it. `{ a;\rb;\r}` comes out as `{\n    a;\r\n    b\r\n}`
-    // and from a second pass as `{\n    a;\r\n    b\n}`. What the formatter
-    // is to do with carriage returns has not been decided: a file with
-    // `\r\n` for its line breaks comes out with some of each.
-    "demonstrations/bit_reduction.scd",
-];
+const KNOWN_FAULTS: &[&str] = &[];
 
 /// An example as the test holds it: its path from the examples' folder, its
 /// text, and its units' texts (none where the units cannot be told).

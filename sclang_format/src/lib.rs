@@ -21,6 +21,10 @@ pub use engine::IndentStyle;
 /// lines between two regions where they are a program; where they are not
 /// one, they are left as they are written.
 ///
+/// Every line break is written `\n`: a carriage return, with a `\n` after
+/// it or alone, is read as the line break it stands for (sclang ends a `//`
+/// comment at either), inside a string too.
+///
 /// # Errors
 /// When `src` does not parse, or a rule breaks it.
 pub fn format_source_with(
@@ -28,6 +32,7 @@ pub fn format_source_with(
     indent_style: IndentStyle,
     line_width: usize,
 ) -> Result<String> {
+    let src = &src.replace("\r\n", "\n").replace('\r', "\n");
     // `text` formatted as one program, or the line where it fails to parse.
     let program = |text: &str| -> Result<std::result::Result<String, usize>> {
         let mut cx = engine::Ctx::new(text.to_string(), &grammar::language(), indent_style)?;

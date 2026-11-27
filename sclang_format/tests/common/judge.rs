@@ -59,27 +59,55 @@ pub fn compile_all(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Compiled> {
         .output()
         .expect("run sclang");
     let stdout = String::from_utf8_lossy(&out.stdout);
+    let posted = posted(&stdout, "@@judge file ");
+    let said: Vec<&str> = stdout.lines().collect();
+    assert!(
+        posted.done,
+        "sclang did not finish judging {} ({}); the end of what it said:\n{}\n{}",
+        dir.display(),
+        out.status,
+        said[said.len().saturating_sub(30)..].join("\n"),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    posted
+        .records
+        .into_iter()
+        .map(|(path, compiled)| {
+            let path = Path::new(&path).strip_prefix(dir).unwrap().to_path_buf();
+            (path, compiled)
+        })
+        .collect()
+}
 
-    let mut files = BTreeMap::new();
-    let mut current: Option<(PathBuf, Compiled)> = None;
+/// What `tests/judge.scd` posted: the records it finished, each with the
+/// name after `opener` on the line that opens it, in order; whether a record
+/// was left open, which is the one sclang stopped in; and whether sclang got
+/// to the end.
+struct Posted {
+    records: Vec<(String, Compiled)>,
+    open: bool,
+    done: bool,
+}
+
+fn posted(stdout: &str, opener: &str) -> Posted {
+    let mut records = Vec::new();
+    let mut current: Option<(String, Compiled)> = None;
     let mut done = false;
     for line in stdout.lines() {
-        if let Some(path) = line.strip_prefix("@@judge file ") {
-            let path = Path::new(path).strip_prefix(dir).unwrap().to_path_buf();
+        if let Some(name) = line.strip_prefix(opener) {
             current = Some((
-                path,
+                name.to_string(),
                 Compiled {
                     dump: None,
                     errors: Vec::new(),
                 },
             ));
         } else if let Some(dump) = line.strip_prefix("@@judge accepted ") {
-            let (path, mut compiled) = current.take().unwrap();
+            let (name, mut compiled) = current.take().unwrap();
             compiled.dump = Some(dump.to_string());
-            files.insert(path, compiled);
+            records.push((name, compiled));
         } else if line == "@@judge refused" {
-            let (path, compiled) = current.take().unwrap();
-            files.insert(path, compiled);
+            records.push(current.take().unwrap());
         } else if line == "@@judge done" {
             done = true;
         } else if let (Some(error), Some((_, compiled))) =
@@ -88,16 +116,57 @@ pub fn compile_all(dir: &Path, work: &Path) -> BTreeMap<PathBuf, Compiled> {
             compiled.errors.push(error.to_string());
         }
     }
-    let said: Vec<&str> = stdout.lines().collect();
-    assert!(
+    Posted {
+        records,
+        open: current.is_some(),
         done,
-        "sclang did not finish judging {} ({}); the end of what it said:\n{}\n{}",
-        dir.display(),
-        out.status,
-        said[said.len().saturating_sub(30)..].join("\n"),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    files
+    }
+}
+
+/// Compiles each of `texts` in one sclang run, headless, and gives what
+/// sclang made of each, in their order: for texts too many to be a file
+/// each. No text may hold a form feed, which parts them in the file sclang
+/// reads. A text that stops sclang (it has crashed on a literal before now)
+/// is given as refused, with that for its error, and sclang is started again
+/// after it. sclang's own files go under `work`.
+pub fn compile_texts(texts: &[String], work: &Path) -> Vec<Compiled> {
+    let xdg = work.join("xdg");
+    fs::create_dir_all(&xdg).unwrap();
+    let file = work.join("texts");
+    fs::write(&file, texts.join("\x0c")).unwrap();
+    let mut compiled = Vec::with_capacity(texts.len());
+    while compiled.len() < texts.len() {
+        let out = Command::new("timeout")
+            .arg("1800")
+            .arg("sclang")
+            .arg(manifest_dir().join("tests/judge.scd"))
+            .arg(&file)
+            .arg("texts")
+            .arg(compiled.len().to_string())
+            .env("XDG_DATA_HOME", &xdg)
+            .env("QT_QPA_PLATFORM", "offscreen")
+            .current_dir(work)
+            .stdin(Stdio::null())
+            .output()
+            .expect("run sclang");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let posted = posted(&stdout, "@@judge text ");
+        assert!(
+            posted.open || posted.done,
+            "sclang stopped between two texts, after {} of {} ({})",
+            compiled.len() + posted.records.len(),
+            texts.len(),
+            out.status
+        );
+        compiled.extend(posted.records.into_iter().map(|(_, compiled)| compiled));
+        if posted.open {
+            compiled.push(Compiled {
+                dump: None,
+                errors: vec!["sclang stopped while compiling it".to_string()],
+            });
+        }
+    }
+    compiled
 }
 
 /// What sclang's class library holds from the class files under `dir`: one
